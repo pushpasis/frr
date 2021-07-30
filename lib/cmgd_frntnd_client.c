@@ -915,7 +915,7 @@ cmgd_result_t cmgd_frntnd_create_client_session(
 	sessn->user_ctxt = user_ctxt;
 	sessn->client_id = client_id;
 	sessn->clnt_ctxt = clnt_ctxt;
-	sessn->session_id = 0;
+	sessn->session_id = &sessn;
 	cmgd_session_list_add_tail(&clnt_ctxt->client_sessions, sessn);
 
 	if (cmgd_frntnd_send_session_req(clnt_ctxt, sessn, true) != 0)
