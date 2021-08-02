@@ -85,7 +85,7 @@ static inline cmgd_database_id_t cmgd_get_db_id_by_name(const char *db_name)
 	return CMGD_DB_NONE;
 }
 static inline void cmgd_xpath_append_trail_wildcard(
-	char *xpath, size_t *xpath_len)
+	char *xpath, char *cmgd_xpath_wildcard, size_t *xpath_len)
 {
 	if (!xpath || !xpath_len)
 		return;
@@ -95,34 +95,13 @@ static inline void cmgd_xpath_append_trail_wildcard(
 
 	if (*xpath_len > 2 && *xpath_len < CMGD_MAX_XPATH_LEN-2) { 
 		if (xpath[*xpath_len-1] == '/') {
-			xpath[*xpath_len] = '*';
-			xpath[*xpath_len+1] = 0;
-                        (*xpath_len)++;
+			snprintf(cmgd_xpath_wildcard, CMGD_MAX_XPATH_LEN, "%s%c", xpath,
+						'*');
 		} else if (xpath[*xpath_len-1] != '*') {
-			xpath[*xpath_len] = '/';
-			xpath[*xpath_len+1] = '*';
-			xpath[*xpath_len+2] = 0;
-                        (*xpath_len) += 2;
+			snprintf(cmgd_xpath_wildcard, CMGD_MAX_XPATH_LEN, "%s%c%c", xpath,
+						'/', '*');
 		}
 	}
-}
-
-static inline void cmgd_xpath_remove_trail_wildcard(
-	char *xpath, size_t *xpath_len)
-{
-	if (!xpath || !xpath_len)
-		return;
-
-	if (!*xpath_len)
-		*xpath_len = strlen(xpath);
-
-	if (*xpath_len > 2 && xpath[*xpath_len-2] == '/' &&
-		xpath[*xpath_len-1] == '*') {
-		xpath[*xpath_len-2] = 0;
-                (*xpath_len) -= 2;
-                // xpath[*xpath_len-1] = 0;
-                // (*xpath_len)--;
-        }
 }
 
 extern int cmgd_db_init(struct cmgd_master *cm);

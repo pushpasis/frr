@@ -218,6 +218,7 @@ static int cmgd_walk_db_nodes(cmgd_db_ctxt_t *db_ctxt,
 	struct lyd_node *dnode;
 	struct nb_node *nbnode;
 	bool alloc_xp = false;
+	char xpath_wild_card[CMGD_MAX_XPATH_LEN];
 
 	if (xpaths || dnodes || nbnodes)
 		assert(num_nodes);
@@ -232,12 +233,11 @@ static int cmgd_walk_db_nodes(cmgd_db_ctxt_t *db_ctxt,
 	}
 
 	xp_len = 0;
-	cmgd_xpath_append_trail_wildcard(base_xpath, &xp_len);
+	cmgd_xpath_append_trail_wildcard(base_xpath, xpath_wild_card, &xp_len);
 	ret = lyd_find_xpath(db_ctxt->config_db ?
 			db_ctxt->root.cfg_root->dnode :
-			db_ctxt->root.dnode_root, base_xpath,
+			db_ctxt->root.dnode_root, xpath_wild_card,
 			&set);
-	cmgd_xpath_remove_trail_wildcard(base_xpath, &xp_len);
 
 	if (LY_SUCCESS != ret) {
 		return -1;
