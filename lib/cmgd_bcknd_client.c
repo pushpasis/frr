@@ -182,7 +182,7 @@ static void cmgd_bcknd_trxn_req_delete(
 		break;
 	}
 
-	XFREE(MTYPE_CMGD_BCKND_TRXN, trxn_req);
+	XFREE(MTYPE_CMGD_BCKND_TRXN_REQ, trxn_req);
 }
 
 static void cmgd_bcknd_trxn_req_cleanup(
