@@ -1171,7 +1171,8 @@ static int cmgd_trxn_prepare_config(cmgd_trxn_ctxt_t *trxn)
 	nb_ctxt.user = (void *)trxn;
 	ret = nb_candidate_validate_yang(nb_config, err_buf, sizeof(err_buf)-1);
 	if (ret != NB_OK) {
-		(void) cmgd_trxn_send_commit_cfg_reply(trxn, false, err_buf);
+		(void) cmgd_trxn_send_commit_cfg_reply(trxn, false,
+			"Validation failed");
 		ret = -1;
 		goto cmgd_trxn_prepare_config_done;
 	}
@@ -1189,7 +1190,8 @@ static int cmgd_trxn_prepare_config(cmgd_trxn_ctxt_t *trxn)
 	ret = nb_candidate_validate_code(&nb_ctxt, nb_config,
 		&changes, err_buf, sizeof(err_buf)-1);
 	if (ret != NB_OK) {
-		(void) cmgd_trxn_send_commit_cfg_reply(trxn, false, err_buf);
+		(void) cmgd_trxn_send_commit_cfg_reply(trxn, false,
+			"Validation failed");
 		ret = -1;
 		goto cmgd_trxn_prepare_config_done;
 	}

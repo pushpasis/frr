@@ -841,6 +841,7 @@ static int cmgd_bcknd_adapter_conn_init(struct thread *thread)
 
 	adptr = (cmgd_bcknd_client_adapter_t *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
+	adptr->conn_init_ev = NULL;
 
 	/*
 	 * Check first if the current session can run a CONFIG

@@ -3270,12 +3270,13 @@ static void vty_cmgd_commit_config_result_notified(
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: COMMIT_CONFIG request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
+		//vty_cmgd_send_commit_config(vty, false, true);
+		vty_cmgd_resume_response(vty, CMD_WARNING_CONFIG_FAILED);
 	} else {
 		zlog_err("COMMIT_CONFIG request for client 0x%lx req-id %lu was successfull!",
 			client_id, req_id);
+		vty_cmgd_resume_response(vty, CMD_SUCCESS);
 	}
-
-	vty_cmgd_resume_response(vty, success);
 }
 
 static cmgd_client_req_id_t last_req_id = 0xFFFFFFFFFFFFFFFF;
