@@ -1056,6 +1056,7 @@ int nb_candidate_apply(struct nb_context *context, struct nb_config *candidate,
 			  "%s: failed to record transaction", __func__);
 
 	nb_transaction_free(transaction);
+	nb_config_diff_del_changes(&changes);
 
 	return ret;
 }
