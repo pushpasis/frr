@@ -47,6 +47,7 @@
 #include "ospf6_flood.h"
 #include "ospf6d.h"
 #include "ospf6_spf.h"
+#include "ospf6_gr.h"
 
 unsigned char conf_debug_ospf6_brouter = 0;
 uint32_t conf_debug_ospf6_brouter_specific_router_id;
@@ -248,6 +249,13 @@ int ospf6_router_lsa_originate(struct thread *thread)
 
 	oa = (struct ospf6_area *)THREAD_ARG(thread);
 	oa->thread_router_lsa = NULL;
+
+	if (oa->ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return 0;
+	}
 
 	if (IS_OSPF6_DEBUG_ORIGINATE(ROUTER))
 		zlog_debug("Originate Router-LSA for Area %s", oa->name);
@@ -532,6 +540,13 @@ int ospf6_network_lsa_originate(struct thread *thread)
 	   by ospf6_lsa_refresh (), and does not come here. */
 	assert(oi->area);
 
+	if (oi->area->ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return 0;
+	}
+
 	old = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_NETWORK),
 				htonl(oi->interface->ifindex),
 				oi->area->ospf6->router_id, oi->area->lsdb);
@@ -773,6 +788,14 @@ int ospf6_link_lsa_originate(struct thread *thread)
 
 	assert(oi->area);
 
+	if (oi->area->ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return 0;
+	}
+
+
 	/* find previous LSA */
 	old = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_LINK),
 				htonl(oi->interface->ifindex),
@@ -1009,6 +1032,13 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 	oa = (struct ospf6_area *)THREAD_ARG(thread);
 	oa->thread_intra_prefix_lsa = NULL;
 
+	if (oa->ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return 0;
+	}
+
 	/* find previous LSA */
 	old = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_INTRA_PREFIX), htonl(0),
 				oa->ospf6->router_id, oa->lsdb);
@@ -1243,6 +1273,13 @@ int ospf6_intra_prefix_lsa_originate_transit(struct thread *thread)
 
 	assert(oi->area);
 
+	if (oi->area->ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return 0;
+	}
+
 	/* find previous LSA */
 	old = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_INTRA_PREFIX),
 				htonl(oi->interface->ifindex),
@@ -1458,7 +1495,6 @@ void ospf6_intra_prefix_route_ecmp_path(struct ospf6_area *oa,
 	struct listnode *anode, *anext;
 	struct listnode *nnode, *rnode, *rnext;
 	struct ospf6_nexthop *nh, *rnh;
-	char buf[PREFIX2STR_BUFFER];
 	bool route_found = false;
 	struct interface *ifp = NULL;
 	struct ospf6_lsa *lsa;
@@ -1470,8 +1506,14 @@ void ospf6_intra_prefix_route_ecmp_path(struct ospf6_area *oa,
 	for (old_route = old; old_route; old_route = old_route->next) {
 		bool route_updated = false;
 
-		if (!ospf6_route_is_same(old_route, route) ||
-			(old_route->path.type != route->path.type))
+		/* The route linked-list is grouped in batches of prefix.
+		 * If the new prefix is not the same as the one of interest
+		 * then we have walked over the end of the batch and so we
+		 * should break rather than continuing unnecessarily.
+		 */
+		if (!ospf6_route_is_same(old_route, route))
+			break;
+		if (old_route->path.type != route->path.type)
 			continue;
 
 		/* Current and New route has same origin,
@@ -1569,8 +1611,14 @@ void ospf6_intra_prefix_route_ecmp_path(struct ospf6_area *oa,
 
 	for (old_route = old; old_route; old_route = old_route->next) {
 
-		if (!ospf6_route_is_same(old_route, route) ||
-			(old_route->path.type != route->path.type))
+		/* The route linked-list is grouped in batches of prefix.
+		 * If the new prefix is not the same as the one of interest
+		 * then we have walked over the end of the batch and so we
+		 * should break rather than continuing unnecessarily.
+		 */
+		if (!ospf6_route_is_same(old_route, route))
+			break;
+		if (old_route->path.type != route->path.type)
 			continue;
 
 		/* Old Route and New Route have Equal Cost, Merge NHs */
@@ -1630,8 +1678,9 @@ void ospf6_intra_prefix_route_ecmp_path(struct ospf6_area *oa,
 				if (ls_entry == NULL) {
 					if (IS_OSPF6_DEBUG_EXAMIN(INTRA_PREFIX))
 						zlog_debug(
-							"%s: ls_prfix %s ls_entry not found.",
-							__func__, buf);
+							"%s: ls_prfix %pFX ls_entry not found.",
+							__func__,
+							&o_path->ls_prefix);
 					continue;
 				}
 				lsa = ospf6_lsdb_lookup(o_path->origin.type,
@@ -2304,7 +2353,7 @@ void ospf6_intra_brouter_calculation(struct ospf6_area *oa)
 			 * the table. For an example, ospf6_abr_examin_summary,
 			 * removes brouters which are marked for remove.
 			 */
-			oa->intra_brouter_calc = 1;
+			oa->intra_brouter_calc = true;
 			ospf6_route_remove(brouter, oa->ospf6->brouter_table);
 			brouter = NULL;
 		} else if (CHECK_FLAG(brouter->flag, OSPF6_ROUTE_ADD)
@@ -2337,7 +2386,7 @@ void ospf6_intra_brouter_calculation(struct ospf6_area *oa)
 			UNSET_FLAG(brouter->flag, OSPF6_ROUTE_CHANGE);
 		}
 		/* Reset for nbrouter */
-		oa->intra_brouter_calc = 0;
+		oa->intra_brouter_calc = false;
 	}
 
 	if (IS_OSPF6_DEBUG_BROUTER_SPECIFIC_AREA_ID(oa->area_id) ||

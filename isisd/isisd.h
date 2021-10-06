@@ -46,7 +46,11 @@ static const bool fabricd = true;
 #define PROTO_NAME "openfabric"
 #define PROTO_HELP "OpenFabric routing protocol\n"
 #define PROTO_REDIST_STR FRR_REDIST_STR_FABRICD
+#define PROTO_IP_REDIST_STR FRR_IP_REDIST_STR_FABRICD
+#define PROTO_IP6_REDIST_STR FRR_IP6_REDIST_STR_FABRICD
 #define PROTO_REDIST_HELP FRR_REDIST_HELP_STR_FABRICD
+#define PROTO_IP_REDIST_HELP FRR_IP_REDIST_HELP_STR_FABRICD
+#define PROTO_IP6_REDIST_HELP FRR_IP6_REDIST_HELP_STR_FABRICD
 #define ROUTER_NODE OPENFABRIC_NODE
 #else
 static const bool fabricd = false;
@@ -54,7 +58,11 @@ static const bool fabricd = false;
 #define PROTO_NAME "isis"
 #define PROTO_HELP "IS-IS routing protocol\n"
 #define PROTO_REDIST_STR FRR_REDIST_STR_ISISD
+#define PROTO_IP_REDIST_STR FRR_IP_REDIST_STR_ISISD
+#define PROTO_IP6_REDIST_STR FRR_IP6_REDIST_STR_ISISD
 #define PROTO_REDIST_HELP FRR_REDIST_HELP_STR_ISISD
+#define PROTO_IP_REDIST_HELP FRR_IP_REDIST_HELP_STR_ISISD
+#define PROTO_IP6_REDIST_HELP FRR_IP6_REDIST_HELP_STR_ISISD
 #define ROUTER_NODE ISIS_NODE
 extern void isis_cli_init(void);
 #endif
@@ -248,7 +256,6 @@ void isis_terminate(void);
 void isis_master_init(struct thread_master *master);
 void isis_vrf_link(struct isis *isis, struct vrf *vrf);
 void isis_vrf_unlink(struct isis *isis, struct vrf *vrf);
-void isis_global_instance_create(const char *vrf_name);
 struct isis *isis_lookup_by_vrfid(vrf_id_t vrf_id);
 struct isis *isis_lookup_by_vrfname(const char *vrfname);
 struct isis *isis_lookup_by_sysid(const uint8_t *sysid);

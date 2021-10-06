@@ -33,7 +33,10 @@ extern unsigned char conf_debug_ospf6_route;
 #define OSPF6_DEBUG_ROUTE_TABLE   0x01
 #define OSPF6_DEBUG_ROUTE_INTRA   0x02
 #define OSPF6_DEBUG_ROUTE_INTER   0x04
-#define OSPF6_DEBUG_ROUTE_MEMORY  0x80
+#define OSPF6_DEBUG_ROUTE_MEMORY  0x08
+#define OSPF6_DEBUG_ROUTE_ALL                                                  \
+	(OSPF6_DEBUG_ROUTE_TABLE | OSPF6_DEBUG_ROUTE_INTRA                     \
+	 | OSPF6_DEBUG_ROUTE_INTER | OSPF6_DEBUG_ROUTE_MEMORY)
 #define OSPF6_DEBUG_ROUTE_ON(level) (conf_debug_ospf6_route |= (level))
 #define OSPF6_DEBUG_ROUTE_OFF(level) (conf_debug_ospf6_route &= ~(level))
 #define IS_OSPF6_DEBUG_ROUTE(e) (conf_debug_ospf6_route & OSPF6_DEBUG_ROUTE_##e)
@@ -343,7 +346,7 @@ extern int ospf6_route_get_first_nh_index(struct ospf6_route *route);
 	ospf6_add_nexthop(route->nh_list, ifindex, addr)
 
 extern struct ospf6_route *ospf6_route_create(struct ospf6 *ospf6);
-extern void ospf6_route_delete(struct ospf6_route *);
+extern void ospf6_route_delete(struct ospf6_route *route);
 extern struct ospf6_route *ospf6_route_copy(struct ospf6_route *route);
 extern int ospf6_route_cmp(struct ospf6_route *ra, struct ospf6_route *rb);
 
@@ -384,8 +387,10 @@ extern void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
 				    json_object *json, bool use_json);
 
 
-extern int ospf6_route_table_show(struct vty *, int, int, struct cmd_token **,
-				  struct ospf6_route_table *, bool use_json);
+extern int ospf6_route_table_show(struct vty *vty, int argc_start, int argc,
+				  struct cmd_token **argv,
+				  struct ospf6_route_table *table,
+				  bool use_json);
 extern int ospf6_linkstate_table_show(struct vty *vty, int idx_ipv4, int argc,
 				      struct cmd_token **argv,
 				      struct ospf6_route_table *table);

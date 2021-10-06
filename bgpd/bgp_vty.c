@@ -282,6 +282,57 @@ static const char *get_afi_safi_json_str(afi_t afi, safi_t safi)
 	return "Unknown";
 }
 
+/* unset srv6 locator */
+static int bgp_srv6_locator_unset(struct bgp *bgp)
+{
+	int ret;
+	struct listnode *node, *nnode;
+	struct prefix_ipv6 *chunk;
+	struct bgp_srv6_function *func;
+	struct bgp *bgp_vrf;
+	struct in6_addr *tovpn_sid;
+
+	/* release chunk notification via ZAPI */
+	ret = bgp_zebra_srv6_manager_release_locator_chunk(
+			bgp->srv6_locator_name);
+	if (ret < 0)
+		return -1;
+
+	/* refresh chunks */
+	for (ALL_LIST_ELEMENTS(bgp->srv6_locator_chunks, node, nnode, chunk))
+		listnode_delete(bgp->srv6_locator_chunks, chunk);
+
+	/* refresh functions */
+	for (ALL_LIST_ELEMENTS(bgp->srv6_functions, node, nnode, func))
+		listnode_delete(bgp->srv6_functions, func);
+
+	/* refresh tovpn_sid */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp_vrf)) {
+		if (bgp_vrf->inst_type != BGP_INSTANCE_TYPE_VRF)
+			continue;
+
+		/* refresh vpnv4 tovpn_sid */
+		tovpn_sid = bgp_vrf->vpn_policy[AFI_IP].tovpn_sid;
+		if (tovpn_sid)
+			XFREE(MTYPE_BGP_SRV6_SID,
+			      bgp_vrf->vpn_policy[AFI_IP].tovpn_sid);
+
+		/* refresh vpnv6 tovpn_sid */
+		tovpn_sid = bgp_vrf->vpn_policy[AFI_IP6].tovpn_sid;
+		if (tovpn_sid)
+			XFREE(MTYPE_BGP_SRV6_SID,
+			      bgp_vrf->vpn_policy[AFI_IP6].tovpn_sid);
+	}
+
+	/* update vpn bgp processes */
+	vpn_leak_postchange_all();
+
+	/* clear locator name */
+	memset(bgp->srv6_locator_name, 0, sizeof(bgp->srv6_locator_name));
+
+	return 0;
+}
+
 /* Utility function to get address family from current node.  */
 afi_t bgp_node_afi(struct vty *vty)
 {
@@ -861,13 +912,19 @@ static int bgp_peer_clear(struct peer *peer, afi_t afi, safi_t safi,
 	if ((afi == AFI_UNSPEC) && (safi == SAFI_UNSPEC)) {
 		afi_t tmp_afi;
 		safi_t tmp_safi;
+		enum bgp_af_index index;
 
-		FOREACH_AFI_SAFI (tmp_afi, tmp_safi) {
-			paf = peer_af_find(peer, tmp_afi, tmp_safi);
+		for (index = BGP_AF_START; index < BGP_AF_MAX; index++) {
+			paf = peer->peer_af_array[index];
+			if (!paf)
+				continue;
+
 			if (paf && paf->subgroup)
 				SET_FLAG(paf->subgroup->sflags,
 					 SUBGRP_STATUS_FORCE_UPDATES);
 
+			tmp_afi = paf->afi;
+			tmp_safi = paf->safi;
 			if (!peer->afc[tmp_afi][tmp_safi])
 				continue;
 
@@ -9096,6 +9153,23 @@ DEFUN_NOSH (bgp_segment_routing_srv6,
 	return CMD_SUCCESS;
 }
 
+DEFUN (no_bgp_segment_routing_srv6,
+       no_bgp_segment_routing_srv6_cmd,
+       "no segment-routing srv6",
+       NO_STR
+       "Segment-Routing configuration\n"
+       "Segment-Routing SRv6 configuration\n")
+{
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (strlen(bgp->srv6_locator_name) > 0)
+		if (bgp_srv6_locator_unset(bgp) < 0)
+			return CMD_WARNING_CONFIG_FAILED;
+
+	bgp->srv6_enabled = false;
+	return CMD_SUCCESS;
+}
+
 DEFPY (bgp_srv6_locator,
        bgp_srv6_locator_cmd,
        "locator NAME$name",
@@ -9116,6 +9190,32 @@ DEFPY (bgp_srv6_locator,
 
 	ret = bgp_zebra_srv6_manager_get_locator_chunk(name);
 	if (ret < 0)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	return CMD_SUCCESS;
+}
+
+DEFPY (no_bgp_srv6_locator,
+       no_bgp_srv6_locator_cmd,
+       "no locator NAME$name",
+       NO_STR
+       "Specify SRv6 locator\n"
+       "Specify SRv6 locator\n")
+{
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	/* when locator isn't configured, do nothing */
+	if (strlen(bgp->srv6_locator_name) < 1)
+		return CMD_SUCCESS;
+
+	/* name validation */
+	if (strcmp(name, bgp->srv6_locator_name) != 0) {
+		vty_out(vty, "%% No srv6 locator is configured\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	/* unset locator */
+	if (bgp_srv6_locator_unset(bgp) < 0)
 		return CMD_WARNING_CONFIG_FAILED;
 
 	return CMD_SUCCESS;
@@ -9974,20 +10074,11 @@ static void bgp_show_failed_summary(struct vty *vty, struct bgp *bgp,
 	}
 }
 
-/* If the peer's description includes whitespaces
- * then return the first occurrence. Also strip description
- * to the given size if needed.
- */
+/* Strip peer's description to the given size. */
 static char *bgp_peer_description_stripped(char *desc, uint32_t size)
 {
 	static char stripped[BUFSIZ];
-	char *pnt;
 	uint32_t len = size > strlen(desc) ? strlen(desc) : size;
-
-	pnt = strchr(desc, ' ');
-	if (pnt)
-		len = size > (uint32_t)(pnt - desc) ? (uint32_t)(pnt - desc)
-						    : size;
 
 	strlcpy(stripped, desc, len + 1);
 
@@ -10020,7 +10111,15 @@ static bool bgp_show_summary_is_peer_filtered(struct peer *peer,
 	return false;
 }
 
-/* Show BGP peer's summary information. */
+/* Show BGP peer's summary information.
+ *
+ * Peer's description is stripped according to if `wide` option is given
+ * or not.
+ *
+ * When adding new columns to `show bgp summary` output, please make
+ * sure `Desc` is the lastest column to show because it can contain
+ * whitespaces and the whole output will be tricky.
+ */
 static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 			    struct peer *fpeer, int as_type, as_t as,
 			    uint16_t show_flags)
@@ -10685,6 +10784,9 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 
 					vty_out(vty, " %8u", 0);
 				}
+				/* Make sure `Desc` column is the lastest in
+				 * the output.
+				 */
 				if (peer->desc)
 					vty_out(vty, " %s",
 						bgp_peer_description_stripped(
@@ -18913,7 +19015,9 @@ void bgp_vty_init(void)
 	/* srv6 commands */
 	install_element(VIEW_NODE, &show_bgp_srv6_cmd);
 	install_element(BGP_NODE, &bgp_segment_routing_srv6_cmd);
+	install_element(BGP_NODE, &no_bgp_segment_routing_srv6_cmd);
 	install_element(BGP_SRV6_NODE, &bgp_srv6_locator_cmd);
+	install_element(BGP_SRV6_NODE, &no_bgp_srv6_locator_cmd);
 	install_element(BGP_IPV4_NODE, &af_sid_vpn_export_cmd);
 	install_element(BGP_IPV6_NODE, &af_sid_vpn_export_cmd);
 }

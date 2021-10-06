@@ -217,8 +217,8 @@ def test_ospfv3_expected_route_types():
         {
             "numberOfIntraAreaRoutes": 1,
             "numberOfInterAreaRoutes": 2,
-            "numberOfExternal1Routes": 4,
-            "numberOfExternal2Routes": 0,
+            "numberOfExternal1Routes": 0,
+            "numberOfExternal2Routes": 3,
         },
     )
 
@@ -330,7 +330,7 @@ def test_nssa_lsa_type7():
     ]
     route = {
         "2001:db8:100::/64": {
-            "pathType": "E1",
+            "pathType": "E2",
             "nextHops": [{"nextHop": "::", "interfaceName": "r4-eth0"}],
         }
     }
@@ -429,6 +429,119 @@ def test_nssa_no_summary():
     _, result = topotest.run_and_expect(test_func, None, count=130, wait=1)
     assertmsg = "{}'s inter-area default route still exists".format("r4")
     assert result is None, assertmsg
+
+
+def test_nssa_default_originate():
+    """
+    Test the following:
+    * A type-7 default route should be originated into the NSSA area
+      when the default-information-originate option is configured;
+    * Once the default-information-originate option is unconfigured, the
+      previously originated Type-7 default route should be removed.
+    """
+    tgen = get_topogen()
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    #
+    # Configure r2 to announce a Type-7 default route.
+    #
+    config = """
+    configure terminal
+    router ospf6
+    no default-information originate
+    area 2 nssa default-information-originate
+    """
+    tgen.gears["r2"].vtysh_cmd(config)
+
+    logger.info("Expecting Type-7 default-route to be added")
+    routes = {"::/0": {}}
+    expect_ospfv3_routes("r4", routes, wait=30, type="external-2")
+
+    #
+    # Configure r2 to stop announcing a Type-7 default route.
+    #
+    config = """
+    configure terminal
+    router ospf6
+    area 2 nssa
+    """
+    tgen.gears["r2"].vtysh_cmd(config)
+
+    logger.info("Expecting Type-7 default route to be removed")
+    test_func = partial(dont_expect_route, "r4", "::/0", type="external-2")
+    _, result = topotest.run_and_expect(test_func, None, count=30, wait=1)
+    assertmsg = "r4's Type-7 default route still exists"
+    assert result is None, assertmsg
+
+
+def test_area_filters():
+    """
+    Test ABR import/export filters.
+    """
+    tgen = get_topogen()
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    #
+    # Configure import/export filters on r2 (ABR for area 1).
+    #
+    config = """
+    configure terminal
+    ipv6 access-list ACL_IMPORT seq 5 permit 2001:db8:2::/64
+    ipv6 access-list ACL_IMPORT seq 10 deny any
+    ipv6 access-list ACL_EXPORT seq 10 deny any
+    router ospf6
+    area 1 import-list ACL_IMPORT
+    area 1 export-list ACL_EXPORT
+    """
+    tgen.gears["r2"].vtysh_cmd(config)
+
+    logger.info("Expecting inter-area routes to be removed on r1")
+    for route in ["::/0", "2001:db8:3::/64"]:
+        test_func = partial(dont_expect_route, "r1", route, type="inter-area")
+        _, result = topotest.run_and_expect(test_func, None, count=130, wait=1)
+        assertmsg = "{}'s {} inter-area route still exists".format("r1", route)
+        assert result is None, assertmsg
+
+    logger.info("Expecting inter-area routes to be removed on r3")
+    for route in ["2001:db8:1::/64"]:
+        test_func = partial(dont_expect_route, "r3", route, type="inter-area")
+        _, result = topotest.run_and_expect(test_func, None, count=130, wait=1)
+        assertmsg = "{}'s {} inter-area route still exists".format("r3", route)
+        assert result is None, assertmsg
+
+    #
+    # Update the ACLs used by the import/export filters.
+    #
+    config = """
+    configure terminal
+    ipv6 access-list ACL_IMPORT seq 6 permit 2001:db8:3::/64
+    ipv6 access-list ACL_EXPORT seq 5 permit 2001:db8:1::/64
+    """
+    tgen.gears["r2"].vtysh_cmd(config)
+
+    logger.info("Expecting 2001:db8:3::/64 to be re-added on r1")
+    routes = {"2001:db8:3::/64": {}}
+    expect_ospfv3_routes("r1", routes, wait=30, type="inter-area")
+    logger.info("Expecting 2001:db8:1::/64 to be re-added on r3")
+    routes = {"2001:db8:1::/64": {}}
+    expect_ospfv3_routes("r3", routes, wait=30, type="inter-area")
+
+    #
+    # Unconfigure r2's ABR import/export filters.
+    #
+    config = """
+    configure terminal
+    router ospf6
+    no area 1 import-list ACL_IMPORT
+    no area 1 export-list ACL_EXPORT
+    """
+    tgen.gears["r2"].vtysh_cmd(config)
+
+    logger.info("Expecting ::/0 to be re-added on r1")
+    routes = {"::/0": {}}
+    expect_ospfv3_routes("r1", routes, wait=30, type="inter-area")
 
 
 def teardown_module(_mod):

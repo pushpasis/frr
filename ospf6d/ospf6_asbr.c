@@ -49,9 +49,11 @@
 #include "ospf6_abr.h"
 #include "ospf6_intra.h"
 #include "ospf6_flood.h"
+#include "ospf6_nssa.h"
 #include "ospf6d.h"
 #include "ospf6_spf.h"
 #include "ospf6_nssa.h"
+#include "ospf6_gr.h"
 #include "lib/json.h"
 
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_EXTERNAL_INFO, "OSPF6 ext. info");
@@ -84,7 +86,7 @@ static struct ospf6_lsa *ospf6_originate_type5_type7_lsas(
 
 	for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, lnode, oa)) {
 		if (IS_AREA_NSSA(oa))
-			ospf6_nssa_lsa_originate(route, oa);
+			ospf6_nssa_lsa_originate(route, oa, true);
 	}
 
 	return lsa;
@@ -101,6 +103,13 @@ struct ospf6_lsa *ospf6_as_external_lsa_originate(struct ospf6_route *route,
 
 	struct ospf6_as_external_lsa *as_external_lsa;
 	caddr_t p;
+
+	if (ospf6->gr_info.restart_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Graceful Restart in progress, don't originate LSA");
+		return NULL;
+	}
 
 	if (IS_OSPF6_DEBUG_ASBR || IS_OSPF6_DEBUG_ORIGINATE(AS_EXTERNAL))
 		zlog_debug("Originate AS-External-LSA for %pFX",
@@ -262,8 +271,14 @@ void ospf6_asbr_update_route_ecmp_path(struct ospf6_route *old,
 
 		next_route = old_route->next;
 
-		if (!ospf6_route_is_same(old_route, route)
-		    || (old_route->path.type != route->path.type))
+		/* The route linked-list is grouped in batches of prefix.
+		 * If the new prefix is not the same as the one of interest
+		 * then we have walked over the end of the batch and so we
+		 * should break rather than continuing unnecessarily.
+		 */
+		if (!ospf6_route_is_same(old_route, route))
+			break;
+		if (old_route->path.type != route->path.type)
 			continue;
 
 		/* Current and New route has same origin,
@@ -367,11 +382,14 @@ void ospf6_asbr_update_route_ecmp_path(struct ospf6_route *old,
 	/* Add new route */
 	for (old_route = old; old_route; old_route = old_route->next) {
 
-		/* Current and New Route prefix or route type
-		 * is not same skip this current node.
+		/* The route linked-list is grouped in batches of prefix.
+		 * If the new prefix is not the same as the one of interest
+		 * then we have walked over the end of the batch and so we
+		 * should break rather than continuing unnecessarily.
 		 */
-		if (!ospf6_route_is_same(old_route, route)
-		    || (old_route->path.type != route->path.type))
+		if (!ospf6_route_is_same(old_route, route))
+			break;
+		if (old_route->path.type != route->path.type)
 			continue;
 
 		/* Old Route and New Route have Equal Cost, Merge NHs */
@@ -1121,7 +1139,6 @@ void ospf6_asbr_distribute_list_update(struct ospf6 *ospf6,
 	if (IS_OSPF6_DEBUG_ASBR)
 		zlog_debug("%s: trigger redistribute reset thread", __func__);
 
-	ospf6->t_distribute_update = NULL;
 	thread_add_timer_msec(master, ospf6_asbr_routemap_update_timer, ospf6,
 			      OSPF_MIN_LS_INTERVAL,
 			      &ospf6->t_distribute_update);
@@ -1416,7 +1433,10 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 	memset(&tinfo, 0, sizeof(tinfo));
 
 	if (IS_OSPF6_DEBUG_ASBR)
-		zlog_debug("Redistribute %pFX (%s)", prefix, ZROUTE_NAME(type));
+		zlog_debug("Redistribute %pFX (%s)", prefix,
+			   type == DEFAULT_ROUTE
+				   ? "default-information-originate"
+				   : ZROUTE_NAME(type));
 
 	/* if route-map was specified but not found, do not advertise */
 	if (ROUTEMAP_NAME(red)) {
@@ -1770,7 +1790,7 @@ int ospf6_redistribute_config_write(struct vty *vty, struct ospf6 *ospf6)
 		vty_out(vty, " redistribute %s", ZROUTE_NAME(type));
 		if (red->dmetric.value >= 0)
 			vty_out(vty, " metric %d", red->dmetric.value);
-		if (red->dmetric.type != DEFAULT_METRIC_TYPE)
+		if (red->dmetric.type == 1)
 			vty_out(vty, " metric-type 1");
 		if (ROUTEMAP_NAME(red))
 			vty_out(vty, " route-map %s", ROUTEMAP_NAME(red));
@@ -2513,7 +2533,6 @@ DEFUN(show_ipv6_ospf6_redistribute, show_ipv6_ospf6_redistribute_cmd,
 	json_object *json_array_routes = NULL;
 	json_object *json_array_redistribute = NULL;
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 
 	if (uj) {
