@@ -1655,7 +1655,19 @@ static void mgmt_init_get_data_reply(
 static void mgmt_reset_get_data_reply(
 	mgmt_get_data_reply_t *get_reply)
 {
-	size_t indx;
+	int indx;
+
+	for (indx = 0; indx < get_reply->num_reply; indx++) {
+		if (get_reply->reply_xpathp[indx]) {
+			free(get_reply->reply_xpathp[indx]);
+			get_reply->reply_xpathp[indx] = 0;
+		}
+		if (get_reply->reply_data[indx].xpath) {
+			zlog_debug("%s free xpath %p", __func__, get_reply->reply_data[indx].xpath);
+			free(get_reply->reply_data[indx].xpath);
+			get_reply->reply_data[indx].xpath = 0;
+		}
+	}
 
 	get_reply->num_reply = 0;
 	memset(&get_reply->data_reply, 0,
@@ -1668,12 +1680,7 @@ static void mgmt_reset_get_data_reply(
 	// 	sizeof(get_reply->reply_xpath));
 	// memset(get_reply->reply_xpathp, 0,
 	// 	sizeof(get_reply->reply_xpathp));
-	for (indx = 0; indx < array_size(get_reply->reply_xpathp); indx++) {
-		if (get_reply->reply_xpathp[indx]) {
-			free(get_reply->reply_xpathp[indx]);
-			get_reply->reply_xpathp[indx] = 0;
-		}
-	}
+
 	memset(&get_reply->reply_value, 0,
 		sizeof(get_reply->reply_value));
 	
@@ -1745,10 +1752,10 @@ static void mgmt_trxn_iter_and_send_get_cfg_reply(mgmt_db_hndl_t db_hndl,
 
 	trxn_req = (mgmt_trxn_req_t *)ctxt;
 	if (!trxn_req)
-		return;
+		goto mgmtd_ignore_get_cfg_reply_data;
 
 	if (!(node->schema->nodetype & LYD_NODE_TERM))
-		return;
+		goto mgmtd_ignore_get_cfg_reply_data;
 
 	assert(trxn_req->req_event == MGMTD_TRXN_PROC_GETCFG ||
 		trxn_req->req_event == MGMTD_TRXN_PROC_GETDATA);
@@ -1775,6 +1782,12 @@ static void mgmt_trxn_iter_and_send_get_cfg_reply(mgmt_db_hndl_t db_hndl,
 	if (get_reply->num_reply == MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH) {
 		mgmt_trxn_send_getcfg_reply_data(trxn_req, get_req);
 	}
+
+	return;
+
+mgmtd_ignore_get_cfg_reply_data:
+	if (xpath)
+		free(xpath);
 }
 
 static int mgmt_trxn_get_config(mgmt_trxn_ctxt_t *trxn,
@@ -2696,7 +2709,7 @@ void mgmt_trxn_status_write(struct vty *vty)
 int mgmt_trxn_rollback_trigger_cfg_apply(mgmt_db_hndl_t src_db_hndl,
 	mgmt_db_hndl_t dst_db_hndl)
 {
-	struct nb_config_cbs changes = { 0 };
+	static struct nb_config_cbs changes = { 0 };
 	struct nb_config_cbs *cfg_chgs = NULL;
 	mgmt_trxn_ctxt_t *trxn;
 	mgmt_trxn_req_t *trxn_req;

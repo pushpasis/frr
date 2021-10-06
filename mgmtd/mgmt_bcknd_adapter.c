@@ -829,7 +829,6 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl,
 	root = parms->cfg_chgs;
 	seq = &parms->seq;
 	nb_config_diff_created(node, seq, root);
-	free(xpath);
 
 	return;
 }
@@ -1021,7 +1020,7 @@ int mgmt_bcknd_get_adapter_config(
 		parms.seq = 0;
 
 		mgmt_db_iter_data(db_hndl, base_xpath, mgmt_bcknd_iter_and_get_cfg,
-			(void *)&parms, true);
+			(void *)&parms, false);
 	}
 
 	*cfg_chgs = &adptr->cfg_chgs;
