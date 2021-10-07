@@ -360,7 +360,9 @@ DEFPY(mgmt_set_config_data,
 	vty->cfg_changes[0].operation = NB_OP_CREATE;
 	vty->num_cfg_changes = 1;
 
+	vty->no_implicit_commit = true;
 	vty_mgmt_send_config_data(vty);
+	vty->no_implicit_commit = false;
 	return CMD_SUCCESS;
 }
 
@@ -379,7 +381,9 @@ DEFPY(mgmt_delete_config_data,
 	vty->cfg_changes[0].operation = NB_OP_DESTROY;
 	vty->num_cfg_changes = 1;
 
+	vty->no_implicit_commit = true;
 	vty_mgmt_send_config_data(vty);
+	vty->no_implicit_commit = false;
 	return CMD_SUCCESS;
 }
 

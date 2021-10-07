@@ -3501,7 +3501,8 @@ int vty_mgmt_send_config_data(struct vty *vty)
 			mgmt_lib_hndl, vty->mgmt_session_id,
 			vty->mgmt_req_id, MGMTD_DB_CANDIDATE, cfgreq, cnt,
 			frr_get_cli_mode() == FRR_CLI_CLASSIC ?
-			((vty->pending_allowed) ? false : true) : false,
+			((vty->pending_allowed || vty->no_implicit_commit) ?
+				false : true) : false,
 			MGMTD_DB_RUNNING) != MGMTD_SUCCESS) {
 			zlog_err("Failed to send %d Config Xpaths to MGMTD!!",
 				(int) indx);
