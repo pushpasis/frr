@@ -51,6 +51,12 @@ struct vty_error {
 	uint32_t line_num;
 };
 
+struct vty_cfg_change {
+	char xpath[XPATH_MAXLEN];
+	enum nb_operation operation;
+	const char *value;
+};
+
 /* VTY struct. */
 struct vty {
 	/* File descripter of this vty. */
@@ -111,7 +117,7 @@ struct vty {
 
 	/* Changes enqueued to be applied in the candidate configuration. */
 	size_t num_cfg_changes;
-	struct nb_cfg_change cfg_changes[VTY_MAXCFGCHANGES];
+	struct vty_cfg_change cfg_changes[VTY_MAXCFGCHANGES];
 
 	/* XPath of the current node */
 	int xpath_index;

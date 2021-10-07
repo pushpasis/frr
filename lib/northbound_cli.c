@@ -135,7 +135,7 @@ static int nb_cli_schedule_command(struct vty *vty)
 void nb_cli_enqueue_change(struct vty *vty, const char *xpath,
 			   enum nb_operation operation, const char *value)
 {
-	struct nb_cfg_change *change;
+	struct vty_cfg_change *change;
 
 	if (vty->num_cfg_changes == VTY_MAXCFGCHANGES) {
 		/* Not expected to happen. */
@@ -156,22 +156,79 @@ static int nb_cli_apply_changes_internal(struct vty *vty,
 					 bool clear_pending)
 {
 	bool error = false;
-	char buf[BUFSIZ];
+
+	if (xpath_base == NULL)
+		xpath_base = "";
 
 	VTY_CHECK_XPATH;
 
-	nb_candidate_edit_config_changes(vty->candidate_config,
-					  vty->cfg_changes,
-					  vty->num_cfg_changes, xpath_base,
-					  VTY_CURR_XPATH, vty->xpath_index,
-					  buf, sizeof(buf), &error);
+	/* Edit candidate configuration. */
+	for (size_t i = 0; i < vty->num_cfg_changes; i++) {
+		struct vty_cfg_change *change = &vty->cfg_changes[i];
+		struct nb_node *nb_node;
+		char xpath[XPATH_MAXLEN];
+		struct yang_data *data;
+		int ret;
+
+		/* Handle relative XPaths. */
+		memset(xpath, 0, sizeof(xpath));
+		if (vty->xpath_index > 0
+		    && (xpath_base[0] == '.' || change->xpath[0] == '.'))
+			strlcpy(xpath, VTY_CURR_XPATH, sizeof(xpath));
+		if (xpath_base[0]) {
+			if (xpath_base[0] == '.')
+				strlcat(xpath, xpath_base + 1, sizeof(xpath));
+			else
+				strlcat(xpath, xpath_base, sizeof(xpath));
+		}
+		if (change->xpath[0] == '.')
+			strlcat(xpath, change->xpath + 1, sizeof(xpath));
+		else
+			strlcpy(xpath, change->xpath, sizeof(xpath));
+
+		/* Find the northbound node associated to the data path. */
+		nb_node = nb_node_find(xpath);
+		if (!nb_node) {
+			flog_warn(EC_LIB_YANG_UNKNOWN_DATA_PATH,
+				  "%s: unknown data path: %s", __func__, xpath);
+			error = true;
+			continue;
+		}
+
+		/* If the value is not set, get the default if it exists. */
+		if (change->value == NULL)
+			change->value = yang_snode_get_default(nb_node->snode);
+		data = yang_data_new(xpath, change->value);
+
+		/*
+		 * Ignore "not found" errors when editing the candidate
+		 * configuration.
+		 */
+		ret = nb_candidate_edit(vty->candidate_config, nb_node,
+					change->operation, xpath, NULL, data);
+		yang_data_free(data);
+		if (ret != NB_OK && ret != NB_ERR_NOT_FOUND) {
+			flog_warn(
+				EC_LIB_NB_CANDIDATE_EDIT_ERROR,
+				"%s: failed to edit candidate configuration: operation [%s] xpath [%s]",
+				__func__, nb_operation_name(change->operation),
+				xpath);
+			error = true;
+			continue;
+		}
+	}
+
 	if (error) {
+		char buf[BUFSIZ];
+
 		/*
 		 * Failure to edit the candidate configuration should never
 		 * happen in practice, unless there's a bug in the code. When
 		 * that happens, log the error but otherwise ignore it.
 		 */
-		vty_out(vty, "%s", buf);
+		vty_out(vty, "%% Failed to edit configuration.\n\n");
+		vty_out(vty, "%s",
+			yang_print_errors(ly_native_ctx, buf, sizeof(buf)));
 	}
 
 	/*
@@ -493,6 +550,13 @@ void nb_cli_show_config_prepare(struct nb_config *config, bool with_defaults)
 				       LYD_VALIDATE_NO_STATE, NULL);
 }
 
+static int lyd_node_cmp(struct lyd_node **dnode1, struct lyd_node **dnode2)
+{
+	struct nb_node *nb_node = (*dnode1)->schema->priv;
+
+	return nb_node->cbs.cli_cmp(*dnode1, *dnode2);
+}
+
 static void show_dnode_children_cmds(struct vty *vty, struct lyd_node *root,
 				     bool with_defaults)
 {
@@ -510,6 +574,10 @@ static void show_dnode_children_cmds(struct vty *vty, struct lyd_node *root,
 		 * it's time to print the config.
 		 */
 		if (sort_node && nb_node != sort_node) {
+			list_sort(sort_list,
+				  (int (*)(const void **,
+					   const void **))lyd_node_cmp);
+
 			for (ALL_LIST_ELEMENTS_RO(sort_list, listnode, data))
 				nb_cli_show_dnode_cmds(vty, data,
 						       with_defaults);
@@ -527,11 +595,9 @@ static void show_dnode_children_cmds(struct vty *vty, struct lyd_node *root,
 			if (!sort_node) {
 				sort_node = nb_node;
 				sort_list = list_new();
-				sort_list->cmp = (int (*)(void *, void *))
-						 nb_node->cbs.cli_cmp;
 			}
 
-			listnode_add_sort(sort_list, child);
+			listnode_add(sort_list, child);
 			continue;
 		}
 
@@ -539,6 +605,9 @@ static void show_dnode_children_cmds(struct vty *vty, struct lyd_node *root,
 	}
 
 	if (sort_node) {
+		list_sort(sort_list,
+			  (int (*)(const void **, const void **))lyd_node_cmp);
+
 		for (ALL_LIST_ELEMENTS_RO(sort_list, listnode, data))
 			nb_cli_show_dnode_cmds(vty, data, with_defaults);
 

@@ -81,7 +81,6 @@ static bool mgmt_candidate_db_wr_locked = false;
 
 static void vty_event_serv(enum event event, int sock);
 static void vty_event(enum event, struct vty *);
-static int vtysh_flush(struct vty *vty);
 
 /* Extern host structure from command.c */
 extern struct host host;

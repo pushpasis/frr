@@ -43,6 +43,7 @@
 #include "ospf6_intra.h"
 #include "ospf6_abr.h"
 #include "ospf6_asbr.h"
+#include "ospf6_zebra.h"
 #include "ospf6d.h"
 #include "lib/json.h"
 #include "ospf6_nssa.h"
@@ -231,6 +232,36 @@ static void ospf6_area_no_summary_unset(struct ospf6 *ospf6,
 			ospf6_abr_range_reset_cost(ospf6);
 			ospf6_abr_prefix_resummarize(ospf6);
 		}
+	}
+}
+
+static void ospf6_nssa_default_originate_set(struct ospf6 *ospf6,
+					     struct ospf6_area *area,
+					     int metric, int metric_type)
+{
+	if (!area->nssa_default_originate.enabled) {
+		area->nssa_default_originate.enabled = true;
+		if (++ospf6->nssa_default_import_check.refcnt == 1) {
+			ospf6->nssa_default_import_check.status = false;
+			ospf6_zebra_import_default_route(ospf6, false);
+		}
+	}
+
+	area->nssa_default_originate.metric_value = metric;
+	area->nssa_default_originate.metric_type = metric_type;
+}
+
+static void ospf6_nssa_default_originate_unset(struct ospf6 *ospf6,
+					       struct ospf6_area *area)
+{
+	if (area->nssa_default_originate.enabled) {
+		area->nssa_default_originate.enabled = false;
+		if (--ospf6->nssa_default_import_check.refcnt == 0) {
+			ospf6->nssa_default_import_check.status = false;
+			ospf6_zebra_import_default_route(ospf6, true);
+		}
+		area->nssa_default_originate.metric_value = -1;
+		area->nssa_default_originate.metric_type = -1;
 	}
 }
 
@@ -648,6 +679,17 @@ void ospf6_area_config_write(struct vty *vty, struct ospf6 *ospf6)
 		}
 		if (IS_AREA_NSSA(oa)) {
 			vty_out(vty, " area %s nssa", oa->name);
+			if (oa->nssa_default_originate.enabled) {
+				vty_out(vty, " default-information-originate");
+				if (oa->nssa_default_originate.metric_value
+				    != -1)
+					vty_out(vty, " metric %d",
+						oa->nssa_default_originate
+							.metric_value);
+				if (oa->nssa_default_originate.metric_type
+				    != DEFAULT_METRIC_TYPE)
+					vty_out(vty, " metric-type 1");
+			}
 			if (oa->no_summary)
 				vty_out(vty, " no-summary");
 			vty_out(vty, "\n");
@@ -696,16 +738,16 @@ DEFUN (area_filter_list,
 		XFREE(MTYPE_OSPF6_PLISTNAME, PREFIX_NAME_IN(area));
 		PREFIX_NAME_IN(area) =
 			XSTRDUP(MTYPE_OSPF6_PLISTNAME, plistname);
-		ospf6_abr_reimport(area);
 	} else {
 		PREFIX_LIST_OUT(area) = plist;
 		XFREE(MTYPE_OSPF6_PLISTNAME, PREFIX_NAME_OUT(area));
 		PREFIX_NAME_OUT(area) =
 			XSTRDUP(MTYPE_OSPF6_PLISTNAME, plistname);
-
-		/* Redo summaries if required */
-		ospf6_abr_reexport(area);
 	}
+
+	/* Redo summaries if required */
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -739,7 +781,6 @@ DEFUN (no_area_filter_list,
 
 		PREFIX_LIST_IN(area) = NULL;
 		XFREE(MTYPE_OSPF6_PLISTNAME, PREFIX_NAME_IN(area));
-		ospf6_abr_reimport(area);
 	} else {
 		if (PREFIX_NAME_OUT(area))
 			if (!strmatch(PREFIX_NAME_OUT(area), plistname))
@@ -747,8 +788,11 @@ DEFUN (no_area_filter_list,
 
 		XFREE(MTYPE_OSPF6_PLISTNAME, PREFIX_NAME_OUT(area));
 		PREFIX_LIST_OUT(area) = NULL;
-		ospf6_abr_reexport(area);
 	}
+
+	/* Redo summaries if required */
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -760,19 +804,30 @@ void ospf6_filter_update(struct access_list *access)
 	struct ospf6 *ospf6;
 
 	for (ALL_LIST_ELEMENTS(om6->ospf6, node, nnode, ospf6)) {
+		bool update = false;
+
 		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, n, oa)) {
 			if (IMPORT_NAME(oa)
-			    && strcmp(IMPORT_NAME(oa), access->name) == 0)
-				ospf6_abr_reimport(oa);
+			    && strcmp(IMPORT_NAME(oa), access->name) == 0) {
+				IMPORT_LIST(oa) = access_list_lookup(
+					AFI_IP6, IMPORT_NAME(oa));
+				update = true;
+			}
 
 			if (EXPORT_NAME(oa)
-			    && strcmp(EXPORT_NAME(oa), access->name) == 0)
-				ospf6_abr_reexport(oa);
+			    && strcmp(EXPORT_NAME(oa), access->name) == 0) {
+				EXPORT_LIST(oa) = access_list_lookup(
+					AFI_IP6, EXPORT_NAME(oa));
+				update = true;
+			}
 		}
+
+		if (update && ospf6_check_and_set_router_abr(ospf6))
+			ospf6_schedule_abr_task(ospf6);
 	}
 }
 
-void ospf6_area_plist_update(struct prefix_list *plist, int add)
+void ospf6_plist_update(struct prefix_list *plist)
 {
 	struct listnode *node, *nnode;
 	struct ospf6_area *oa;
@@ -780,23 +835,29 @@ void ospf6_area_plist_update(struct prefix_list *plist, int add)
 	const char *name = prefix_list_name(plist);
 	struct ospf6 *ospf6 = NULL;
 
-
-	if (!om6->ospf6)
+	if (prefix_list_afi(plist) != AFI_IP6)
 		return;
 
 	for (ALL_LIST_ELEMENTS(om6->ospf6, node, nnode, ospf6)) {
+		bool update = false;
+
 		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, n, oa)) {
 			if (PREFIX_NAME_IN(oa)
 			    && !strcmp(PREFIX_NAME_IN(oa), name)) {
-				PREFIX_LIST_IN(oa) = add ? plist : NULL;
-				ospf6_abr_reexport(oa);
+				PREFIX_LIST_IN(oa) = prefix_list_lookup(
+					AFI_IP6, PREFIX_NAME_IN(oa));
+				update = true;
 			}
 			if (PREFIX_NAME_OUT(oa)
 			    && !strcmp(PREFIX_NAME_OUT(oa), name)) {
-				PREFIX_LIST_OUT(oa) = add ? plist : NULL;
-				ospf6_abr_reexport(oa);
+				PREFIX_LIST_OUT(oa) = prefix_list_lookup(
+					AFI_IP6, PREFIX_NAME_OUT(oa));
+				update = true;
 			}
 		}
+
+		if (update && ospf6_check_and_set_router_abr(ospf6))
+			ospf6_schedule_abr_task(ospf6);
 	}
 }
 
@@ -826,7 +887,8 @@ DEFUN (area_import_list,
 		free(IMPORT_NAME(area));
 
 	IMPORT_NAME(area) = strdup(argv[idx_name]->arg);
-	ospf6_abr_reimport(area);
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -848,13 +910,14 @@ DEFUN (no_area_import_list,
 
 	OSPF6_CMD_AREA_GET(argv[idx_ipv4]->arg, area, ospf6);
 
-	IMPORT_LIST(area) = 0;
+	IMPORT_LIST(area) = NULL;
 
 	if (IMPORT_NAME(area))
 		free(IMPORT_NAME(area));
 
 	IMPORT_NAME(area) = NULL;
-	ospf6_abr_reimport(area);
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -887,7 +950,8 @@ DEFUN (area_export_list,
 	EXPORT_NAME(area) = strdup(argv[idx_name]->arg);
 
 	/* Redo summaries if required */
-	ospf6_abr_reexport(area);
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -909,13 +973,14 @@ DEFUN (no_area_export_list,
 
 	OSPF6_CMD_AREA_GET(argv[idx_ipv4]->arg, area, ospf6);
 
-	EXPORT_LIST(area) = 0;
+	EXPORT_LIST(area) = NULL;
 
 	if (EXPORT_NAME(area))
 		free(EXPORT_NAME(area));
 
 	EXPORT_NAME(area) = NULL;
-	ospf6_abr_reexport(area);
+	if (ospf6_check_and_set_router_abr(area->ospf6))
+		ospf6_schedule_abr_task(ospf6);
 
 	return CMD_SUCCESS;
 }
@@ -988,7 +1053,6 @@ DEFUN(show_ipv6_ospf6_spf_tree, show_ipv6_ospf6_spf_tree_cmd,
 	int idx_vrf = 0;
 	bool uj = use_json(argc, argv);
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 
 	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
@@ -1048,7 +1112,6 @@ DEFUN(show_ipv6_ospf6_area_spf_tree, show_ipv6_ospf6_area_spf_tree_cmd,
 	bool all_vrf = false;
 	int idx_vrf = 0;
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 	if (idx_vrf > 0)
 		idx_ipv4 += 2;
@@ -1132,7 +1195,6 @@ DEFUN(show_ipv6_ospf6_simulate_spf_tree_root,
 	bool all_vrf = false;
 	int idx_vrf = 0;
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 	if (idx_vrf > 0) {
 		idx_ipv4 += 2;
@@ -1258,11 +1320,20 @@ DEFUN (no_ospf6_area_stub_no_summary,
 }
 
 DEFPY(ospf6_area_nssa, ospf6_area_nssa_cmd,
-      "area <A.B.C.D|(0-4294967295)>$area_str nssa [no-summary$no_summary]",
+      "area <A.B.C.D|(0-4294967295)>$area_str nssa\
+        [{\
+	  default-information-originate$dflt_originate [{metric (0-16777214)$mval|metric-type (1-2)$mtype}]\
+	  |no-summary$no_summary\
+	 }]",
       "OSPF6 area parameters\n"
       "OSPF6 area ID in IP address format\n"
       "OSPF6 area ID as a decimal value\n"
       "Configure OSPF6 area as nssa\n"
+      "Originate Type 7 default into NSSA area\n"
+      "OSPFv3 default metric\n"
+      "OSPFv3 metric\n"
+      "OSPFv3 metric type for default routes\n"
+      "Set OSPFv3 External Type 1/2 metrics\n"
       "Do not inject inter-area routes into area\n")
 {
 	struct ospf6_area *area;
@@ -1276,23 +1347,44 @@ DEFPY(ospf6_area_nssa, ospf6_area_nssa_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
+	if (dflt_originate) {
+		if (mval_str == NULL)
+			mval = -1;
+		if (mtype_str == NULL)
+			mtype = DEFAULT_METRIC_TYPE;
+		ospf6_nssa_default_originate_set(ospf6, area, mval, mtype);
+	} else
+		ospf6_nssa_default_originate_unset(ospf6, area);
+
 	if (no_summary)
 		ospf6_area_no_summary_set(ospf6, area);
 	else
 		ospf6_area_no_summary_unset(ospf6, area);
-	if (ospf6_check_and_set_router_abr(ospf6))
+
+	if (ospf6_check_and_set_router_abr(ospf6)) {
 		ospf6_abr_defaults_to_stub(ospf6);
+		ospf6_abr_nssa_type_7_defaults(ospf6);
+	}
 
 	return CMD_SUCCESS;
 }
 
 DEFPY(no_ospf6_area_nssa, no_ospf6_area_nssa_cmd,
-      "no area <A.B.C.D|(0-4294967295)>$area_str nssa [no-summary$no_summary]",
+      "no area <A.B.C.D|(0-4294967295)>$area_str nssa\
+        [{\
+	  default-information-originate [{metric (0-16777214)|metric-type (1-2)}]\
+	  |no-summary\
+	 }]",
       NO_STR
       "OSPF6 area parameters\n"
       "OSPF6 area ID in IP address format\n"
       "OSPF6 area ID as a decimal value\n"
       "Configure OSPF6 area as nssa\n"
+      "Originate Type 7 default into NSSA area\n"
+      "OSPFv3 default metric\n"
+      "OSPFv3 metric\n"
+      "OSPFv3 metric type for default routes\n"
+      "Set OSPFv3 External Type 1/2 metrics\n"
       "Do not inject inter-area routes into area\n")
 {
 	struct ospf6_area *area;
@@ -1302,6 +1394,7 @@ DEFPY(no_ospf6_area_nssa, no_ospf6_area_nssa_cmd,
 
 	ospf6_area_nssa_unset(ospf6, area);
 	ospf6_area_no_summary_unset(ospf6, area);
+	ospf6_nssa_default_originate_unset(ospf6, area);
 
 	return CMD_SUCCESS;
 }
@@ -1340,8 +1433,6 @@ void ospf6_area_interface_delete(struct ospf6_interface *oi)
 	struct listnode *node, *nnode;
 	struct ospf6 *ospf6;
 
-	if (!om6->ospf6)
-		return;
 	for (ALL_LIST_ELEMENTS(om6->ospf6, node, nnode, ospf6)) {
 		for (ALL_LIST_ELEMENTS(ospf6->area_list, node, nnode, oa))
 			if (listnode_lookup(oa->if_list, oi))

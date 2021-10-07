@@ -35,38 +35,6 @@ extern "C" {
 struct vty;
 struct debug;
 
-struct nb_yang_xpath_tag {
-	uint32_t	ns;
-	uint32_t	id;
-};
-
-struct nb_yang_value {
-	struct lyd_value value;
-	LY_DATA_TYPE value_type;
-	uint8_t value_flags;
-};
-
-struct nb_yang_xpath_elem {
-	struct nb_yang_xpath_tag tag;
-	struct nb_yang_value val;
-};
-
-#define NB_MAX_NUM_KEYS			UINT8_MAX
-#define NB_MAX_NUM_XPATH_TAGS		UINT8_MAX
-
-struct nb_yang_xpath {
-	uint8_t length;
-	struct {
-		uint8_t num_keys;
-		struct nb_yang_xpath_elem keys[NB_MAX_NUM_KEYS];
-	} tags[NB_MAX_NUM_XPATH_TAGS];
-};
-
-#define NB_YANG_XPATH_KEY(__xpath, __indx1, __indx2)		\
-	((__xpath->num_tags > __indx1) && 			\
-	 (__xpath->tags[__indx1].num_keys > __indx2) ?		\
-	 &__xpath->tags[__indx1].keys[__indx2] : NULL)
-
 /* Northbound events. */
 enum nb_event {
 	/*
@@ -111,12 +79,6 @@ enum nb_operation {
 	NB_OP_GET_KEYS,
 	NB_OP_LOOKUP_ENTRY,
 	NB_OP_RPC,
-};
-
-struct nb_cfg_change {
-	char xpath[XPATH_MAXLEN];
-	enum nb_operation operation;
-	const char *value;
 };
 
 union nb_resource {
@@ -692,6 +654,12 @@ struct nb_context {
 #endif
 };
 
+/* Northbound configuration. */
+struct nb_config {
+	struct lyd_node *dnode;
+	uint32_t version;
+};
+
 /* Northbound configuration callback. */
 struct nb_config_cb {
 	RB_ENTRY(nb_config_cb) entry;
@@ -716,13 +684,6 @@ struct nb_transaction {
 	char comment[80];
 	struct nb_config *config;
 	struct nb_config_cbs changes;
-};
-
-/* Northbound configuration. */
-struct nb_config {
-	struct lyd_node *dnode;
-	uint32_t version;
-	struct nb_config_cbs cfg_chgs;
 };
 
 /* Callback function used by nb_oper_data_iterate(). */
@@ -893,9 +854,6 @@ extern int nb_candidate_edit(struct nb_config *candidate,
 			     enum nb_operation operation, const char *xpath,
 			     const struct yang_data *previous,
 			     const struct yang_data *data);
-
-extern void nb_config_diff_created(const struct lyd_node *dnode, uint32_t *seq,
-				   struct nb_config_cbs *changes);
 
 /*
  * Check if a candidate configuration is outdated and needs to be updated.

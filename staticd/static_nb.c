@@ -21,8 +21,7 @@
 #include "northbound.h"
 #include "libfrr.h"
 #include "static_nb.h"
-
-bool static_debug_nb = false;
+#include "static_vty.h"
 
 /* clang-format off */
 
@@ -30,10 +29,18 @@ const struct frr_yang_module_info frr_staticd_info = {
 	.name = "frr-staticd",
 	.nodes = {
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd",
+			.cbs = {
+				.cli_show = static_cli_show,
+				.cli_show_end = static_cli_show_end,
+			}
+		},
+		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd/route-list",
 			.cbs = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_destroy,
+				.cli_cmp = static_route_list_cli_cmp,
 			}
 		},
 		{
@@ -41,6 +48,7 @@ const struct frr_yang_module_info frr_staticd_info = {
 			.cbs = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_destroy,
+				.cli_cmp = static_path_list_cli_cmp,
 			}
 		},
 		{
@@ -58,6 +66,8 @@ const struct frr_yang_module_info frr_staticd_info = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_frr_nexthops_nexthop_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_frr_nexthops_nexthop_destroy,
 				.pre_validate = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_frr_nexthops_nexthop_pre_validate,
+				.cli_show = static_nexthop_cli_show,
+				.cli_cmp = static_nexthop_cli_cmp,
 			}
 		},
 		{
@@ -113,6 +123,7 @@ const struct frr_yang_module_info frr_staticd_info = {
 			.cbs = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_destroy,
+				.cli_cmp = static_src_list_cli_cmp,
 			}
 		},
 		{
@@ -120,6 +131,7 @@ const struct frr_yang_module_info frr_staticd_info = {
 			.cbs = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_path_list_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_path_list_destroy,
+				.cli_cmp = static_path_list_cli_cmp,
 			}
 		},
 		{
@@ -137,6 +149,8 @@ const struct frr_yang_module_info frr_staticd_info = {
 				.create = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_path_list_frr_nexthops_nexthop_create,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_src_list_path_list_frr_nexthops_nexthop_destroy,
 				.pre_validate = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_frr_nexthops_nexthop_pre_validate,
+				.cli_show = static_src_nexthop_cli_show,
+				.cli_cmp = static_nexthop_cli_cmp,
 			}
 		},
 		{

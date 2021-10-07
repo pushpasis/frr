@@ -7,7 +7,7 @@
 ##
 AC_PREREQ([2.69])
 
-AC_INIT([frr], [8.1-dev], [https://github.com/frrouting/frr/issues])
+AC_INIT([frr], [8.2-dev], [https://github.com/frrouting/frr/issues])
 PACKAGE_URL="https://frrouting.org/"
 AC_SUBST([PACKAGE_URL])
 PACKAGE_FULLNAME="FRRouting"
@@ -1274,8 +1274,7 @@ dnl ##########################################################################
 # Logic for protobuf support.
 #
 PROTO3=false
-# Enable Protobuf by default unless disabled explicitly.
-if test "$enable_protobuf" != "no"; then
+if test "$enable_protobuf" = "yes"; then
   # Check for protoc & protoc-c
 
   # protoc is not required, it's only for a "be nice" helper target
@@ -1956,7 +1955,7 @@ dnl -----
 dnl LTTng
 dnl -----
 if test "$enable_lttng" = "yes"; then
-  PKG_CHECK_MODULES([UST], [lttng-ust >= 2.12.0], [
+  PKG_CHECK_MODULES([UST], [lttng-ust >= 2.9.0], [
     AC_DEFINE([HAVE_LTTNG], [1], [Enable LTTng support])
     LTTNG=true
   ], [
@@ -2551,6 +2550,7 @@ AC_DEFINE_UNQUOTED([BFDD_CONTROL_SOCKET], ["$frr_statedir%s%s/bfdd.sock"], [bfdd
 AC_DEFINE_UNQUOTED([OSPFD_GR_STATE], ["$frr_statedir%s/ospfd-gr.json"], [ospfd GR state information])
 AC_DEFINE_UNQUOTED([MGMTD_FRNTND_SERVER_PATH], ["$frr_statedir/mgmtd_frntnd.sock"], [mgmtd frontend server socket])
 AC_DEFINE_UNQUOTED([MGMTD_BCKND_SERVER_PATH], ["$frr_statedir/mgmtd_bcknd.sock"], [mgmtd backend server socket])
+AC_DEFINE_UNQUOTED([OSPF6D_GR_STATE], ["$frr_statedir/ospf6d-gr.json"], [ospf6d GR state information])
 AC_DEFINE_UNQUOTED([DAEMON_VTY_DIR], ["$frr_statedir%s%s"], [daemon vty directory])
 AC_DEFINE_UNQUOTED([DAEMON_DB_DIR], ["$frr_statedir"], [daemon database directory])
 
@@ -2606,7 +2606,7 @@ AM_CONDITIONAL([RPKI], [test "$RPKI" = "true"])
 AM_CONDITIONAL([SNMP], [test "$SNMP_METHOD" = "agentx"])
 AM_CONDITIONAL([IRDP], [$IRDP])
 AM_CONDITIONAL([FPM], [test "$enable_fpm" = "yes"])
-AM_CONDITIONAL([HAVE_PROTOBUF], [test "$enable_protobuf" != "no"])
+AM_CONDITIONAL([HAVE_PROTOBUF], [test "$enable_protobuf" = "yes"])
 AM_CONDITIONAL([HAVE_PROTOBUF3], [$PROTO3])
 
 dnl PCEP plugin

@@ -73,8 +73,7 @@ static void connected_announce(struct interface *ifp, struct connected *ifc)
 	if (!ifc)
 		return;
 
-	if (!if_is_loopback(ifp) && ifc->address->family == AF_INET &&
-	    !IS_ZEBRA_IF_VRF(ifp)) {
+	if (!if_is_loopback_or_vrf(ifp) && ifc->address->family == AF_INET) {
 		if (ifc->address->prefixlen == IPV4_MAX_BITLEN)
 			SET_FLAG(ifc->flags, ZEBRA_IFA_UNNUMBERED);
 		else
@@ -307,9 +306,10 @@ void connected_up(struct interface *ifp, struct connected *ifc)
 }
 
 /* Add connected IPv4 route to the interface. */
-void connected_add_ipv4(struct interface *ifp, int flags, struct in_addr *addr,
-			uint16_t prefixlen, struct in_addr *dest,
-			const char *label, uint32_t metric)
+void connected_add_ipv4(struct interface *ifp, int flags,
+			const struct in_addr *addr, uint16_t prefixlen,
+			const struct in_addr *dest, const char *label,
+			uint32_t metric)
 {
 	struct prefix_ipv4 *p;
 	struct connected *ifc;
@@ -502,8 +502,8 @@ static void connected_delete_helper(struct connected *ifc, struct prefix *p)
 
 /* Delete connected IPv4 route to the interface. */
 void connected_delete_ipv4(struct interface *ifp, int flags,
-			   struct in_addr *addr, uint16_t prefixlen,
-			   struct in_addr *dest)
+			   const struct in_addr *addr, uint16_t prefixlen,
+			   const struct in_addr *dest)
 {
 	struct prefix p, d;
 	struct connected *ifc;
@@ -527,8 +527,9 @@ void connected_delete_ipv4(struct interface *ifp, int flags,
 }
 
 /* Add connected IPv6 route to the interface. */
-void connected_add_ipv6(struct interface *ifp, int flags, struct in6_addr *addr,
-			struct in6_addr *dest, uint16_t prefixlen,
+void connected_add_ipv6(struct interface *ifp, int flags,
+			const struct in6_addr *addr,
+			const struct in6_addr *dest, uint16_t prefixlen,
 			const char *label, uint32_t metric)
 {
 	struct prefix_ipv6 *p;
@@ -589,8 +590,9 @@ void connected_add_ipv6(struct interface *ifp, int flags, struct in6_addr *addr,
 	connected_update(ifp, ifc);
 }
 
-void connected_delete_ipv6(struct interface *ifp, struct in6_addr *address,
-			   struct in6_addr *dest, uint16_t prefixlen)
+void connected_delete_ipv6(struct interface *ifp,
+			   const struct in6_addr *address,
+			   const struct in6_addr *dest, uint16_t prefixlen)
 {
 	struct prefix p, d;
 	struct connected *ifc;

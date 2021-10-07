@@ -141,7 +141,7 @@ struct nexthop_iter {
 static int nexthop_iter_cb(const struct lyd_node *dnode, void *arg)
 {
 	struct nexthop_iter *iter = arg;
-	int nh_type;
+	enum static_nh_type nh_type;
 
 	nh_type = yang_dnode_get_enum(dnode, "./nh-type");
 
@@ -162,7 +162,7 @@ static bool static_nexthop_create(struct nb_cb_create_args *args)
 	struct static_path *pn;
 	struct ipaddr ipaddr;
 	struct static_nexthop *nh;
-	int nh_type;
+	enum static_nh_type nh_type;
 	const char *nh_vrf;
 #endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
