@@ -1274,7 +1274,8 @@ dnl ##########################################################################
 # Logic for protobuf support.
 #
 PROTO3=false
-if test "$enable_protobuf" = "yes"; then
+# Enable Protobuf by default unless disabled explicitly.
+ if test "$enable_protobuf" != "no"; then
   # Check for protoc & protoc-c
 
   # protoc is not required, it's only for a "be nice" helper target
@@ -2606,7 +2607,7 @@ AM_CONDITIONAL([RPKI], [test "$RPKI" = "true"])
 AM_CONDITIONAL([SNMP], [test "$SNMP_METHOD" = "agentx"])
 AM_CONDITIONAL([IRDP], [$IRDP])
 AM_CONDITIONAL([FPM], [test "$enable_fpm" = "yes"])
-AM_CONDITIONAL([HAVE_PROTOBUF], [test "$enable_protobuf" = "yes"])
+AM_CONDITIONAL([HAVE_PROTOBUF], [test "$enable_protobuf" != "no"])
 AM_CONDITIONAL([HAVE_PROTOBUF3], [$PROTO3])
 
 dnl PCEP plugin

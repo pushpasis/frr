@@ -353,7 +353,7 @@ static int static_nexthop_onlink_modify(struct nb_cb_modify_args *args)
 #ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct static_nexthop *nh;
 #endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
-	static_types nh_type;
+	enum static_nh_type nh_type;
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
@@ -409,7 +409,7 @@ static int static_nexthop_bh_type_modify(struct nb_cb_modify_args *args)
 #ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct static_nexthop *nh;
 #endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
-	static_types nh_type;
+	enum static_nh_type nh_type;
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
