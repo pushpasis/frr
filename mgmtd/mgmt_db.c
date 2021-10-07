@@ -493,9 +493,16 @@ int mgmt_db_init(struct mgmt_master *mm)
 
 void mgmt_db_destroy(void)
 {
+	struct mgmt_cmt_info_t *cmt_info;
+
 	/*
 	 * TODO: Free the databases.
 	 */
+
+	FOREACH_CMT_REC(mgmt_db_mm, cmt_info) {
+		mgmt_cmt_info_dlist_del(&mgmt_db_mm->cmt_dlist, cmt_info);
+		XFREE(MTYPE_MGMTD_CMT_INFO, cmt_info);
+	}
 
 	mgmt_cmt_info_dlist_fini(&mgmt_db_mm->cmt_dlist);
 }
@@ -643,18 +650,17 @@ struct nb_config *mgmt_db_get_nb_config(mgmt_db_hndl_t db_hndl)
 static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt, 
 	char *base_xpath, struct lyd_node *base_dnode,
 	mgmt_db_node_iter_fn iter_fn, void *ctxt,
-	char *xpaths[], struct lyd_node *dnodes[],
-	struct nb_node *nbnodes[], int *num_nodes,
-	bool childs_as_well, bool donot_free_alloced)
+	char *xpaths[], int *num_nodes,
+	bool childs_as_well, bool alloc_xp_copy)
 {
 	uint32_t indx;
-	char *xpath;
+	char *xpath, *xpath_buf, *iter_xp;
 	int ret, num_left = 0, num_found = 0;
 	struct lyd_node *dnode;
 	struct nb_node *nbnode;
 	bool alloc_xp = false;
 
-	if (xpaths || dnodes || nbnodes)
+	if (xpaths)
 		assert(num_nodes);
 
 	if (num_nodes && !*num_nodes)
@@ -681,34 +687,41 @@ static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt,
 
 	indx = 0;
 	LY_LIST_FOR(lyd_child(base_dnode), dnode) {
-
-	
 		assert(dnode->schema && dnode->schema->priv);
 		nbnode = (struct nb_node *) dnode->schema->priv;
-		if (nbnodes)
-			nbnodes[indx] = nbnode;
 
 		xpath = NULL;
 		if (xpaths) {
-			if (!xpaths[*num_nodes])
+			if (!xpaths[*num_nodes]) {
 				alloc_xp = true;
-
+				xpaths[*num_nodes] = (char *)calloc(1, MGMTD_MAX_XPATH_LEN);
+			}
 			xpath = lyd_path(dnode, LYD_PATH_STD,
-					xpaths[*num_nodes],
-					xpaths[*num_nodes] ?
-					MGMTD_MAX_XPATH_LEN : 0);
-			xpaths[*num_nodes] = xpath;
+					xpaths[*num_nodes], MGMTD_MAX_XPATH_LEN);
 		} else {
 			alloc_xp = true;
-			xpath = (char *)calloc(1, MGMTD_MAX_XPATH_LEN);
-			xpath = lyd_path(dnode, LYD_PATH_STD, xpath, MGMTD_MAX_XPATH_LEN);
+			xpath_buf = (char *)calloc(1, MGMTD_MAX_XPATH_LEN);
+			xpath = lyd_path(dnode, LYD_PATH_STD, xpath_buf, MGMTD_MAX_XPATH_LEN);
 		}
 
 		assert(xpath);
 		MGMTD_DB_DBG(" -- XPATH: %s", xpath);
 
 		if (iter_fn) {
-			(*iter_fn)((mgmt_db_hndl_t) db_ctxt, xpath,
+			/*
+			 * In case the caller is interested in getting a copy
+			 * of the xpath for themselves (by setting
+			 * 'alloc_xp_copy' to 'true') we make a copy for the
+			 * caller and pass it. Else we pass the original xpath
+			 * buffer.
+			 *
+			 * NOTE: In such case caller will have to take care of
+			 * the copy later.
+			 */
+			iter_xp = alloc_xp_copy ?
+				strdup(xpath) : xpath;
+
+			(*iter_fn)((mgmt_db_hndl_t) db_ctxt, iter_xp,
 				dnode, nbnode, ctxt);
 		}
 
@@ -725,10 +738,8 @@ static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt,
 
 		ret = mgmt_walk_db_nodes(db_ctxt, xpath, dnode, iter_fn,
 			ctxt, xpaths ? &xpaths[*num_nodes] : NULL,
-			dnodes ? &dnodes[*num_nodes] : NULL,
-			nbnodes ? &nbnodes[*num_nodes] : NULL,
 			num_nodes ? &num_found : NULL, childs_as_well,
-			donot_free_alloced);
+			alloc_xp_copy);
 
 		if (num_nodes) {
 			num_left -= num_found;
@@ -739,7 +750,7 @@ static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt,
 			break;
 		}
 
-		if (alloc_xp && !donot_free_alloced)
+		if (alloc_xp)
 			free(xpath);
 		indx++;
 	}
@@ -755,8 +766,7 @@ static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt,
 
 int mgmt_db_lookup_data_nodes(
         mgmt_db_hndl_t db_hndl, const char *xpath, char *dxpaths[],
-        struct lyd_node *dnodes[], struct nb_node *nbnodes[],
-	int *num_nodes, bool get_childs_as_well, bool donot_free_alloced)
+	int *num_nodes, bool get_childs_as_well, bool alloc_xp_copy)
 {
 	mgmt_db_ctxt_t *db_ctxt;
 	char base_xpath[MGMTD_MAX_XPATH_LEN];
@@ -772,8 +782,7 @@ int mgmt_db_lookup_data_nodes(
 	mgmt_remove_trailing_separator(base_xpath, '/');
 
 	return (mgmt_walk_db_nodes(db_ctxt, base_xpath, NULL, NULL, NULL,
-			dxpaths, dnodes, nbnodes, num_nodes,
-			get_childs_as_well, donot_free_alloced));
+			dxpaths, num_nodes, get_childs_as_well, alloc_xp_copy));
 }
 
 struct lyd_node *mgmt_db_find_data_node_by_xpath(mgmt_db_hndl_t db_hndl,
@@ -861,7 +870,7 @@ int mgmt_db_load_config_from_file(mgmt_db_hndl_t db_hndl,
 
 int mgmt_db_iter_data(
         mgmt_db_hndl_t db_hndl, char *base_xpath,
-        mgmt_db_node_iter_fn iter_fn, void *ctxt, bool donot_free_alloced)
+        mgmt_db_node_iter_fn iter_fn, void *ctxt, bool alloc_xp_copy)
 {
 	mgmt_db_ctxt_t *db_ctxt;
 	int ret;
@@ -895,11 +904,11 @@ int mgmt_db_iter_data(
 
 		LY_LIST_FOR(base_dnode, node) {
 			ret = mgmt_walk_db_nodes(db_ctxt, xpath, node, iter_fn, ctxt,
-				NULL, NULL, NULL, NULL, true, donot_free_alloced);
+				NULL, NULL, true, alloc_xp_copy);
 		}
 	} else
 		ret = mgmt_walk_db_nodes(db_ctxt, xpath, base_dnode, iter_fn, ctxt,
-			NULL, NULL, NULL, NULL, true, donot_free_alloced);
+			NULL, NULL, true, alloc_xp_copy);
 
 	return ret;
 }

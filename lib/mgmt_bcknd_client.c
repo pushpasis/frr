@@ -237,10 +237,31 @@ static mgmt_bcknd_batch_ctxt_t *mgmt_bcknd_batch_create(
 static void mgmt_bcknd_batch_delete(
 	mgmt_bcknd_trxn_ctxt_t *trxn, mgmt_bcknd_batch_ctxt_t **batch)
 {
+	uint16_t indx;
 	if (!batch)
 		return;
 
 	mgmt_bcknd_batch_list_del(&trxn->cfg_batches, *batch);
+	switch ((*batch)->trxn_req.event)
+	{
+	case MGMTD_BCKND_TRXN_PROC_SETCFG:
+		for (indx = 0; indx < MGMTD_MAX_CFG_CHANGES_IN_BATCH; indx++) {
+			if ((*batch)->trxn_req.req.set_cfg.cfg_changes[indx].value) {
+				free((char *)
+					(*batch)->trxn_req.req.set_cfg.cfg_changes[indx].value);
+			}
+		}
+		break;
+	case MGMTD_BCKND_TRXN_PROC_GETCFG:
+	case MGMTD_BCKND_TRXN_PROC_GETDATA:
+		/*
+		 * TODO: Add cleanup code here.
+		 */
+		break;
+	default:
+		break;
+	}
+
 	XFREE(MTYPE_MGMTD_BCKND_BATCH, *batch);
 	*batch = NULL;
 }
@@ -630,6 +651,7 @@ static int mgmt_bcknd_update_setcfg_in_batch(mgmt_bcknd_client_ctxt_t *clnt_ctxt
 		if (cfg_chg->value && 
 			!strncmp(cfg_chg->value, MGMTD_BCKND_CONTAINER_NODE_VAL, 
 				strlen(MGMTD_BCKND_CONTAINER_NODE_VAL))) {
+			free((char *)cfg_chg->value);
 			cfg_chg->value = NULL;
 		}
 	}

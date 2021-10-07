@@ -160,8 +160,7 @@ extern struct nb_config *mgmt_db_get_nb_config(mgmt_db_hndl_t db_hndl);
 
 extern int mgmt_db_lookup_data_nodes(
         mgmt_db_hndl_t db_hndl, const char *xpath, char *dxpaths[],
-        struct lyd_node *dnodes[], struct nb_node *nbnodes[],
-	int *num_nodes, bool get_childs_as_well, bool donot_free_alloced);
+	int *num_nodes, bool get_childs_as_well, bool alloc_xp_copy);
 
 extern struct lyd_node *mgmt_db_find_data_node_by_xpath(mgmt_db_hndl_t db_hndl,
 	const char *xpath);
@@ -171,7 +170,7 @@ extern int mgmt_db_delete_data_nodes(
 
 extern int mgmt_db_iter_data(
         mgmt_db_hndl_t db_hndl, char *base_xpath,
-        mgmt_db_node_iter_fn iter_fn, void *ctxt, bool donot_free_alloced);
+        mgmt_db_node_iter_fn iter_fn, void *ctxt, bool alloc_xp_copy);
 
 extern int mgmt_db_load_config_from_file(mgmt_db_hndl_t db_hndl,
 	const char * file_path, bool merge);
