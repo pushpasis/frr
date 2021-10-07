@@ -159,8 +159,6 @@ $(AUTOMAKE_DUMMY)install-sbinPROGRAMS: install-libLTLIBRARIES
 # Include default rules to compile protobuf message sources
 SUFFIXES += .proto .pb-c.c .pb-c.h
 
-if HAVE_PROTOBUF
-
 # Rules
 .proto.pb.h:
 	$(PROTOC) -I$(top_srcdir) --cpp_out=$(top_builddir) $^
@@ -175,8 +173,6 @@ am__v_PROTOC_C_1 =
 	$(AM_V_GEN)$(SED) -e '1i#include "config.h"' -i $@
 .pb-c.c.pb-c.h:
 	@/bin/true
-
-endif  # HAVE_PROTOBUF
 
 include doc/subdir.am
 include doc/user/subdir.am
