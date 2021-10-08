@@ -71,6 +71,12 @@ sub scan_file {
         } else {
             $hidden = 0;
         }
+ 
+        if ($defun_or_alias =~ /_YANG/) {
+            $yang = 1;
+        } else {
+            $yang = 0;
+        }
 
         $defun_array[0] = '';
 

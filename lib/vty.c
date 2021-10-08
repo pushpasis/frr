@@ -3478,7 +3478,7 @@ int vty_mgmt_send_config_data(struct vty *vty)
 
 			cfg_data[cnt].xpath =
 				vty->cfg_changes[indx].xpath;
-				
+
 			mgmt_yang_cfg_data_req_init(&cfg_req[cnt]);
 			cfg_req[cnt].data = &cfg_data[cnt];
 			switch (vty->cfg_changes[indx].operation) {
@@ -3509,8 +3509,8 @@ int vty_mgmt_send_config_data(struct vty *vty)
 			return -1;
 		}
 
-		// zlog_err("Sent SET_CONFIG request for session 0x%lx, req-id: %lu!",
-		// 	vty->mgmt_session_id, vty->mgmt_req_id);
+		// zlog_err("Sent SET_CONFIG request for session 0x%lx, req-id: %lu, num_xpaths: %d!",
+		// 	vty->mgmt_session_id, vty->mgmt_req_id, cnt);
 
 		vty->mgmt_req_pending = true;
 	}
