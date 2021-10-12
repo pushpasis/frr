@@ -954,7 +954,7 @@ void mgmt_db_dump_tree(
 	mgmt_db_dump_in_memory(db_ctxt, base_xpath, format, out);
 
 	if (!f)
-		vty_out(vty, "%s", str);
+		vty_out(vty, "%s\n", str);
 
 	ly_out_free(out, NULL, 0);
 }

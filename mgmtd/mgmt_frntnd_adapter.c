@@ -826,10 +826,14 @@ static int mgmt_frntnd_session_handle_setcfg_req_msg(
 			sessn->cfg_trxn_id, sessn);
 
 		if (setcfg_req->implicit_commit) {
+			/*
+			 * In this scenario need to skip cleanup of the trxn,
+			 * so setting implicit commit to false.
+			 */
 			mgmt_frntnd_send_setcfg_reply(sessn,
 				setcfg_req->db_id, setcfg_req->req_id, false,
 				"A Configuration transaction is already in progress!",
-				setcfg_req->implicit_commit);
+				false);
 			return 0;
 		}
 	}
