@@ -262,8 +262,7 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 				NB_ENQEUE_CLI_COMMAND(vty, ab_xpath,
 						      NB_OP_MODIFY, "false");
 		}
-		if (type == STATIC_IPV4_GATEWAY
-		    || type == STATIC_IPV6_GATEWAY
+		if (type == STATIC_IPV4_GATEWAY || type == STATIC_IPV6_GATEWAY
 		    || type == STATIC_IPV4_GATEWAY_IFNAME
 		    || type == STATIC_IPV6_GATEWAY_IFNAME) {
 			strlcpy(ab_xpath, xpath_nexthop, sizeof(ab_xpath));
@@ -311,7 +310,8 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 	} else {
 		if (src_str) {
 			if (distance_str)
-				snprintf(ab_xpath, sizeof(ab_xpath),
+				snprintf(
+					ab_xpath, sizeof(ab_xpath),
 					FRR_DEL_S_ROUTE_SRC_NH_KEY_XPATH,
 					"frr-staticd:staticd", "staticd", svrf,
 					buf_prefix,
@@ -320,30 +320,33 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 					buf_nh_type, nh_svrf, buf_gate_str,
 					ifname);
 			else
-				snprintf(ab_xpath, sizeof(ab_xpath),
+				snprintf(
+					ab_xpath, sizeof(ab_xpath),
 					FRR_DEL_S_ROUTE_SRC_NH_KEY_NO_DISTANCE_XPATH,
 					"frr-staticd:staticd", "staticd", svrf,
 					buf_prefix,
 					yang_afi_safi_value2identity(afi, safi),
-					buf_src_prefix, table_id, buf_nh_type, nh_svrf,
-					buf_gate_str, ifname);
+					buf_src_prefix, table_id, buf_nh_type,
+					nh_svrf, buf_gate_str, ifname);
 		} else {
 			if (distance_str)
-				snprintf(ab_xpath, sizeof(ab_xpath),
+				snprintf(
+					ab_xpath, sizeof(ab_xpath),
 					FRR_DEL_S_ROUTE_NH_KEY_XPATH,
 					"frr-staticd:staticd", "staticd", svrf,
 					buf_prefix,
 					yang_afi_safi_value2identity(afi, safi),
-					table_id, distance, buf_nh_type, nh_svrf,
-					buf_gate_str, ifname);
+					table_id, distance, buf_nh_type,
+					nh_svrf, buf_gate_str, ifname);
 			else
-				snprintf(ab_xpath, sizeof(ab_xpath),
+				snprintf(
+					ab_xpath, sizeof(ab_xpath),
 					FRR_DEL_S_ROUTE_NH_KEY_NO_DISTANCE_XPATH,
 					"frr-staticd:staticd", "staticd", svrf,
 					buf_prefix,
 					yang_afi_safi_value2identity(afi, safi),
-					table_id, buf_nh_type, nh_svrf, buf_gate_str,
-					ifname);
+					table_id, buf_nh_type, nh_svrf,
+					buf_gate_str, ifname);
 		}
 
 		dnode = yang_dnode_get(vty->candidate_config->dnode, ab_xpath);
@@ -1315,12 +1318,8 @@ DEFPY_YANG(debug_staticd, debug_staticd_cmd,
 }
 
 #ifndef INCLUDE_MGMTD_CMDDEFS_ONLY
-DEFUN_NOSH (show_debugging_static,
-	    show_debugging_static_cmd,
-	    "show debugging [static]",
-	    SHOW_STR
-	    DEBUG_STR
-	    "Static Information\n")
+DEFUN_NOSH(show_debugging_static, show_debugging_static_cmd,
+	   "show debugging [static]", SHOW_STR DEBUG_STR "Static Information\n")
 {
 	vty_out(vty, "Staticd debugging status\n");
 
@@ -1336,46 +1335,45 @@ static struct cmd_node debug_node = {
 	.config_write = static_config_write_debug,
 };
 
-mgmt_lib_hndl_t mgmt_lib_hndl;
+uint64_t mgmt_lib_hndl;
 
-static void static_mgmt_bcknd_client_connect(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	bool connected)
+static void static_mgmt_bcknd_client_connect(uint64_t lib_hndl,
+					     uint64_t usr_data, bool connected)
 {
-	(void) usr_data;
+	(void)usr_data;
 
 	assert(lib_hndl == mgmt_lib_hndl);
 
-	zlog_debug("Got %s %s MGMTD Backend Client Server", 
-		 connected ? "connected" : "disconnected", 
-		 connected ? "to" : "from");
+	zlog_debug("Got %s %s MGMTD Backend Client Server",
+		   connected ? "connected" : "disconnected",
+		   connected ? "to" : "from");
 
 	if (connected)
-		(void) mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl, NULL, 0);
+		(void)mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl, NULL, 0);
 }
 
-static void static_mgmt_trxn_notify(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, bool destroyed)
+static void static_mgmt_trxn_notify(uint64_t lib_hndl, uint64_t usr_data,
+				    mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+				    bool destroyed)
 {
-	zlog_debug("Got Trxn %s Notify from MGMTD server", 
-		 destroyed ? "DESTROY" : "CREATE");
+	zlog_debug("Got Trxn %s Notify from MGMTD server",
+		   destroyed ? "DESTROY" : "CREATE");
 
 	if (!destroyed) {
-		/* 
-		 * TODO: Allocate and install a private scratchpad for this 
+		/*
+		 * TODO: Allocate and install a private scratchpad for this
 		 * transaction if required
 		 */
 	} else {
-		/* 
-		 * TODO: Uninstall and deallocate the private scratchpad for 
+		/*
+		 * TODO: Uninstall and deallocate the private scratchpad for
 		 * this transaction if installed earlier.
 		 */
 	}
 }
 
-static mgmt_result_t static_mgmt_data_validate(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result static_mgmt_data_validate(
+	uint64_t lib_hndl, uint64_t usr_data,
 	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
 	struct nb_yang_value *data, bool delete, char *error_if_any)
 {
@@ -1387,10 +1385,11 @@ static mgmt_result_t static_mgmt_data_validate(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t static_mgmt_data_apply(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_value *data, bool delete)
+static enum mgmt_result
+static_mgmt_data_apply(uint64_t lib_hndl, uint64_t usr_data,
+		       mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+		       struct nb_yang_xpath *xpath, struct nb_yang_value *data,
+		       bool delete)
 {
 	/*
 	 * Get the private scratchpad for this transaction (if installed).
@@ -1400,10 +1399,11 @@ static mgmt_result_t static_mgmt_data_apply(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t static_mgmt_get_data_elem(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_xpath_elem *elem)
+static enum mgmt_result
+static_mgmt_get_data_elem(uint64_t lib_hndl, uint64_t usr_data,
+			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+			  struct nb_yang_xpath *xpath,
+			  struct nb_yang_xpath_elem *elem)
 {
 	/*
 	 * Get the private scratchpad for this transaction (if installed).
@@ -1413,11 +1413,12 @@ static mgmt_result_t static_mgmt_get_data_elem(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t static_mgmt_get_data(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	bool keys_only, struct nb_yang_xpath_elem **elems, int *num_elems, 
-	int *next_key)
+static enum mgmt_result
+static_mgmt_get_data(uint64_t lib_hndl, uint64_t usr_data,
+		     mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+		     struct nb_yang_xpath *xpath, bool keys_only,
+		     struct nb_yang_xpath_elem **elems, int *num_elems,
+		     int *next_key)
 {
 	/*
 	 * Get the private scratchpad for this transaction (if installed).
@@ -1427,10 +1428,11 @@ static mgmt_result_t static_mgmt_get_data(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t static_mgmt_get_next_data(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	bool keys_only, struct nb_yang_xpath_elem **elems, int *num_elems)
+static enum mgmt_result
+static_mgmt_get_next_data(uint64_t lib_hndl, uint64_t usr_data,
+			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+			  struct nb_yang_xpath *xpath, bool keys_only,
+			  struct nb_yang_xpath_elem **elems, int *num_elems)
 {
 	/*
 	 * Get the private scratchpad for this transaction (if installed).
@@ -1449,8 +1451,7 @@ static mgmt_bcknd_client_params_t mgmt_params = {
 	.data_apply_cb = static_mgmt_data_apply,
 	.get_data_elem_cb = static_mgmt_get_data_elem,
 	.get_data_cb = static_mgmt_get_data,
-	.get_next_data_cb = static_mgmt_get_next_data
-};
+	.get_next_data_cb = static_mgmt_get_next_data};
 
 void static_mgmt_init(struct thread_master *master)
 {

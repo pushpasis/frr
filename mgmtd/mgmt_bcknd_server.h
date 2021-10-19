@@ -23,7 +23,7 @@
 
 #include "lib/mgmt_bcknd_client.h"
 
-#define MGMTD_BCKND_MAX_CONN	32
+#define MGMTD_BCKND_MAX_CONN 32
 
 extern int mgmt_bcknd_server_init(struct thread_master *master);
 

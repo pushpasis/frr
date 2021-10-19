@@ -26,153 +26,158 @@
 #include "lib/mgmt_bcknd_client.h"
 #include "mgmtd/mgmt_db.h"
 
-#define MGMTD_BCKND_CONN_INIT_DELAY_MSEC		50
+#define MGMTD_BCKND_CONN_INIT_DELAY_MSEC 50
 
-#define MGMTD_FIND_ADAPTER_BY_INDEX(adapter_index)	\
+#define MGMTD_FIND_ADAPTER_BY_INDEX(adapter_index)                             \
 	mgmt_adaptr_ref[adapter_index]
 
-// List of adapter clients of MGMTD
+/* List of adapter clients of MGMTD */
 #define MGMTD_BCKND_CLIENT_INDEX_STATICD (1 << MGMTD_BCKND_CLIENT_ID_STATICD)
 #define MGMTD_BCKND_CLIENT_INDEX_BGPD (1 << MGMTD_BCKND_CLIENT_ID_BGPD)
 
-typedef enum mgmt_bcknd_req_type_ {
-        MGMTD_BCKND_REQ_NONE = 0,
-        MGMTD_BCKND_REQ_CFG_VALIDATE,
-        MGMTD_BCKND_REQ_CFG_APPLY,
-        MGMTD_BCKND_REQ_DATA_GET_ELEM,
-        MGMTD_BCKND_REQ_DATA_GET_NEXT
-} mgmt_bcknd_req_type_t;
+enum mgmt_bcknd_req_type {
+	MGMTD_BCKND_REQ_NONE = 0,
+	MGMTD_BCKND_REQ_CFG_VALIDATE,
+	MGMTD_BCKND_REQ_CFG_APPLY,
+	MGMTD_BCKND_REQ_DATA_GET_ELEM,
+	MGMTD_BCKND_REQ_DATA_GET_NEXT
+};
 
-typedef struct mgmt_bcknd_cfgreq_ {
-        mgmt_yang_cfgdata_req_t **cfgdata_reqs;
-        size_t num_reqs;
-} mgmt_bcknd_cfgreq_t;
+struct mgmt_bcknd_cfgreq {
+	mgmt_yang_cfgdata_req_t **cfgdata_reqs;
+	size_t num_reqs;
+};
 
-typedef struct mgmt_bcknd_datareq_ {
-        mgmt_yang_getdata_req_t **getdata_reqs;
-        size_t num_reqs;
-} mgmt_bcknd_datareq_t;
+struct mgmt_bcknd_datareq {
+	mgmt_yang_getdata_req_t **getdata_reqs;
+	size_t num_reqs;
+};
 
 PREDECL_LIST(mgmt_bcknd_adptr_list);
 PREDECL_LIST(mgmt_trxn_badptr_list);
 
-typedef struct mgmt_bcknd_client_adapter_ {
-        mgmt_bcknd_client_id_t id;
-        int conn_fd;
-        union sockunion conn_su;
-        struct thread *conn_init_ev;
-        struct thread *conn_read_ev;
-        struct thread *conn_write_ev;
-        struct thread *conn_writes_on;
-        struct thread *proc_msg_ev;
+struct mgmt_bcknd_client_adapter {
+	mgmt_bcknd_client_id_t id;
+	int conn_fd;
+	union sockunion conn_su;
+	struct thread *conn_init_ev;
+	struct thread *conn_read_ev;
+	struct thread *conn_write_ev;
+	struct thread *conn_writes_on;
+	struct thread *proc_msg_ev;
 	uint32_t flags;
-        char name[MGMTD_CLIENT_NAME_MAX_LEN];
-        uint8_t num_xpath_reg;
-        char xpath_reg[MGMTD_MAX_NUM_XPATH_REG][MGMTD_MAX_XPATH_LEN];
+	char name[MGMTD_CLIENT_NAME_MAX_LEN];
+	uint8_t num_xpath_reg;
+	char xpath_reg[MGMTD_MAX_NUM_XPATH_REG][MGMTD_MAX_XPATH_LEN];
 
-        /* IO streams for read and write */
-	// pthread_mutex_t ibuf_mtx;
+	/* IO streams for read and write */
+	/* pthread_mutex_t ibuf_mtx; */
 	struct stream_fifo *ibuf_fifo;
-	// pthread_mutex_t obuf_mtx;
+	/* pthread_mutex_t obuf_mtx; */
 	struct stream_fifo *obuf_fifo;
 
-	// /* Private I/O buffers */
+	/* Private I/O buffers */
 	struct stream *ibuf_work;
 	struct stream *obuf_work;
 	uint8_t msg_buf[MGMTD_BCKND_MSG_MAX_LEN];
 
 	/* Buffer of data waiting to be written to client. */
-	// struct buffer *wb;
+	/* struct buffer *wb; */
 
-        // int adapter_index;
-        int refcount;
-        uint32_t num_msg_tx;
-        uint32_t num_msg_rx;
+	int refcount;
+	uint32_t num_msg_tx;
+	uint32_t num_msg_rx;
 
-        /*
-         * List of config items that should be sent to the 
-         * backend during re/connect. This is temporarily 
-         * created and then freed-up as soon as the initial 
-         * config items has been applied onto the backend.
-         */
-        struct nb_config_cbs cfg_chgs;
+	/*
+	 * List of config items that should be sent to the
+	 * backend during re/connect. This is temporarily
+	 * created and then freed-up as soon as the initial
+	 * config items has been applied onto the backend.
+	 */
+	struct nb_config_cbs cfg_chgs;
 
-        struct mgmt_bcknd_adptr_list_item list_linkage;
-        struct mgmt_trxn_badptr_list_item trxn_list_linkage;
-} mgmt_bcknd_client_adapter_t;
+	struct mgmt_bcknd_adptr_list_item list_linkage;
+	struct mgmt_trxn_badptr_list_item trxn_list_linkage;
+};
 
-#define MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF         (1U << 0)
-#define MGMTD_BCKND_ADPTR_FLAGS_CFG_SYNCED         (1U << 1)
+#define MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF (1U << 0)
+#define MGMTD_BCKND_ADPTR_FLAGS_CFG_SYNCED (1U << 1)
 
-DECLARE_LIST(mgmt_bcknd_adptr_list, mgmt_bcknd_client_adapter_t, list_linkage);
-DECLARE_LIST(mgmt_trxn_badptr_list, mgmt_bcknd_client_adapter_t, trxn_list_linkage);
+DECLARE_LIST(mgmt_bcknd_adptr_list, struct mgmt_bcknd_client_adapter,
+	     list_linkage);
+DECLARE_LIST(mgmt_trxn_badptr_list, struct mgmt_bcknd_client_adapter,
+	     trxn_list_linkage);
 
-typedef union mgmt_bcknd_xpath_subscr_info_ {
+union mgmt_bcknd_xpath_subscr_info {
 	uint8_t subscribed;
 	struct {
-		uint8_t validate_config:1;
-		uint8_t notify_config:1;
-		uint8_t own_oper_data:1;
+		uint8_t validate_config : 1;
+		uint8_t notify_config : 1;
+		uint8_t own_oper_data : 1;
 	};
-} mgmt_bcknd_xpath_subscr_info_t;
+};
 
-typedef struct mgmt_bcknd_client_subscr_info_ {
-	mgmt_bcknd_xpath_subscr_info_t xpath_subscr[MGMTD_BCKND_CLIENT_ID_MAX];
-} mgmt_bcknd_client_subscr_info_t;
+struct mgmt_bcknd_client_subscr_info {
+	union mgmt_bcknd_xpath_subscr_info
+		xpath_subscr[MGMTD_BCKND_CLIENT_ID_MAX];
+};
 
 extern int mgmt_bcknd_adapter_init(struct thread_master *tm);
 
-extern void mgmt_bcknd_adapter_lock(mgmt_bcknd_client_adapter_t *adptr);
+extern void mgmt_bcknd_adapter_lock(struct mgmt_bcknd_client_adapter *adptr);
 
-extern void mgmt_bcknd_adapter_unlock(mgmt_bcknd_client_adapter_t **adptr);
+extern void mgmt_bcknd_adapter_unlock(struct mgmt_bcknd_client_adapter **adptr);
 
-extern mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(
-        int conn_fd, union sockunion *su);
+extern struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_create_adapter(int conn_fd, union sockunion *su);
 
-extern mgmt_bcknd_client_adapter_t *mgmt_bcknd_get_adapter_by_name(
-        const char *name);
+extern struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_get_adapter_by_name(const char *name);
 
-extern mgmt_bcknd_client_adapter_t *mgmt_bcknd_get_adapter_by_id(
-        mgmt_bcknd_client_id_t id);
+extern struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id);
 
-extern int mgmt_bcknd_get_adapter_config(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_db_hndl_t db_hndl,
-	struct nb_config_cbs **cfg_chgs);
+extern int
+mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
+			      uint64_t db_hndl,
+			      struct nb_config_cbs **cfg_chgs);
 
-extern int mgmt_bcknd_create_trxn(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id);
+extern int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
+				  uint64_t trxn_id);
 
-extern int mgmt_bcknd_destroy_trxn(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id);
+extern int mgmt_bcknd_destroy_trxn(struct mgmt_bcknd_client_adapter *adptr,
+				   uint64_t trxn_id);
 
 extern int mgmt_bcknd_send_cfg_data_create_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_cfgreq_t *cfg_req,
-        bool end_of_data);
+	struct mgmt_bcknd_client_adapter *adptr, uint64_t trxn_id,
+	uint64_t batch_id, struct mgmt_bcknd_cfgreq *cfg_req, bool end_of_data);
 
-extern int mgmt_bcknd_send_cfg_validate_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids);
+extern int
+mgmt_bcknd_send_cfg_validate_req(struct mgmt_bcknd_client_adapter *adptr,
+				 uint64_t trxn_id, uint64_t batch_ids[],
+				 size_t num_batch_ids);
 
-extern int mgmt_bcknd_send_cfg_apply_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id);
+extern int
+mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
+			      uint64_t trxn_id);
 
-extern int mgmt_bcknd_send_get_data_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_datareq_t *data_req);
+extern int mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
+					uint64_t trxn_id, uint64_t batch_id,
+					struct mgmt_bcknd_datareq *data_req);
 
-extern int mgmt_bcknd_send_get_next_data_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_datareq_t *data_req);
+extern int
+mgmt_bcknd_send_get_next_data_req(struct mgmt_bcknd_client_adapter *adptr,
+				  uint64_t trxn_id, uint64_t batch_id,
+				  struct mgmt_bcknd_datareq *data_req);
 
 extern void mgmt_bcknd_adapter_status_write(struct vty *vty);
 
 extern void mgmt_bcknd_xpath_register_write(struct vty *vty);
 
-extern int mgmt_bcknd_get_subscr_info_for_xpath(const char *xpath, 
-	mgmt_bcknd_client_subscr_info_t *subscr_info);
+extern int mgmt_bcknd_get_subscr_info_for_xpath(
+	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info);
 
-extern void mgmt_bcknd_xpath_subscr_info_write(
-        struct vty *vty, const char *xpath);
+extern void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty,
+					       const char *xpath);
 
 #endif /* _FRR_MGMTD_BCKND_ADAPTER_H_ */

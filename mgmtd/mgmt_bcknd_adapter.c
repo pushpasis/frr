@@ -33,125 +33,122 @@
 #include "lib/vty.h"
 
 #ifdef REDIRECT_DEBUG_TO_STDERR
-#define MGMTD_BCKND_ADPTR_DBG(fmt, ...)				\
+#define MGMTD_BCKND_ADPTR_DBG(fmt, ...)                                        \
 	fprintf(stderr, "%s: " fmt "\n", __func__, ##__VA_ARGS__)
-#define MGMTD_BCKND_ADPTR_ERR(fmt, ...)				\
+#define MGMTD_BCKND_ADPTR_ERR(fmt, ...)                                        \
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
-#define MGMTD_BCKND_ADPTR_DBG(fmt, ...)				\
-	if (mgmt_debug_bcknd)					\
-		zlog_err("%s: " fmt , __func__, ##__VA_ARGS__)
-#define MGMTD_BCKND_ADPTR_ERR(fmt, ...)				\
-	zlog_err("%s: ERROR: " fmt , __func__, ##__VA_ARGS__)
+#define MGMTD_BCKND_ADPTR_DBG(fmt, ...)                                        \
+	do {                                                                   \
+		if (mgmt_debug_bcknd)                                          \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
+#define MGMTD_BCKND_ADPTR_ERR(fmt, ...)                                        \
+	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
 
-#define FOREACH_ADPTR_IN_LIST(adptr)						\
-	for ((adptr) = mgmt_bcknd_adptr_list_first(&mgmt_bcknd_adptrs); (adptr);\
-		(adptr) = mgmt_bcknd_adptr_list_next(&mgmt_bcknd_adptrs, (adptr)))
+#define FOREACH_ADPTR_IN_LIST(adptr)                                           \
+	for ((adptr) = mgmt_bcknd_adptr_list_first(&mgmt_bcknd_adptrs);        \
+	     (adptr); (adptr) = mgmt_bcknd_adptr_list_next(&mgmt_bcknd_adptrs, \
+							   (adptr)))
 
-/* 
- * Static mapping of YANG XPath regular expressions and 
- * the corresponding interested backend clients. 
- * NOTE: Thiis is a static mapping defined by all MGMTD 
- * backend client modules (for now, till we develop a 
+/*
+ * Static mapping of YANG XPath regular expressions and
+ * the corresponding interested backend clients.
+ * NOTE: Thiis is a static mapping defined by all MGMTD
+ * backend client modules (for now, till we develop a
  * more dynamic way of creating and updating this map).
- * A running map is created by MGMTD in run-time to 
- * handle real-time mapping of YANG xpaths to one or 
+ * A running map is created by MGMTD in run-time to
+ * handle real-time mapping of YANG xpaths to one or
  * more interested backend client adapters.
- * 
+ *
  * Please see xpath_map_reg[] in lib/mgmt_bcknd_client.c
  * for the actual map
  */
-typedef struct mgmt_bcknd_xpath_map_reg_ {
-	const char *xpath_regexp;  /* Longest matching regular expression */
-        uint8_t num_clients;    /* Number of clients */
-	const char *bcknd_clients[MGMTD_BCKND_MAX_CLIENTS_PER_XPATH_REG];  /* List of clients */
-} mgmt_bcknd_xpath_map_reg_t;
+struct mgmt_bcknd_xpath_map_reg {
+	const char *xpath_regexp; /* Longest matching regular expression */
+	uint8_t num_clients;      /* Number of clients */
 
-typedef struct mgmt_bcknd_xpath_regexp_map_ {
-	const char *xpath_regexp;
-	mgmt_bcknd_client_subscr_info_t bcknd_subscrs;
-} mgmt_bcknd_xpath_regexp_map_t;
-
-typedef struct mgmt_bcknd_get_adptr_config_params_ {
-        mgmt_bcknd_client_adapter_t *adptr;
-	struct nb_config_cbs *cfg_chgs;
-        uint32_t seq;
-} mgmt_bcknd_get_adptr_cfgreq_params_t;
-
-/* 
- * Static mapping of YANG XPath regular expressions and 
- * the corresponding interested backend clients. 
- * NOTE: Thiis is a static mapping defined by all MGMTD 
- * backend client modules (for now, till we develop a 
- * more dynamic way of creating and updating this map).
- * A running map is created by MGMTD in run-time to 
- * handle real-time mapping of YANG xpaths to one or 
- * more interested backend client adapters.
- */
-static const mgmt_bcknd_xpath_map_reg_t xpath_static_map_reg[] = {
-	{
-		.xpath_regexp = "/frr-interface:lib/*",
-		.num_clients = 2,
-		.bcknd_clients = {
-			MGMTD_BCKND_CLIENT_STATICD,
-			MGMTD_BCKND_CLIENT_BGPD
-		}
-	},
-	{
-		.xpath_regexp = 
-			"/frr-routing:routing/control-plane-protocols/"
-			"control-plane-protocol[type='frr-staticd:staticd']"
-			"[name='staticd'][vrf='default']/frr-staticd:staticd/*",
-		.num_clients = 1,
-		.bcknd_clients = {
-			MGMTD_BCKND_CLIENT_STATICD
-		}
-	},
-	{
-		.xpath_regexp = 
-			"/frr-routing:routing/control-plane-protocols/"
-			"control-plane-protocol[type='frr-bgp:bgp']"
-			"[name='bgp'][vrf='default']/frr-bgp:bgp/*",
-		.num_clients = 1,
-		.bcknd_clients = {
-			MGMTD_BCKND_CLIENT_BGPD
-		}
-	}
+	const char *bcknd_clients
+		[MGMTD_BCKND_MAX_CLIENTS_PER_XPATH_REG]; /* List of clients */
 };
 
-#define MGMTD_BCKND_MAX_NUM_XPATH_MAP	256
-static mgmt_bcknd_xpath_regexp_map_t 
-	mgmt_xpath_map[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = { 0 };
-static int mgmt_num_xpath_maps = 0;
+struct mgmt_bcknd_xpath_regexp_map {
+	const char *xpath_regexp;
+	struct mgmt_bcknd_client_subscr_info bcknd_subscrs;
+};
 
-static struct thread_master *mgmt_bcknd_adptr_tm = NULL;
+struct mgmt_bcknd_get_adptr_config_params {
+	struct mgmt_bcknd_client_adapter *adptr;
+	struct nb_config_cbs *cfg_chgs;
+	uint32_t seq;
+};
+
+/*
+ * Static mapping of YANG XPath regular expressions and
+ * the corresponding interested backend clients.
+ * NOTE: Thiis is a static mapping defined by all MGMTD
+ * backend client modules (for now, till we develop a
+ * more dynamic way of creating and updating this map).
+ * A running map is created by MGMTD in run-time to
+ * handle real-time mapping of YANG xpaths to one or
+ * more interested backend client adapters.
+ */
+static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
+	{.xpath_regexp = "/frr-interface:lib/*",
+	 .num_clients = 2,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD,
+			   MGMTD_BCKND_CLIENT_BGPD}},
+	{.xpath_regexp =
+		 "/frr-routing:routing/control-plane-protocols/			 \
+		  control-plane-protocol[type='frr-staticd:staticd']	 \
+		  [name='staticd'][vrf='default']/frr-staticd:staticd/*",
+	 .num_clients = 1,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}},
+	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	 \
+			  control-plane-protocol[type='frr-bgp:bgp']			 \
+			  [name='bgp'][vrf='default']/frr-bgp:bgp/*",
+	 .num_clients = 1,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}}};
+
+#define MGMTD_BCKND_MAX_NUM_XPATH_MAP 256
+static struct mgmt_bcknd_xpath_regexp_map
+	mgmt_xpath_map[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
+static int mgmt_num_xpath_maps;
+
+static struct thread_master *mgmt_bcknd_adptr_tm;
 
 static struct mgmt_bcknd_adptr_list_head mgmt_bcknd_adptrs = {0};
 
-static mgmt_bcknd_client_adapter_t *mgmt_bcknd_adptrs_by_id[MGMTD_BCKND_CLIENT_ID_MAX] = { 0 };
+static struct mgmt_bcknd_client_adapter
+	*mgmt_bcknd_adptrs_by_id[MGMTD_BCKND_CLIENT_ID_MAX] = {0};
 
 /* Forward declarations */
-static void mgmt_bcknd_adptr_register_event(
-	mgmt_bcknd_client_adapter_t *adptr, mgmt_event_t event);
+static void
+mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
+				enum mgmt_event event);
 
-static mgmt_bcknd_client_adapter_t *mgmt_bcknd_find_adapter_by_fd(int conn_fd)
+static struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_find_adapter_by_fd(int conn_fd)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	FOREACH_ADPTR_IN_LIST(adptr) {
-		if (adptr->conn_fd == conn_fd) 
+	FOREACH_ADPTR_IN_LIST(adptr)
+	{
+		if (adptr->conn_fd == conn_fd)
 			return adptr;
 	}
 
 	return NULL;
 }
 
-static mgmt_bcknd_client_adapter_t *mgmt_bcknd_find_adapter_by_name(const char *name)
+static struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_find_adapter_by_name(const char *name)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	FOREACH_ADPTR_IN_LIST(adptr) {
+	FOREACH_ADPTR_IN_LIST(adptr)
+	{
 		if (!strncmp(adptr->name, name, sizeof(adptr->name)))
 			return adptr;
 	}
@@ -161,98 +158,97 @@ static mgmt_bcknd_client_adapter_t *mgmt_bcknd_find_adapter_by_name(const char *
 
 static void mgmt_bcknd_xpath_map_init(void)
 {
-        int indx, num_xpath_maps;
-        uint16_t indx1;
-        mgmt_bcknd_client_id_t id;
+	int indx, num_xpath_maps;
+	uint16_t indx1;
+	mgmt_bcknd_client_id_t id;
 
 	MGMTD_BCKND_ADPTR_DBG("Init XPath Maps");
 
-	num_xpath_maps = (int) array_size(xpath_static_map_reg);
-        for (indx = 0; indx < num_xpath_maps; indx++) {
+	num_xpath_maps = (int)array_size(xpath_static_map_reg);
+	for (indx = 0; indx < num_xpath_maps; indx++) {
 		MGMTD_BCKND_ADPTR_DBG(" - XPATH: '%s'",
-				xpath_static_map_reg[indx].xpath_regexp);
-                mgmt_xpath_map[indx].xpath_regexp = 
-                        xpath_static_map_reg[indx].xpath_regexp;
-                for (indx1 = 0;
-                        indx1 < xpath_static_map_reg[indx].num_clients;
-                        indx1++) {
-                        id  = mgmt_bknd_client_name2id(
-                                xpath_static_map_reg[indx].bcknd_clients[indx1]);
-			MGMTD_BCKND_ADPTR_DBG("   -- Client: '%s' --> Id: %u",
-				xpath_static_map_reg[indx].bcknd_clients[indx1], id);
-                        if (id < MGMTD_BCKND_CLIENT_ID_MAX) {
-                        	mgmt_xpath_map[indx].bcknd_subscrs.
-			      		xpath_subscr[id].validate_config = 1;
-                        	mgmt_xpath_map[indx].bcknd_subscrs.
-			      		xpath_subscr[id].notify_config = 1;
-                        	mgmt_xpath_map[indx].bcknd_subscrs.
-			      		xpath_subscr[id].own_oper_data = 1;
-                        }
-                }
-        }
+				      xpath_static_map_reg[indx].xpath_regexp);
+		mgmt_xpath_map[indx].xpath_regexp =
+			xpath_static_map_reg[indx].xpath_regexp;
+		for (indx1 = 0; indx1 < xpath_static_map_reg[indx].num_clients;
+		     indx1++) {
+			id = mgmt_bknd_client_name2id(
+				xpath_static_map_reg[indx]
+					.bcknd_clients[indx1]);
+			MGMTD_BCKND_ADPTR_DBG(
+				"   -- Client: '%s' --> Id: %u",
+				xpath_static_map_reg[indx].bcknd_clients[indx1],
+				id);
+			if (id < MGMTD_BCKND_CLIENT_ID_MAX) {
+				mgmt_xpath_map[indx]
+					.bcknd_subscrs.xpath_subscr[id]
+					.validate_config = 1;
+				mgmt_xpath_map[indx]
+					.bcknd_subscrs.xpath_subscr[id]
+					.notify_config = 1;
+				mgmt_xpath_map[indx]
+					.bcknd_subscrs.xpath_subscr[id]
+					.own_oper_data = 1;
+			}
+		}
+	}
 
 	mgmt_num_xpath_maps = indx;
 	MGMTD_BCKND_ADPTR_DBG("Total XPath Maps: %u", mgmt_num_xpath_maps);
 }
 
-static int mgmt_bcknd_eval_regexp_match(
-	const char *xpath_regexp, const char *xpath)
+static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
+					const char *xpath)
 {
 	int match_len = 0, re_indx = 0, xp_indx = 0;
 	int rexp_len, xpath_len;
 	bool match = true, re_wild = false, xp_wild = false;
 	bool key = false, incr_re = false, incr_xp = false;
-	// char re_str[1024], xp_str[1024];
 
 	rexp_len = strlen(xpath_regexp);
 	xpath_len = strlen(xpath);
-	// memset(re_str, 0, sizeof(re_str));
-	// memset(xp_str, 0, sizeof(xp_str));
 
 	if (!rexp_len || !xpath_len)
 		return 0;
 
-	// MGMTD_BCKND_ADPTR_DBG(" REGEXP: '%s'", xpath_regexp);
-
 	for (re_indx = 0, xp_indx = 0;
-	     match && re_indx < rexp_len && xp_indx < xpath_len; ) {
+	     match && re_indx < rexp_len && xp_indx < xpath_len;) {
 		incr_re = true;
 		incr_xp = true;
 
-		// re_str[re_indx] = xpath_regexp[re_indx];
-		// xp_str[xp_indx] = xpath[xp_indx];
-		// MGMTD_BCKND_ADPTR_DBG("'%s' || '%s'", re_str, xp_str);
-
-		if (!key && xpath_regexp[re_indx] == '\'' && xpath[xp_indx] == '\'')
+		if (!key && xpath_regexp[re_indx] == '\''
+		    && xpath[xp_indx] == '\'')
 			key = key ? false : true;
-		if (key && xpath_regexp[re_indx] == '*' && xpath[xp_indx] != '*') {
+		if (key && xpath_regexp[re_indx] == '*'
+		    && xpath[xp_indx] != '*') {
 			incr_re = false;
 			re_wild = true;
-		} else if (key && xpath_regexp[re_indx] != '*' && xpath[xp_indx] == '*') {
+		} else if (key && xpath_regexp[re_indx] != '*'
+			   && xpath[xp_indx] == '*') {
 			incr_xp = false;
 			xp_wild = true;
 		}
 
-		match = (xp_wild || re_wild ||
-			xpath_regexp[re_indx] == xpath[xp_indx]);
+		match = (xp_wild || re_wild
+			 || xpath_regexp[re_indx] == xpath[xp_indx]);
 
-		if (match && re_indx && xp_indx &&
-			((xpath_regexp[re_indx-1] == '/' && xpath[xp_indx-1] == '/') ||
-			(xpath_regexp[re_indx-1] == '[' && xpath[xp_indx-1] == '[') ||
-			(xpath_regexp[re_indx-1] == ']' && xpath[xp_indx-1] == '[')))
+		if (match && re_indx && xp_indx
+		    && ((xpath_regexp[re_indx - 1] == '/'
+			 && xpath[xp_indx - 1] == '/')
+			|| (xpath_regexp[re_indx - 1] == '['
+			    && xpath[xp_indx - 1] == '[')
+			|| (xpath_regexp[re_indx - 1] == ']'
+			    && xpath[xp_indx - 1] == '[')))
 			match_len++;
 
-		if (key && re_wild && xpath[xp_indx+1] == '\'') {
+		if (key && re_wild && xpath[xp_indx + 1] == '\'') {
 			re_wild = false;
 			incr_re = true;
 		}
-		if (key && xp_wild && xpath_regexp[re_indx+1] == '\'') {
+		if (key && xp_wild && xpath_regexp[re_indx + 1] == '\'') {
 			xp_wild = false;
 			incr_xp = true;
 		}
-
-		// MGMTD_BCKND_ADPTR_DBG("K:%d, RI:%d, RX:%d, RW:%d, XW:%d, M:%d, IR: %d, IX:%d",
-		// 	key, re_indx, xp_indx, re_wild, xp_wild, match, incr_re, incr_xp);
 
 		if (incr_re)
 			re_indx++;
@@ -260,16 +256,14 @@ static int mgmt_bcknd_eval_regexp_match(
 			xp_indx++;
 	}
 
-	if (match) {
+	if (match)
 		match_len++;
-	}
 
-	// MGMTD_BCKND_ADPTR_DBG(" - REGEXP: %s, Match: %d",
-	// 	xpath_regexp, match_len);
 	return match_len;
 }
 
-static void mgmt_bcknd_adapter_disconnect(mgmt_bcknd_client_adapter_t *adptr)
+static void
+mgmt_bcknd_adapter_disconnect(struct mgmt_bcknd_client_adapter *adptr)
 {
 	if (adptr->conn_fd) {
 		close(adptr->conn_fd);
@@ -289,14 +283,15 @@ static void mgmt_bcknd_adapter_disconnect(mgmt_bcknd_client_adapter_t *adptr)
 	mgmt_bcknd_adapter_unlock(&adptr);
 }
 
-static void mgmt_bcknd_adapter_cleanup_old_conn(
-	mgmt_bcknd_client_adapter_t *adptr)
+static void
+mgmt_bcknd_adapter_cleanup_old_conn(struct mgmt_bcknd_client_adapter *adptr)
 {
-	mgmt_bcknd_client_adapter_t *old;
+	struct mgmt_bcknd_client_adapter *old;
 
-	FOREACH_ADPTR_IN_LIST(old) {
-		if (old != adptr &&
-			!strncmp(adptr->name, old->name, sizeof(adptr->name))) {
+	FOREACH_ADPTR_IN_LIST(old)
+	{
+		if (old != adptr
+		    && !strncmp(adptr->name, old->name, sizeof(adptr->name))) {
 			/*
 			 * We have a Zombie lingering around
 			 */
@@ -308,25 +303,30 @@ static void mgmt_bcknd_adapter_cleanup_old_conn(
 	}
 }
 
-static int mgmt_bcknd_adapter_handle_msg(
-	mgmt_bcknd_client_adapter_t *adptr, Mgmtd__BckndMessage *bcknd_msg)
+static int
+mgmt_bcknd_adapter_handle_msg(struct mgmt_bcknd_client_adapter *adptr,
+			      Mgmtd__BckndMessage *bcknd_msg)
 {
-	switch(bcknd_msg->type) {
+	switch (bcknd_msg->type) {
 	case MGMTD__BCKND_MESSAGE__TYPE__SUBSCRIBE_REQ:
-		assert(bcknd_msg->message_case == MGMTD__BCKND_MESSAGE__MESSAGE_SUBSCR_REQ);
+		assert(bcknd_msg->message_case
+		       == MGMTD__BCKND_MESSAGE__MESSAGE_SUBSCR_REQ);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got Subscribe Req Msg from '%s' to %sregister %u xpaths", 
-			bcknd_msg->subscr_req->client_name, 
-			!bcknd_msg->subscr_req->subscribe_xpaths && 
-			bcknd_msg->subscr_req->n_xpath_reg ? "de" : "", 
+			"Got Subscribe Req Msg from '%s' to %sregister %u xpaths",
+			bcknd_msg->subscr_req->client_name,
+			!bcknd_msg->subscr_req->subscribe_xpaths
+					&& bcknd_msg->subscr_req->n_xpath_reg
+				? "de"
+				: "",
 			(uint32_t)bcknd_msg->subscr_req->n_xpath_reg);
 
 		if (strlen(bcknd_msg->subscr_req->client_name)) {
-			strlcpy(adptr->name, bcknd_msg->subscr_req->client_name, 
+			strlcpy(adptr->name, bcknd_msg->subscr_req->client_name,
 				sizeof(adptr->name));
 			adptr->id = mgmt_bknd_client_name2id(adptr->name);
 			if (adptr->id >= MGMTD_BCKND_CLIENT_ID_MAX) {
-				MGMTD_BCKND_ADPTR_ERR("Unable to resolve adapter '%s' to a valid ID. Disconnecting!",
+				MGMTD_BCKND_ADPTR_ERR(
+					"Unable to resolve adapter '%s' to a valid ID. Disconnecting!",
 					adptr->name);
 				mgmt_bcknd_adapter_disconnect(adptr);
 			}
@@ -335,66 +335,76 @@ static int mgmt_bcknd_adapter_handle_msg(
 		}
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__TRXN_REPLY:
-		assert(bcknd_msg->message_case == MGMTD__BCKND_MESSAGE__MESSAGE_TRXN_REPLY);
+		assert(bcknd_msg->message_case
+		       == MGMTD__BCKND_MESSAGE__MESSAGE_TRXN_REPLY);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got %s TRXN_REPLY Msg for Trxn-Id 0x%llx from '%s' with '%s'", 
-			bcknd_msg->trxn_reply->create ? "Create" : "Delete", 
+			"Got %s TRXN_REPLY Msg for Trxn-Id 0x%llx from '%s' with '%s'",
+			bcknd_msg->trxn_reply->create ? "Create" : "Delete",
 			bcknd_msg->trxn_reply->trxn_id, adptr->name,
 			bcknd_msg->trxn_reply->success ? "success" : "failure");
-		mgmt_trxn_notify_bcknd_trxn_reply(bcknd_msg->trxn_reply->trxn_id,
+		mgmt_trxn_notify_bcknd_trxn_reply(
+			bcknd_msg->trxn_reply->trxn_id,
 			bcknd_msg->trxn_reply->create,
 			bcknd_msg->trxn_reply->success, adptr);
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__CFGDATA_CREATE_REPLY:
-		assert(bcknd_msg->message_case == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_DATA_REPLY);
+		assert(bcknd_msg->message_case
+		       == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_DATA_REPLY);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got CFGDATA_REPLY Msg from '%s' for Trxn-Id 0x%llx Batch-Id 0x%llx with Err:'%s'", 
+			"Got CFGDATA_REPLY Msg from '%s' for Trxn-Id 0x%llx Batch-Id 0x%llx with Err:'%s'",
 			adptr->name, bcknd_msg->cfg_data_reply->trxn_id,
 			bcknd_msg->cfg_data_reply->batch_id,
-			bcknd_msg->cfg_data_reply->error_if_any ?
-				bcknd_msg->cfg_data_reply->error_if_any : "None");
-		mgmt_trxn_notify_bcknd_cfgdata_reply(bcknd_msg->cfg_data_reply->trxn_id,
+			bcknd_msg->cfg_data_reply->error_if_any
+				? bcknd_msg->cfg_data_reply->error_if_any
+				: "None");
+		mgmt_trxn_notify_bcknd_cfgdata_reply(
+			bcknd_msg->cfg_data_reply->trxn_id,
 			bcknd_msg->cfg_data_reply->batch_id,
 			bcknd_msg->cfg_data_reply->success,
 			bcknd_msg->cfg_data_reply->error_if_any, adptr);
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__CFGDATA_VALIDATE_REPLY:
-		assert(bcknd_msg->message_case == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_VALIDATE_REPLY);
+		assert(bcknd_msg->message_case
+		       == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_VALIDATE_REPLY);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got %s CFG_VALIDATE_REPLY Msg from '%s' for Trxn-Id 0x%llx for %d batches (Id 0x%llx-0x%llx),  Err:'%s'", 
-			bcknd_msg->cfg_validate_reply->success ?
-				"successful" : "failed",
+			"Got %s CFG_VALIDATE_REPLY Msg from '%s' for Trxn-Id 0x%llx for %d batches (Id 0x%llx-0x%llx),  Err:'%s'",
+			bcknd_msg->cfg_validate_reply->success ? "successful"
+							       : "failed",
 			adptr->name, bcknd_msg->cfg_validate_reply->trxn_id,
-			(int) bcknd_msg->cfg_validate_reply->n_batch_ids,
+			(int)bcknd_msg->cfg_validate_reply->n_batch_ids,
 			bcknd_msg->cfg_validate_reply->batch_ids[0],
 			bcknd_msg->cfg_validate_reply->batch_ids
-				[bcknd_msg->cfg_validate_reply->n_batch_ids-1],
-			bcknd_msg->cfg_validate_reply->error_if_any ?
-				bcknd_msg->cfg_validate_reply->error_if_any : "None");
-		mgmt_trxn_notify_bcknd_cfg_validate_reply(bcknd_msg->cfg_validate_reply->trxn_id,
+				[bcknd_msg->cfg_validate_reply->n_batch_ids
+				 - 1],
+			bcknd_msg->cfg_validate_reply->error_if_any
+				? bcknd_msg->cfg_validate_reply->error_if_any
+				: "None");
+		mgmt_trxn_notify_bcknd_cfg_validate_reply(
+			bcknd_msg->cfg_validate_reply->trxn_id,
 			bcknd_msg->cfg_validate_reply->success,
-			(mgmt_trxn_batch_id_t *) bcknd_msg->
-				cfg_validate_reply->batch_ids,
+			(uint64_t *)bcknd_msg->cfg_validate_reply->batch_ids,
 			bcknd_msg->cfg_validate_reply->n_batch_ids,
 			bcknd_msg->cfg_validate_reply->error_if_any, adptr);
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__CFGDATA_APPLY_REPLY:
-		assert(bcknd_msg->message_case == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_APPLY_REPLY);
+		assert(bcknd_msg->message_case
+		       == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_APPLY_REPLY);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got %s CFG_APPLY_REPLY Msg from '%s' for Trxn-Id 0x%llx for %d batches (Id 0x%llx-0x%llx),  Err:'%s'", 
-			bcknd_msg->cfg_apply_reply->success ?
-				"successful" : "failed",
+			"Got %s CFG_APPLY_REPLY Msg from '%s' for Trxn-Id 0x%llx for %d batches (Id 0x%llx-0x%llx),  Err:'%s'",
+			bcknd_msg->cfg_apply_reply->success ? "successful"
+							    : "failed",
 			adptr->name, bcknd_msg->cfg_apply_reply->trxn_id,
-			(int) bcknd_msg->cfg_apply_reply->n_batch_ids,
+			(int)bcknd_msg->cfg_apply_reply->n_batch_ids,
 			bcknd_msg->cfg_apply_reply->batch_ids[0],
 			bcknd_msg->cfg_apply_reply->batch_ids
-				[bcknd_msg->cfg_apply_reply->n_batch_ids-1],
-			bcknd_msg->cfg_apply_reply->error_if_any ?
-				bcknd_msg->cfg_apply_reply->error_if_any : "None");
-		mgmt_trxn_notify_bcknd_cfg_apply_reply(bcknd_msg->cfg_apply_reply->trxn_id,
+				[bcknd_msg->cfg_apply_reply->n_batch_ids - 1],
+			bcknd_msg->cfg_apply_reply->error_if_any
+				? bcknd_msg->cfg_apply_reply->error_if_any
+				: "None");
+		mgmt_trxn_notify_bcknd_cfg_apply_reply(
+			bcknd_msg->cfg_apply_reply->trxn_id,
 			bcknd_msg->cfg_apply_reply->success,
-			(mgmt_trxn_batch_id_t *) bcknd_msg->
-				cfg_apply_reply->batch_ids,
+			(uint64_t *)bcknd_msg->cfg_apply_reply->batch_ids,
 			bcknd_msg->cfg_apply_reply->n_batch_ids,
 			bcknd_msg->cfg_apply_reply->error_if_any, adptr);
 		break;
@@ -405,13 +415,15 @@ static int mgmt_bcknd_adapter_handle_msg(
 	return 0;
 }
 
-static inline void mgmt_bcknd_adapter_sched_msg_write(mgmt_bcknd_client_adapter_t *adptr)
+static inline void
+mgmt_bcknd_adapter_sched_msg_write(struct mgmt_bcknd_client_adapter *adptr)
 {
 	if (!CHECK_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF))
 		mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_WRITE);
 }
 
-static inline void mgmt_bcknd_adapter_writes_on(mgmt_bcknd_client_adapter_t *adptr)
+static inline void
+mgmt_bcknd_adapter_writes_on(struct mgmt_bcknd_client_adapter *adptr)
 {
 	MGMTD_BCKND_ADPTR_DBG("Resume writing msgs for '%s'", adptr->name);
 	UNSET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF);
@@ -419,14 +431,15 @@ static inline void mgmt_bcknd_adapter_writes_on(mgmt_bcknd_client_adapter_t *adp
 		mgmt_bcknd_adapter_sched_msg_write(adptr);
 }
 
-static inline void mgmt_bcknd_adapter_writes_off(mgmt_bcknd_client_adapter_t *adptr)
+static inline void
+mgmt_bcknd_adapter_writes_off(struct mgmt_bcknd_client_adapter *adptr)
 {
 	SET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF);
 	MGMTD_BCKND_ADPTR_DBG("Pause writing msgs for '%s'", adptr->name);
 }
 
-static int mgmt_bcknd_adapter_send_msg(mgmt_bcknd_client_adapter_t *adptr, 
-	Mgmtd__BckndMessage *bcknd_msg)
+static int mgmt_bcknd_adapter_send_msg(struct mgmt_bcknd_client_adapter *adptr,
+				       Mgmtd__BckndMessage *bcknd_msg)
 {
 	size_t msg_size;
 	uint8_t *msg_buf = adptr->msg_buf;
@@ -439,14 +452,14 @@ static int mgmt_bcknd_adapter_send_msg(mgmt_bcknd_client_adapter_t *adptr,
 	msg_size += MGMTD_BCKND_MSG_HDR_LEN;
 	if (msg_size > MGMTD_BCKND_MSG_MAX_LEN) {
 		MGMTD_BCKND_ADPTR_ERR(
-			"Message size %d more than max size'%d. Not sending!'", 
-			(int) msg_size, (int)MGMTD_BCKND_MSG_MAX_LEN);
+			"Message size %d more than max size'%d. Not sending!'",
+			(int)msg_size, (int)MGMTD_BCKND_MSG_MAX_LEN);
 		return -1;
 	}
-	
+
 	msg = (mgmt_bcknd_msg_t *)msg_buf;
 	msg->hdr.marker = MGMTD_BCKND_MSG_MARKER;
-	msg->hdr.len = (uint16_t) msg_size;
+	msg->hdr.len = (uint16_t)msg_size;
 	mgmtd__bcknd_message__pack(bcknd_msg, msg->payload);
 
 #ifndef MGMTD_PACK_TX_MSGS
@@ -468,8 +481,8 @@ static int mgmt_bcknd_adapter_send_msg(mgmt_bcknd_client_adapter_t *adptr,
 	return 0;
 }
 
-static int mgmt_bcknd_send_trxn_req(mgmt_bcknd_client_adapter_t *adptr,
-	mgmt_trxn_id_t trxn_id, bool create)
+static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
+				    uint64_t trxn_id, bool create)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndTrxnReq trxn_req;
@@ -483,16 +496,18 @@ static int mgmt_bcknd_send_trxn_req(mgmt_bcknd_client_adapter_t *adptr,
 	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_TRXN_REQ;
 	bcknd_msg.trxn_req = &trxn_req;
 
-	MGMTD_BCKND_ADPTR_DBG("Sending TRXN_REQ message to Backend client '%s' for Trxn-Id %lx",
+	MGMTD_BCKND_ADPTR_DBG(
+		"Sending TRXN_REQ message to Backend client '%s' for Trxn-Id %lx",
 		adptr->name, trxn_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgdata_create_req(mgmt_bcknd_client_adapter_t *adptr,
-	mgmt_trxn_id_t trxn_id, mgmt_trxn_batch_id_t batch_id,
-	mgmt_yang_cfgdata_req_t **cfgdata_reqs, size_t num_reqs, 
-	bool end_of_data)
+static int
+mgmt_bcknd_send_cfgdata_create_req(struct mgmt_bcknd_client_adapter *adptr,
+				   uint64_t trxn_id, uint64_t batch_id,
+				   mgmt_yang_cfgdata_req_t **cfgdata_reqs,
+				   size_t num_reqs, bool end_of_data)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataCreateReq cfgdata_req;
@@ -509,15 +524,17 @@ static int mgmt_bcknd_send_cfgdata_create_req(mgmt_bcknd_client_adapter_t *adptr
 	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_CFG_DATA_REQ;
 	bcknd_msg.cfg_data_req = &cfgdata_req;
 
-	MGMTD_BCKND_ADPTR_DBG("Sending CFGDATA_CREATE_REQ message to Backend client '%s' for Trxn-Id %lx, Batch-Id: %lx",
+	MGMTD_BCKND_ADPTR_DBG(
+		"Sending CFGDATA_CREATE_REQ message to Backend client '%s' for Trxn-Id %lx, Batch-Id: %lx",
 		adptr->name, trxn_id, batch_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgvalidate_req(mgmt_bcknd_client_adapter_t *adptr,
-	mgmt_trxn_id_t trxn_id, mgmt_trxn_batch_id_t batch_ids[],
-	size_t num_batch_ids)
+static int
+mgmt_bcknd_send_cfgvalidate_req(struct mgmt_bcknd_client_adapter *adptr,
+				uint64_t trxn_id, uint64_t batch_ids[],
+				size_t num_batch_ids)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataValidateReq vldt_req;
@@ -532,15 +549,16 @@ static int mgmt_bcknd_send_cfgvalidate_req(mgmt_bcknd_client_adapter_t *adptr,
 	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_CFG_VALIDATE_REQ;
 	bcknd_msg.cfg_validate_req = &vldt_req;
 
-	MGMTD_BCKND_ADPTR_DBG("Sending CFG_VALIDATE_REQ message to Backend client '%s' for Trxn-Id %lx, #Batches: %d [0x%lx - 0x%lx]",
-		adptr->name, trxn_id, (int) num_batch_ids, batch_ids[0],
-		batch_ids[num_batch_ids-1]);
+	MGMTD_BCKND_ADPTR_DBG(
+		"Sending CFG_VALIDATE_REQ message to Backend client '%s' for Trxn-Id %lx, #Batches: %d [0x%lx - 0x%lx]",
+		adptr->name, trxn_id, (int)num_batch_ids, batch_ids[0],
+		batch_ids[num_batch_ids - 1]);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgapply_req(mgmt_bcknd_client_adapter_t *adptr,
-	mgmt_trxn_id_t trxn_id)
+static int mgmt_bcknd_send_cfgapply_req(struct mgmt_bcknd_client_adapter *adptr,
+					uint64_t trxn_id)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataApplyReq apply_req;
@@ -553,14 +571,16 @@ static int mgmt_bcknd_send_cfgapply_req(mgmt_bcknd_client_adapter_t *adptr,
 	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_CFG_APPLY_REQ;
 	bcknd_msg.cfg_apply_req = &apply_req;
 
-	MGMTD_BCKND_ADPTR_DBG("Sending CFG_APPLY_REQ message to Backend client '%s' for Trxn-Id 0x%lx",
+	MGMTD_BCKND_ADPTR_DBG(
+		"Sending CFG_APPLY_REQ message to Backend client '%s' for Trxn-Id 0x%lx",
 		adptr->name, trxn_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static uint16_t mgmt_bcknd_adapter_process_msg(
-	mgmt_bcknd_client_adapter_t *adptr, uint8_t *msg_buf, uint16_t bytes_read)
+static uint16_t
+mgmt_bcknd_adapter_process_msg(struct mgmt_bcknd_client_adapter *adptr,
+			       uint8_t *msg_buf, uint16_t bytes_read)
 {
 	Mgmtd__BckndMessage *bcknd_msg;
 	mgmt_bcknd_msg_t *msg;
@@ -568,34 +588,34 @@ static uint16_t mgmt_bcknd_adapter_process_msg(
 	uint16_t processed = 0;
 
 	bytes_left = bytes_read;
-	for ( ; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;
-		bytes_left -= msg->hdr.len, msg_buf += msg->hdr.len) {
+	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;
+	     bytes_left -= msg->hdr.len, msg_buf += msg->hdr.len) {
 		msg = (mgmt_bcknd_msg_t *)msg_buf;
 		if (msg->hdr.marker != MGMTD_BCKND_MSG_MARKER) {
 			MGMTD_BCKND_ADPTR_DBG(
-				"Marker not found in message from MGMTD Backend adapter '%s'", 
+				"Marker not found in message from MGMTD Backend adapter '%s'",
 				adptr->name);
 			break;
 		}
 
 		if (bytes_left < msg->hdr.len) {
 			MGMTD_BCKND_ADPTR_DBG(
-				"Incomplete message of %d bytes (epxected: %u) from MGMTD Backend adapter '%s'", 
+				"Incomplete message of %d bytes (epxected: %u) from MGMTD Backend adapter '%s'",
 				bytes_left, msg->hdr.len, adptr->name);
 			break;
 		}
 
 		bcknd_msg = mgmtd__bcknd_message__unpack(
-			NULL, (size_t) (msg->hdr.len - MGMTD_BCKND_MSG_HDR_LEN), 
+			NULL, (size_t)(msg->hdr.len - MGMTD_BCKND_MSG_HDR_LEN),
 			msg->payload);
 		if (!bcknd_msg) {
 			MGMTD_BCKND_ADPTR_DBG(
-				"Failed to decode %d bytes from MGMTD Backend adapter '%s'", 
+				"Failed to decode %d bytes from MGMTD Backend adapter '%s'",
 				msg->hdr.len, adptr->name);
 			continue;
 		}
 
-		(void) mgmt_bcknd_adapter_handle_msg(adptr, bcknd_msg);
+		(void)mgmt_bcknd_adapter_handle_msg(adptr, bcknd_msg);
 		mgmtd__bcknd_message__free_unpacked(bcknd_msg, NULL);
 		processed++;
 		adptr->num_msg_rx++;
@@ -606,21 +626,20 @@ static uint16_t mgmt_bcknd_adapter_process_msg(
 
 static int mgmt_bcknd_adapter_proc_msgbufs(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct stream *work;
 	int processed = 0;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr);
 
 	if (adptr->conn_fd == 0)
 		return 0;
 
-	for ( ; processed < MGMTD_BCKND_MAX_NUM_MSG_PROC ; ) {
+	for (; processed < MGMTD_BCKND_MAX_NUM_MSG_PROC;) {
 		work = stream_fifo_pop_safe(adptr->ibuf_fifo);
-		if (!work) {
+		if (!work)
 			break;
-		}
 
 		processed += mgmt_bcknd_adapter_process_msg(
 			adptr, STREAM_DATA(work), stream_get_endp(work));
@@ -639,41 +658,44 @@ static int mgmt_bcknd_adapter_proc_msgbufs(struct thread *thread)
 	 */
 	if (stream_fifo_head(adptr->ibuf_fifo))
 		mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_PROC_MSG);
-	
+
 	return 0;
 }
 
 static int mgmt_bcknd_adapter_read(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	int bytes_read, msg_cnt;
 	size_t total_bytes, bytes_left;
 	mgmt_bcknd_msg_hdr_t *msg_hdr;
 	bool incomplete = false;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	total_bytes = 0;
-	bytes_left = STREAM_SIZE(adptr->ibuf_work) - 
-		stream_get_endp(adptr->ibuf_work);
-	for ( ; bytes_left > MGMTD_BCKND_MSG_HDR_LEN; ) {
-		bytes_read = stream_read_try(
-				adptr->ibuf_work, adptr->conn_fd, bytes_left);
+	bytes_left = STREAM_SIZE(adptr->ibuf_work)
+		     - stream_get_endp(adptr->ibuf_work);
+	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;) {
+		bytes_read = stream_read_try(adptr->ibuf_work, adptr->conn_fd,
+					     bytes_left);
 		MGMTD_BCKND_ADPTR_DBG(
-			"Got %d bytes of message from MGMTD Backend adapter '%s'", 
+			"Got %d bytes of message from MGMTD Backend adapter '%s'",
 			bytes_read, adptr->name);
 		if (bytes_read <= 0) {
-			if (bytes_read == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-				mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_READ);
+			if (bytes_read == -1
+			    && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+				mgmt_bcknd_adptr_register_event(
+					adptr, MGMTD_BCKND_CONN_READ);
 				return 0;
 			}
 
 			if (!bytes_read) {
 				/* Looks like connection closed */
 				MGMTD_BCKND_ADPTR_ERR(
-					"Got error (%d) while reading from MGMTD Backend adapter '%s'. Err: '%s'", 
-					bytes_read, adptr->name, safe_strerror(errno));
+					"Got error (%d) while reading from MGMTD Backend adapter '%s'. Err: '%s'",
+					bytes_read, adptr->name,
+					safe_strerror(errno));
 				mgmt_bcknd_adapter_disconnect(adptr);
 				return -1;
 			}
@@ -691,9 +713,9 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 	total_bytes = 0;
 	msg_cnt = 0;
 	bytes_left = stream_get_endp(adptr->ibuf_work);
-	for ( ; bytes_left > MGMTD_BCKND_MSG_HDR_LEN; ) {
-		msg_hdr = (mgmt_bcknd_msg_hdr_t *)
-			(STREAM_DATA(adptr->ibuf_work) + total_bytes);
+	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;) {
+		msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
+						   + total_bytes);
 		if (msg_hdr->marker != MGMTD_BCKND_MSG_MARKER) {
 			/* Corrupted buffer. Force disconnect?? */
 			MGMTD_BCKND_ADPTR_ERR(
@@ -701,9 +723,8 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 			mgmt_bcknd_adapter_disconnect(adptr);
 			return -1;
 		}
-		if (msg_hdr->len > bytes_left) {
+		if (msg_hdr->len > bytes_left)
 			break;
-		}
 
 		total_bytes += msg_hdr->len;
 		bytes_left -= msg_hdr->len;
@@ -713,12 +734,12 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 	if (bytes_left > 0)
 		incomplete = true;
 
-	/* 
+	/*
 	 * We would have read one or several messages.
 	 * Schedule processing them now.
 	 */
-	msg_hdr = (mgmt_bcknd_msg_hdr_t *)
-		(STREAM_DATA(adptr->ibuf_work) + total_bytes);
+	msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
+					   + total_bytes);
 	stream_set_endp(adptr->ibuf_work, total_bytes);
 	stream_fifo_push(adptr->ibuf_fifo, adptr->ibuf_work);
 	adptr->ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
@@ -742,9 +763,9 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 	int msg_size = 0;
 	struct stream *s = NULL;
 	struct stream *free = NULL;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	/* Ensure pushing any pending write buffer to FIFO */
@@ -754,13 +775,15 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 	}
 
 	for (s = stream_fifo_head(adptr->obuf_fifo);
-		s && processed < MGMTD_BCKND_MAX_NUM_MSG_WRITE;
-		s = stream_fifo_head(adptr->obuf_fifo)) {
-		// msg_size = (int)stream_get_size(s);
-		msg_size = (int) STREAM_READABLE(s);
+	     s && processed < MGMTD_BCKND_MAX_NUM_MSG_WRITE;
+	     s = stream_fifo_head(adptr->obuf_fifo)) {
+		/* msg_size = (int)stream_get_size(s); */
+		msg_size = (int)STREAM_READABLE(s);
 		bytes_written = stream_flush(s, adptr->conn_fd);
-		if (bytes_written == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-			mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_WRITE);
+		if (bytes_written == -1
+		    && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+			mgmt_bcknd_adptr_register_event(adptr,
+							MGMTD_BCKND_CONN_WRITE);
 			return 0;
 		} else if (bytes_written != msg_size) {
 			MGMTD_BCKND_ADPTR_ERR(
@@ -769,7 +792,8 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 			if (bytes_written > 0) {
 				stream_forward_getp(s, (size_t)bytes_written);
 				stream_pulldown(s);
-				mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_WRITE);
+				mgmt_bcknd_adptr_register_event(
+					adptr, MGMTD_BCKND_CONN_WRITE);
 				return 0;
 			}
 			mgmt_bcknd_adapter_disconnect(adptr);
@@ -786,7 +810,8 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 
 	if (s) {
 		mgmt_bcknd_adapter_writes_off(adptr);
-		mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_WRITES_ON);
+		mgmt_bcknd_adptr_register_event(adptr,
+						MGMTD_BCKND_CONN_WRITES_ON);
 	}
 
 	return 0;
@@ -794,9 +819,9 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 
 static int mgmt_bcknd_adapter_resume_writes(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	mgmt_bcknd_adapter_writes_on(adptr);
@@ -804,23 +829,23 @@ static int mgmt_bcknd_adapter_resume_writes(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl,
-        char *xpath, struct lyd_node *node, struct nb_node *nb_node,
-		void *ctxt)
+static void mgmt_bcknd_iter_and_get_cfg(uint64_t db_hndl, char *xpath,
+					struct lyd_node *node,
+					struct nb_node *nb_node, void *ctxt)
 {
-	mgmt_bcknd_client_subscr_info_t subscr_info;
-	mgmt_bcknd_get_adptr_cfgreq_params_t *parms;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_subscr_info subscr_info;
+	struct mgmt_bcknd_get_adptr_config_params *parms;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct nb_config_cbs *root;
 	uint32_t *seq;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr_info) != 0) {
-		MGMTD_BCKND_ADPTR_ERR("ERROR: Failed to get subscriber for '%s'",
-			xpath);
+		MGMTD_BCKND_ADPTR_ERR(
+			"ERROR: Failed to get subscriber for '%s'", xpath);
 		return;
 	}
 
-	parms = (mgmt_bcknd_get_adptr_cfgreq_params_t *)ctxt;
+	parms = (struct mgmt_bcknd_get_adptr_config_params *)ctxt;
 
 	adptr = parms->adptr;
 	if (!subscr_info.xpath_subscr[adptr->id].subscribed)
@@ -829,15 +854,13 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl,
 	root = parms->cfg_chgs;
 	seq = &parms->seq;
 	nb_config_diff_created(node, seq, root);
-
-	return;
 }
 
 static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	/*
@@ -852,7 +875,7 @@ static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 
 	if (mgmt_trxn_notify_bcknd_adapter_conn(adptr, true) != 0) {
 		/*
-		 * Notify TRXN module to create a CONFIG transaction and 
+		 * Notify TRXN module to create a CONFIG transaction and
 		 * download the CONFIGs identified for this new client.
 		 * If the TRXN module fails to initiate the CONFIG transaction
 		 * disconnect from the client forcing a reconnect later.
@@ -865,45 +888,42 @@ static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_bcknd_adptr_register_event(
-	mgmt_bcknd_client_adapter_t *adptr, mgmt_event_t event)
+static void
+mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
+				enum mgmt_event event)
 {
-	struct timeval tv = { 0 };
+	struct timeval tv = {0};
 
 	switch (event) {
 	case MGMTD_BCKND_CONN_INIT:
 		thread_add_timer_msec(mgmt_bcknd_adptr_tm,
-			mgmt_bcknd_adapter_conn_init, adptr,
-			MGMTD_BCKND_CONN_INIT_DELAY_MSEC,
-			&adptr->conn_init_ev);
+				      mgmt_bcknd_adapter_conn_init, adptr,
+				      MGMTD_BCKND_CONN_INIT_DELAY_MSEC,
+				      &adptr->conn_init_ev);
 		assert(adptr->conn_init_ev);
 		break;
 	case MGMTD_BCKND_CONN_READ:
-		thread_add_read(mgmt_bcknd_adptr_tm,
-			mgmt_bcknd_adapter_read, adptr,
-			adptr->conn_fd,
-			&adptr->conn_read_ev);
+		thread_add_read(mgmt_bcknd_adptr_tm, mgmt_bcknd_adapter_read,
+				adptr, adptr->conn_fd, &adptr->conn_read_ev);
 		assert(adptr->conn_read_ev);
 		break;
 	case MGMTD_BCKND_CONN_WRITE:
-		thread_add_write(mgmt_bcknd_adptr_tm,
-			mgmt_bcknd_adapter_write, adptr,
-			adptr->conn_fd,
-			&adptr->conn_write_ev);
+		thread_add_write(mgmt_bcknd_adptr_tm, mgmt_bcknd_adapter_write,
+				 adptr, adptr->conn_fd, &adptr->conn_write_ev);
 		assert(adptr->conn_write_ev);
 		break;
 	case MGMTD_BCKND_PROC_MSG:
 		tv.tv_usec = MGMTD_BCKND_MSG_PROC_DELAY_USEC;
 		thread_add_timer_tv(mgmt_bcknd_adptr_tm,
-			mgmt_bcknd_adapter_proc_msgbufs, adptr,
-			&tv, &adptr->proc_msg_ev);
+				    mgmt_bcknd_adapter_proc_msgbufs, adptr, &tv,
+				    &adptr->proc_msg_ev);
 		assert(adptr->proc_msg_ev);
 		break;
 	case MGMTD_BCKND_CONN_WRITES_ON:
 		thread_add_timer_msec(mgmt_bcknd_adptr_tm,
-			mgmt_bcknd_adapter_resume_writes, adptr,
-			MGMTD_BCKND_MSG_WRITE_DELAY_MSEC,
-			&adptr->conn_writes_on);
+				      mgmt_bcknd_adapter_resume_writes, adptr,
+				      MGMTD_BCKND_MSG_WRITE_DELAY_MSEC,
+				      &adptr->conn_writes_on);
 		assert(adptr->conn_writes_on);
 		break;
 	default:
@@ -911,12 +931,12 @@ static void mgmt_bcknd_adptr_register_event(
 	}
 }
 
-void mgmt_bcknd_adapter_lock(mgmt_bcknd_client_adapter_t *adptr)
+void mgmt_bcknd_adapter_lock(struct mgmt_bcknd_client_adapter *adptr)
 {
 	adptr->refcount++;
 }
 
-extern void mgmt_bcknd_adapter_unlock(mgmt_bcknd_client_adapter_t **adptr)
+extern void mgmt_bcknd_adapter_unlock(struct mgmt_bcknd_client_adapter **adptr)
 {
 	assert(*adptr && (*adptr)->refcount);
 
@@ -951,25 +971,26 @@ int mgmt_bcknd_adapter_init(struct thread_master *tm)
 	return 0;
 }
 
-mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(
-	int conn_fd, union sockunion *from)
+struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_create_adapter(int conn_fd, union sockunion *from)
 {
-	mgmt_bcknd_client_adapter_t *adptr = NULL;
+	struct mgmt_bcknd_client_adapter *adptr = NULL;
 
 	adptr = mgmt_bcknd_find_adapter_by_fd(conn_fd);
 	if (!adptr) {
-		adptr = XCALLOC(MTYPE_MGMTD_BCKND_ADPATER, 
-				sizeof(mgmt_bcknd_client_adapter_t));
+		adptr = XCALLOC(MTYPE_MGMTD_BCKND_ADPATER,
+				sizeof(struct mgmt_bcknd_client_adapter));
 		assert(adptr);
 
 		adptr->conn_fd = conn_fd;
 		adptr->id = MGMTD_BCKND_CLIENT_ID_MAX;
 		memcpy(&adptr->conn_su, from, sizeof(adptr->conn_su));
-		snprintf(adptr->name, sizeof(adptr->name), "Unknown-FD-%d", adptr->conn_fd);
+		snprintf(adptr->name, sizeof(adptr->name), "Unknown-FD-%d",
+			 adptr->conn_fd);
 		adptr->ibuf_fifo = stream_fifo_new();
 		adptr->ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
 		adptr->obuf_fifo = stream_fifo_new();
-		// adptr->obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
+		/* adptr->obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN); */
 		adptr->obuf_work = NULL;
 		mgmt_bcknd_adapter_lock(adptr);
 
@@ -978,8 +999,8 @@ mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(
 
 		RB_INIT(nb_config_cbs, &adptr->cfg_chgs);
 
-		MGMTD_BCKND_ADPTR_DBG(
-			"Added new MGMTD Backend adapter '%s'", adptr->name);
+		MGMTD_BCKND_ADPTR_DBG("Added new MGMTD Backend adapter '%s'",
+				      adptr->name);
 	}
 
 	/* Make client socket non-blocking.  */
@@ -993,24 +1014,25 @@ mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(
 	return adptr;
 }
 
-mgmt_bcknd_client_adapter_t *mgmt_bcknd_get_adapter_by_id(
-        mgmt_bcknd_client_id_t id)
+struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id)
 {
-        return (id < MGMTD_BCKND_CLIENT_ID_MAX ?
-		mgmt_bcknd_adptrs_by_id[id] : NULL);
+	return (id < MGMTD_BCKND_CLIENT_ID_MAX ? mgmt_bcknd_adptrs_by_id[id]
+					       : NULL);
 }
 
-mgmt_bcknd_client_adapter_t *mgmt_bcknd_get_adapter_by_name(const char *name)
+struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_get_adapter_by_name(const char *name)
 {
 	return mgmt_bcknd_find_adapter_by_name(name);
 }
 
-int mgmt_bcknd_get_adapter_config(
-	mgmt_bcknd_client_adapter_t *adptr, mgmt_db_hndl_t db_hndl,
-	struct nb_config_cbs **cfg_chgs)
+int mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
+				  uint64_t db_hndl,
+				  struct nb_config_cbs **cfg_chgs)
 {
 	char base_xpath[] = "/";
-	mgmt_bcknd_get_adptr_cfgreq_params_t parms;
+	struct mgmt_bcknd_get_adptr_config_params parms;
 
 	assert(cfg_chgs);
 
@@ -1019,72 +1041,78 @@ int mgmt_bcknd_get_adapter_config(
 		parms.cfg_chgs = &adptr->cfg_chgs;
 		parms.seq = 0;
 
-		mgmt_db_iter_data(db_hndl, base_xpath, mgmt_bcknd_iter_and_get_cfg,
-			(void *)&parms, false);
+		mgmt_db_iter_data(db_hndl, base_xpath,
+				  mgmt_bcknd_iter_and_get_cfg, (void *)&parms,
+				  false);
 	}
 
 	*cfg_chgs = &adptr->cfg_chgs;
 	return 0;
 }
 
-int mgmt_bcknd_create_trxn(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id)
+int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
+			   uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, true);
 }
 
-int mgmt_bcknd_destroy_trxn(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id)
+int mgmt_bcknd_destroy_trxn(struct mgmt_bcknd_client_adapter *adptr,
+			    uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, false);
 }
 
-int mgmt_bcknd_send_cfg_data_create_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_cfgreq_t *cfg_req,
-	bool end_of_data)
+int mgmt_bcknd_send_cfg_data_create_req(struct mgmt_bcknd_client_adapter *adptr,
+					uint64_t trxn_id, uint64_t batch_id,
+					struct mgmt_bcknd_cfgreq *cfg_req,
+					bool end_of_data)
 {
-	return mgmt_bcknd_send_cfgdata_create_req(adptr, trxn_id, batch_id,
-			cfg_req->cfgdata_reqs, cfg_req->num_reqs, end_of_data);
+	return mgmt_bcknd_send_cfgdata_create_req(
+		adptr, trxn_id, batch_id, cfg_req->cfgdata_reqs,
+		cfg_req->num_reqs, end_of_data);
 }
 
-extern int mgmt_bcknd_send_cfg_validate_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids)
+extern int
+mgmt_bcknd_send_cfg_validate_req(struct mgmt_bcknd_client_adapter *adptr,
+				 uint64_t trxn_id, uint64_t batch_ids[],
+				 size_t num_batch_ids)
 {
-	return mgmt_bcknd_send_cfgvalidate_req(adptr, trxn_id, batch_ids, num_batch_ids);
+	return mgmt_bcknd_send_cfgvalidate_req(adptr, trxn_id, batch_ids,
+					       num_batch_ids);
 }
 
-extern int mgmt_bcknd_send_cfg_apply_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id)
+extern int
+mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
+			      uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_cfgapply_req(adptr, trxn_id);
 }
 
-int mgmt_bcknd_send_get_data_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_datareq_t *data_req)
+int mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
+				 uint64_t trxn_id, uint64_t batch_id,
+				 struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;
 }
 
-int mgmt_bcknd_send_get_next_data_req(
-        mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
-        mgmt_trxn_batch_id_t batch_id, mgmt_bcknd_datareq_t *data_req)
+int mgmt_bcknd_send_get_next_data_req(struct mgmt_bcknd_client_adapter *adptr,
+				      uint64_t trxn_id, uint64_t batch_id,
+				      struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;
 }
 
-/* 
- * This function maps a YANG dtata Xpath to one or more 
+/*
+ * This function maps a YANG dtata Xpath to one or more
  * Backend Clients that should be contacted for various purposes.
  */
-int mgmt_bcknd_get_subscr_info_for_xpath(const char *xpath, 
-	mgmt_bcknd_client_subscr_info_t *subscr_info)
+int mgmt_bcknd_get_subscr_info_for_xpath(
+	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info)
 {
 	int indx, match, max_match = 0, num_reg;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_subscr_info_t *reg_maps[array_size(mgmt_xpath_map)] = { 0 };
+	struct mgmt_bcknd_client_subscr_info
+		*reg_maps[array_size(mgmt_xpath_map)] = {0};
 
 	if (!subscr_info)
 		return -1;
@@ -1099,7 +1127,7 @@ int mgmt_bcknd_get_subscr_info_for_xpath(const char *xpath,
 
 		if (match < max_match)
 			continue;
-	
+
 		if (match > max_match) {
 			num_reg = 0;
 			max_match = match;
@@ -1110,28 +1138,30 @@ int mgmt_bcknd_get_subscr_info_for_xpath(const char *xpath,
 	}
 
 	for (indx = 0; indx < num_reg; indx++) {
-		FOREACH_MGMTD_BCKND_CLIENT_ID(id) {
+		FOREACH_MGMTD_BCKND_CLIENT_ID(id)
+		{
 			if (reg_maps[indx]->xpath_subscr[id].subscribed) {
 				MGMTD_BCKND_ADPTR_DBG(
-					"Cient: %s", 
+					"Cient: %s",
 					mgmt_bknd_client_id2name(id));
 				memcpy(&subscr_info->xpath_subscr[id],
-					&reg_maps[indx]->xpath_subscr[id],
-					sizeof(subscr_info->xpath_subscr[id]));
+				       &reg_maps[indx]->xpath_subscr[id],
+				       sizeof(subscr_info->xpath_subscr[id]));
 			}
 		}
 	}
-	
+
 	return 0;
 }
 
 void mgmt_bcknd_adapter_status_write(struct vty *vty)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	vty_out(vty, "MGMTD Backend Adapters\n");
 
-	FOREACH_ADPTR_IN_LIST(adptr) {
+	FOREACH_ADPTR_IN_LIST(adptr)
+	{
 		vty_out(vty, "  Client: \t\t\t%s\n", adptr->name);
 		vty_out(vty, "    Conn-FD: \t\t\t%d\n", adptr->conn_fd);
 		vty_out(vty, "    Client-Id: \t\t\t%d\n", adptr->id);
@@ -1139,48 +1169,64 @@ void mgmt_bcknd_adapter_status_write(struct vty *vty)
 		vty_out(vty, "    Msg-Sent: \t\t\t%u\n", adptr->num_msg_tx);
 		vty_out(vty, "    Msg-Recvd: \t\t\t%u\n", adptr->num_msg_rx);
 	}
-	vty_out(vty, "  Total: %d\n", 
-		(int) mgmt_bcknd_adptr_list_count(&mgmt_bcknd_adptrs));
+	vty_out(vty, "  Total: %d\n",
+		(int)mgmt_bcknd_adptr_list_count(&mgmt_bcknd_adptrs));
 }
 
 void mgmt_bcknd_xpath_register_write(struct vty *vty)
 {
-        int indx;
-        mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	int indx;
+	mgmt_bcknd_client_id_t id;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	vty_out(vty, "MGMTD Backend XPath Registry\n");
 
-        for (indx = 0; indx < mgmt_num_xpath_maps; indx++) {
+	for (indx = 0; indx < mgmt_num_xpath_maps; indx++) {
 		vty_out(vty, " - XPATH: '%s'\n",
 			mgmt_xpath_map[indx].xpath_regexp);
-                FOREACH_MGMTD_BCKND_CLIENT_ID(id) {
-			if (mgmt_xpath_map[indx].bcknd_subscrs.
-				xpath_subscr[id].subscribed) {
-                        	vty_out(vty, "   -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
+		FOREACH_MGMTD_BCKND_CLIENT_ID(id)
+		{
+			if (mgmt_xpath_map[indx]
+				    .bcknd_subscrs.xpath_subscr[id]
+				    .subscribed) {
+				vty_out(vty,
+					"   -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
 					mgmt_bknd_client_id2name(id),
-					mgmt_xpath_map[indx].bcknd_subscrs.
-						xpath_subscr[id].validate_config ? "T" : "F",
-					mgmt_xpath_map[indx].bcknd_subscrs.
-						xpath_subscr[id].notify_config ? "T" : "F",
-					mgmt_xpath_map[indx].bcknd_subscrs.
-						xpath_subscr[id].own_oper_data ? "T" : "F");
+					mgmt_xpath_map[indx]
+							.bcknd_subscrs
+							.xpath_subscr[id]
+							.validate_config
+						? "T"
+						: "F",
+					mgmt_xpath_map[indx]
+							.bcknd_subscrs
+							.xpath_subscr[id]
+							.notify_config
+						? "T"
+						: "F",
+					mgmt_xpath_map[indx]
+							.bcknd_subscrs
+							.xpath_subscr[id]
+							.own_oper_data
+						? "T"
+						: "F");
 				adptr = mgmt_bcknd_get_adapter_by_id(id);
 				if (adptr) {
-					vty_out(vty, "     -- Adapter: 0x%p\n", adptr);
+					vty_out(vty, "     -- Adapter: 0x%p\n",
+						adptr);
 				}
 			}
-                }
-        }
+		}
+	}
 
 	vty_out(vty, "Total XPath Registries: %u\n", mgmt_num_xpath_maps);
 }
 
 void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 {
-	mgmt_bcknd_client_subscr_info_t subscr;
+	struct mgmt_bcknd_client_subscr_info subscr;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr) != 0) {
 		vty_out(vty, "ERROR: Failed to get subscriber for '%s'\n",
@@ -1189,17 +1235,21 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 	}
 
 	vty_out(vty, "XPath: '%s'\n", xpath);
-	FOREACH_MGMTD_BCKND_CLIENT_ID(id) {
+	FOREACH_MGMTD_BCKND_CLIENT_ID(id)
+	{
 		if (subscr.xpath_subscr[id].subscribed) {
-			vty_out(vty, "  -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
+			vty_out(vty,
+				"  -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
 				mgmt_bknd_client_id2name(id),
-				subscr.xpath_subscr[id].validate_config ? "T" : "F",
-				subscr.xpath_subscr[id].notify_config ? "T" : "F",
-				subscr.xpath_subscr[id].own_oper_data ? "T" : "F");
+				subscr.xpath_subscr[id].validate_config ? "T"
+									: "F",
+				subscr.xpath_subscr[id].notify_config ? "T"
+								      : "F",
+				subscr.xpath_subscr[id].own_oper_data ? "T"
+								      : "F");
 			adptr = mgmt_bcknd_get_adapter_by_id(id);
-			if (adptr) {
-				vty_out(vty, "    -- Adapter: %p\n", adptr);
-			}
+			if (adptr)
+				vty_out(vty, "    -- Adapter: 0x%p\n", adptr);
 		}
 	}
 }

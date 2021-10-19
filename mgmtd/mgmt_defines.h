@@ -25,40 +25,36 @@
 #include "lib/northbound.h"
 #include "lib/mgmt_pb.h"
 
-#define MGMTD_CLIENT_NAME_MAX_LEN		32
+#define MGMTD_CLIENT_NAME_MAX_LEN 32
 
-#define MGMTD_MAX_XPATH_LEN                      XPATH_MAXLEN
+#define MGMTD_MAX_XPATH_LEN XPATH_MAXLEN
 
-#define MGMTD_MAX_YANG_VALUE_LEN                 YANG_VALUE_MAXLEN
+#define MGMTD_MAX_YANG_VALUE_LEN YANG_VALUE_MAXLEN
 
-#define MGMTD_MAX_NUM_XPATH_REG                  128
+#define MGMTD_MAX_NUM_XPATH_REG 128
 
-#define MGMTD_MAX_NUM_DATA_REQ_IN_BATCH		32
-#define MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH	8
+#define MGMTD_MAX_NUM_DATA_REQ_IN_BATCH 32
+#define MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH 8
 
-#define MGMTD_MAX_CFG_CHANGES_IN_BATCH   \
-        ((10*MGMTD_BCKND_MSG_MAX_LEN)/      \
-         (MGMTD_MAX_XPATH_LEN + MGMTD_MAX_YANG_VALUE_LEN))
+#define MGMTD_MAX_CFG_CHANGES_IN_BATCH                                         \
+	((10 * MGMTD_BCKND_MSG_MAX_LEN)                                        \
+	 / (MGMTD_MAX_XPATH_LEN + MGMTD_MAX_YANG_VALUE_LEN))
 
 /*
- * The following packs a buffer of size MAX_PKT_SIZE with multiple 
- * messages to minimize number of mallocs and number of write() 
+ * The following packs a buffer of size MAX_PKT_SIZE with multiple
+ * messages to minimize number of mallocs and number of write()
  * calls.
  */
 #define MGMTD_PACK_TX_MSGS
 
-typedef uintptr_t mgmt_lib_hndl_t;
-
-typedef uintptr_t mgmt_user_data_t;
-
-typedef enum mgmt_result_ {
+enum mgmt_result {
 	MGMTD_SUCCESS = 0,
-        MGMTD_INVALID_PARAM, 
-        MGMTD_INTERNAL_ERROR,
+	MGMTD_INVALID_PARAM,
+	MGMTD_INTERNAL_ERROR,
 	MGMTD_UNKNOWN_FAILURE
-} mgmt_result_t;
+};
 
-typedef enum mgmt_event_ {
+enum mgmt_event {
 	MGMTD_BCKND_SERVER = 1,
 	MGMTD_BCKND_CONN_INIT,
 	MGMTD_BCKND_CONN_READ,
@@ -74,12 +70,10 @@ typedef enum mgmt_event_ {
 	MGMTD_FRNTND_CONN_WRITE,
 	MGMTD_FRNTND_CONN_WRITES_ON,
 	MGMTD_FRNTND_PROC_MSG
-} mgmt_event_t;
+} mgmt_event;
 
-typedef uintptr_t mgmt_trxn_id_t;
-#define MGMTD_TRXN_ID_NONE	0
+#define MGMTD_TRXN_ID_NONE 0
 
-typedef uintptr_t mgmt_trxn_batch_id_t;
-#define MGMTD_TRXN_BATCH_ID_NONE	0
+#define MGMTD_TRXN_BATCH_ID_NONE 0
 
 #endif /* _FRR_MGMTD_DEFINES_H */

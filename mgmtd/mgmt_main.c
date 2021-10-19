@@ -60,34 +60,11 @@ static const struct option longopts[] = {
 	{"skip_runas", no_argument, NULL, 'S'},
 	{"no_zebra", no_argument, NULL, 'Z'},
 	{"socket_size", required_argument, NULL, 's'},
-	{0}};
-
-/* signal definitions */
-void sighup(void);
-void sigint(void);
-void sigusr1(void);
+	{0}
+};
 
 static void mgmt_exit(int);
 static void mgmt_vrf_terminate(void);
-
-static struct quagga_signal_t mgmt_signals[] = {
-	{
-		.signal = SIGHUP,
-		.handler = &sighup,
-	},
-	{
-		.signal = SIGUSR1,
-		.handler = &sigusr1,
-	},
-	{
-		.signal = SIGINT,
-		.handler = &sigint,
-	},
-	{
-		.signal = SIGTERM,
-		.handler = &sigint,
-	},
-};
 
 /* privileges */
 static zebra_capabilities_t _caps_p[] = {ZCAP_BIND, ZCAP_NET_RAW,
@@ -109,7 +86,7 @@ struct zebra_privs_t mgmt_privs = {
 static struct frr_daemon_info mgmtd_di;
 
 /* SIGHUP handler. */
-void sighup(void)
+static void sighup(void)
 {
 	zlog_info("SIGHUP received, ignoring");
 
@@ -125,7 +102,7 @@ void sighup(void)
 	 */
 	/* Terminate all thread. */
 	mgmt_terminate();
-	
+
 	/*
 	 * mgmt_reset();
 	 */
@@ -139,11 +116,11 @@ void sighup(void)
 }
 
 /* SIGINT handler. */
-__attribute__((__noreturn__)) void sigint(void)
+static __attribute__((__noreturn__)) void sigint(void)
 {
 	zlog_notice("Terminating on signal");
 	assert(mm->terminating == false);
-	mm->terminating = true;	/* global flag that shutting down */
+	mm->terminating = true; /* global flag that shutting down */
 
 	mgmt_terminate();
 
@@ -153,18 +130,18 @@ __attribute__((__noreturn__)) void sigint(void)
 }
 
 /* SIGUSR1 handler. */
-void sigusr1(void)
+static void sigusr1(void)
 {
 	zlog_rotate();
 }
 
 /*
-  Try to free up allocations we know about so that diagnostic tools such as
-  valgrind are able to better illuminate leaks.
-
-  Zebra route removal and protocol teardown are not meant to be done here.
-  For example, "retain_mode" may be set.
-*/
+ * Try to free up allocations we know about so that diagnostic tools such as
+ * valgrind are able to better illuminate leaks.
+ *
+ * Zebra route removal and protocol teardown are not meant to be done here.
+ * For example, "retain_mode" may be set.
+ */
 static __attribute__((__noreturn__)) void mgmt_exit(int status)
 {
 	/* it only makes sense for this to be called on a clean exit */
@@ -180,6 +157,25 @@ static __attribute__((__noreturn__)) void mgmt_exit(int status)
 	frr_fini();
 	exit(status);
 }
+
+static struct quagga_signal_t mgmt_signals[] = {
+	{
+		.signal = SIGHUP,
+		.handler = &sighup,
+	},
+	{
+		.signal = SIGUSR1,
+		.handler = &sigusr1,
+	},
+	{
+		.signal = SIGINT,
+		.handler = &sigint,
+	},
+	{
+		.signal = SIGTERM,
+		.handler = &sigint,
+	},
+};
 
 static int mgmt_vrf_new(struct vrf *vrf)
 {
@@ -228,13 +224,8 @@ static void mgmt_vrf_terminate(void)
 }
 
 static const struct frr_yang_module_info *const mgmt_yang_modules[] = {
-	// &frr_mgmt_info,
-	&frr_filter_info,
-	&frr_interface_info,
-	&frr_route_map_info,
-	&frr_routing_info,
-	&frr_vrf_info,
-	&frr_staticd_info,
+	&frr_filter_info,  &frr_interface_info, &frr_route_map_info,
+	&frr_routing_info, &frr_vrf_info,       &frr_staticd_info,
 };
 
 FRR_DAEMON_INFO(mgmtd, MGMTD, .vty_port = MGMTD_VTY_PORT,
@@ -244,13 +235,14 @@ FRR_DAEMON_INFO(mgmtd, MGMTD, .vty_port = MGMTD_VTY_PORT,
 		.signals = mgmt_signals, .n_signals = array_size(mgmt_signals),
 
 		.privs = &mgmt_privs, .yang_modules = mgmt_yang_modules,
-		.n_yang_modules = array_size(mgmt_yang_modules), 
+		.n_yang_modules = array_size(mgmt_yang_modules),
 );
 
 #define DEPRECATED_OPTIONS ""
 
 /* Main routine of mgmt. Treatment of argument and start mgmt finite
-   state machine is handled at here. */
+ * state machine is handled at here.
+ */
 int main(int argc, char **argv)
 {
 	int opt;

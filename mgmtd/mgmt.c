@@ -18,7 +18,6 @@
  */
 
 
-// #include "prefix.h"
 #include "thread.h"
 #include "buffer.h"
 #include "stream.h"
@@ -28,15 +27,11 @@
 #include "sockopt.h"
 #include "network.h"
 #include "memory.h"
-// #include "filter.h"
-// #include "routemap.h"
 #include "log.h"
 #include "plist.h"
 #include "linklist.h"
 #include "workqueue.h"
 #include "queue.h"
-// #include "zclient.h"
-// #include "bfd.h"
 #include "hash.h"
 #include "jhash.h"
 #include "table.h"
@@ -55,14 +50,10 @@
 #include "mgmtd/mgmt_memory.h"
 #include "mgmtd/mgmt_trxn.h"
 
-// bool mgmt_debug_bcknd = true;
-// bool mgmt_debug_frntnd = true;
-// bool mgmt_debug_db = true;
-// bool mgmt_debug_trxn = true;
-bool mgmt_debug_bcknd = false;
-bool mgmt_debug_frntnd = false;
-bool mgmt_debug_db = false;
-bool mgmt_debug_trxn = false;
+bool mgmt_debug_bcknd;
+bool mgmt_debug_frntnd;
+bool mgmt_debug_db;
+bool mgmt_debug_trxn;
 
 /* MGMTD process wide configuration.  */
 static struct mgmt_master mgmt_master;
@@ -126,7 +117,8 @@ void mgmt_init(void)
 {
 
 	/* allocates some vital data structures used by peer commands in
-	 * vty_init */
+	 * vty_init
+	 */
 	vty_init_mgmt_frntnd();
 
 	/* pre-init pthreads */
@@ -140,7 +132,7 @@ void mgmt_init(void)
 
 	/* Initialize the MGMTD Backend Adapter Module */
 	mgmt_bcknd_adapter_init(mm->master);
-	
+
 	/* Initialize the MGMTD Frontend Adapter Module */
 	mgmt_frntnd_adapter_init(mm->master, mm);
 
@@ -150,7 +142,7 @@ void mgmt_init(void)
 	/* Start the MGMTD Frontend Server for clients to connect */
 	mgmt_frntnd_server_init(mm->master);
 
-	/* MGMTD VTY commands installation.  */
+	/* MGMTD VTY commands installation. */
 	mgmt_vty_init();
 }
 

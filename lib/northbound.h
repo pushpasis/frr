@@ -36,8 +36,8 @@ struct vty;
 struct debug;
 
 struct nb_yang_xpath_tag {
-	uint32_t	ns;
-	uint32_t	id;
+	uint32_t ns;
+	uint32_t id;
 };
 
 struct nb_yang_value {
@@ -51,8 +51,8 @@ struct nb_yang_xpath_elem {
 	struct nb_yang_value val;
 };
 
-#define NB_MAX_NUM_KEYS			UINT8_MAX
-#define NB_MAX_NUM_XPATH_TAGS		UINT8_MAX
+#define NB_MAX_NUM_KEYS UINT8_MAX
+#define NB_MAX_NUM_XPATH_TAGS UINT8_MAX
 
 struct nb_yang_xpath {
 	uint8_t length;
@@ -62,10 +62,11 @@ struct nb_yang_xpath {
 	} tags[NB_MAX_NUM_XPATH_TAGS];
 };
 
-#define NB_YANG_XPATH_KEY(__xpath, __indx1, __indx2)		\
-	((__xpath->num_tags > __indx1) && 			\
-	 (__xpath->tags[__indx1].num_keys > __indx2) ?		\
-	 &__xpath->tags[__indx1].keys[__indx2] : NULL)
+#define NB_YANG_XPATH_KEY(__xpath, __indx1, __indx2)                           \
+	((__xpath->num_tags > __indx1)                                         \
+			 && (__xpath->tags[__indx1].num_keys > __indx2)        \
+		 ? &__xpath->tags[__indx1].keys[__indx2]                       \
+		 : NULL)
 
 /* Northbound events. */
 enum nb_event {
@@ -908,20 +909,17 @@ extern void nb_config_diff_created(const struct lyd_node *dnode, uint32_t *seq,
  */
 extern bool nb_candidate_needs_update(const struct nb_config *candidate);
 
-extern void nb_candidate_edit_config_changes(struct nb_config *candidate_config,
-					     struct nb_cfg_change cfg_changes[],
-					     size_t num_cfg_changes,
-					     const char *xpath_base,
-					     const char *curr_xpath,
-					     int xpath_index, char *err_buf,
-					     int err_bufsize, bool *error);
+extern void nb_candidate_edit_config_changes(
+	struct nb_config *candidate_config, struct nb_cfg_change cfg_changes[],
+	size_t num_cfg_changes, const char *xpath_base, const char *curr_xpath,
+	int xpath_index, char *err_buf, int err_bufsize, bool *error);
 
 extern void nb_config_diff_del_changes(struct nb_config_cbs *changes);
 
 extern int nb_candidate_diff_and_validate_yang(struct nb_context *context,
-				               struct nb_config *candidate,
-				               struct nb_config_cbs *changes, char *errmsg,
-				               size_t errmsg_len);
+					       struct nb_config *candidate,
+					       struct nb_config_cbs *changes,
+					       char *errmsg, size_t errmsg_len);
 
 extern void nb_config_diff(const struct nb_config *reference,
 			   const struct nb_config *incremental,
@@ -948,20 +946,17 @@ extern int nb_candidate_validate_code(struct nb_context *context,
  */
 extern int nb_candidate_update(struct nb_config *candidate);
 
-extern void nb_candidate_edit_config_changes(struct nb_config *candidate_config,
-					     struct nb_cfg_change cfg_changes[],
-					     size_t num_cfg_changes,
-					     const char *xpath_base,
-					     const char *curr_xpath,
-					     int xpath_index, char *err_buf,
-					     int err_bufsize, bool *error);
+extern void nb_candidate_edit_config_changes(
+	struct nb_config *candidate_config, struct nb_cfg_change cfg_changes[],
+	size_t num_cfg_changes, const char *xpath_base, const char *curr_xpath,
+	int xpath_index, char *err_buf, int err_bufsize, bool *error);
 
 extern void nb_config_diff_del_changes(struct nb_config_cbs *changes);
 
 extern int nb_candidate_diff_and_validate_yang(struct nb_context *context,
-				               struct nb_config *candidate,
-				               struct nb_config_cbs *changes, char *errmsg,
-				               size_t errmsg_len);
+					       struct nb_config *candidate,
+					       struct nb_config_cbs *changes,
+					       char *errmsg, size_t errmsg_len);
 
 extern void nb_config_diff(const struct nb_config *reference,
 			   const struct nb_config *incremental,
@@ -1041,8 +1036,9 @@ extern int nb_candidate_commit_prepare(struct nb_context *context,
 				       struct nb_config *candidate,
 				       const char *comment,
 				       struct nb_transaction **transaction,
-				       bool skip_validate, bool ignore_zero_change,
-				       char *errmsg, size_t errmsg_len);
+				       bool skip_validate,
+				       bool ignore_zero_change, char *errmsg,
+				       size_t errmsg_len);
 
 /*
  * Abort a previously created configuration transaction, releasing all resources

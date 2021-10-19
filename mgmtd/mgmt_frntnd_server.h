@@ -23,7 +23,7 @@
 
 #include "lib/mgmt_frntnd_client.h"
 
-#define MGMTD_FRNTND_MAX_CONN	32
+#define MGMTD_FRNTND_MAX_CONN 32
 
 extern int mgmt_frntnd_server_init(struct thread_master *master);
 

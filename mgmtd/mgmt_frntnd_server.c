@@ -28,30 +28,29 @@
 #include "mgmtd/mgmt_frntnd_adapter.h"
 
 #ifdef REDIRECT_DEBUG_TO_STDERR
-#define MGMTD_FRNTND_SRVR_DBG(fmt, ...)				\
+#define MGMTD_FRNTND_SRVR_DBG(fmt, ...)                                        \
 	fprintf(stderr, "%s: " fmt "\n", __func__, ##__VA_ARGS__)
-#define MGMTD_FRNTND_SRVR_ERR(fmt, ...)				\
+#define MGMTD_FRNTND_SRVR_ERR(fmt, ...)                                        \
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
-#define MGMTD_FRNTND_SRVR_DBG(fmt, ...)				\
-	if (mgmt_debug_bcknd)					\
-		zlog_err("%s: " fmt , __func__, ##__VA_ARGS__)
-#define MGMTD_FRNTND_SRVR_ERR(fmt, ...)				\
-	zlog_err("%s: ERROR: " fmt , __func__, ##__VA_ARGS__)
+#define MGMTD_FRNTND_SRVR_DBG(fmt, ...)                                        \
+	do {                                                                   \
+		if (mgmt_debug_bcknd)                                          \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
+#define MGMTD_FRNTND_SRVR_ERR(fmt, ...)                                        \
+	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
 
-static int mgmt_frntnd_listen_fd = 0;
-static struct thread_master *mgmt_frntnd_listen_tm = NULL;
-static struct thread *mgmt_frntnd_listen_ev = NULL;
-static void mgmt_frntnd_server_register_event(mgmt_event_t event);
+static int mgmt_frntnd_listen_fd;
+static struct thread_master *mgmt_frntnd_listen_tm;
+static struct thread *mgmt_frntnd_listen_ev;
+static void mgmt_frntnd_server_register_event(enum mgmt_event event);
 
 static int mgmt_frntnd_conn_accept(struct thread *thread)
 {
 	int client_conn_fd;
 	union sockunion su;
-	// int ret;
-	// unsigned int on;
-	// struct prefix p;
 
 	if (!mgmt_frntnd_listen_fd)
 		return -1;
@@ -64,8 +63,9 @@ static int mgmt_frntnd_conn_accept(struct thread *thread)
 	/* We can handle IPv4 or IPv6 socket. */
 	client_conn_fd = sockunion_accept(mgmt_frntnd_listen_fd, &su);
 	if (client_conn_fd < 0) {
-		MGMTD_FRNTND_SRVR_ERR("Failed to accept MGMTD Frontend client connection : %s",
-			 safe_strerror(errno));
+		MGMTD_FRNTND_SRVR_ERR(
+			"Failed to accept MGMTD Frontend client connection : %s",
+			safe_strerror(errno));
 		return -1;
 	}
 	set_nonblocking(client_conn_fd);
@@ -78,16 +78,15 @@ static int mgmt_frntnd_conn_accept(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_frntnd_server_register_event(mgmt_event_t event)
+static void mgmt_frntnd_server_register_event(enum mgmt_event event)
 {
 	switch (event) {
 	case MGMTD_FRNTND_SERVER:
-		thread_add_read(mgmt_frntnd_listen_tm,
-			mgmt_frntnd_conn_accept, NULL, 
-			mgmt_frntnd_listen_fd,
-			&mgmt_frntnd_listen_ev);
+		thread_add_read(mgmt_frntnd_listen_tm, mgmt_frntnd_conn_accept,
+				NULL, mgmt_frntnd_listen_fd,
+				&mgmt_frntnd_listen_ev);
 		assert(mgmt_frntnd_listen_ev);
-		// vector_set_index(Vvty_serv_thread, sock, vty_serv_thread);
+		/* vector_set_index(Vvty_serv_thread, sock, vty_serv_thread); */
 		break;
 	default:
 		assert(!"mgmt_frntnd_server_post_event() called incorrectly");
@@ -107,24 +106,17 @@ static void mgmt_frntnd_server_start(const char *hostname)
 	sock = socket(AF_UNIX, SOCK_STREAM, PF_UNSPEC);
 	if (sock < 0) {
 		MGMTD_FRNTND_SRVR_ERR("Failed to create server socket: %s",
-			safe_strerror(errno));
+				      safe_strerror(errno));
 		goto mgmt_frntnd_server_start_failed;
 	}
-
-	// sockopt_v6only(AF_UNIX, sock);
-	// sockopt_reuseaddr(sock);
-	// sockopt_reuseport(sock);
-	// set_cloexec(sock);
-
-	// setsockopt_so_recvbuf(sock, 1048576);
-	// setsockopt_so_sendbuf(sock, 1048576);
 
 	addr.sun_family = AF_UNIX,
 	strlcpy(addr.sun_path, MGMTD_FRNTND_SERVER_PATH, sizeof(addr.sun_path));
 	unlink(addr.sun_path);
 	ret = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
-		MGMTD_FRNTND_SRVR_ERR("Failed to bind server socket to '%s'. Err: %s",
+		MGMTD_FRNTND_SRVR_ERR(
+			"Failed to bind server socket to '%s'. Err: %s",
 			addr.sun_path, safe_strerror(errno));
 		goto mgmt_frntnd_server_start_failed;
 	}
@@ -132,7 +124,7 @@ static void mgmt_frntnd_server_start(const char *hostname)
 	ret = listen(sock, MGMTD_FRNTND_MAX_CONN);
 	if (ret < 0) {
 		MGMTD_FRNTND_SRVR_ERR("Failed to listen on server socket: %s",
-			safe_strerror(errno));
+				      safe_strerror(errno));
 		goto mgmt_frntnd_server_start_failed;
 	}
 
@@ -146,9 +138,9 @@ static void mgmt_frntnd_server_start(const char *hostname)
 	return;
 
 mgmt_frntnd_server_start_failed:
-	if (sock) {
+	if (sock)
 		close(sock);
-	}
+
 	mgmt_frntnd_listen_fd = 0;
 	exit(-1);
 }
