@@ -140,7 +140,7 @@ void mgmt_init(void)
 
 	/* Initialize the MGMTD Backend Adapter Module */
 	mgmt_bcknd_adapter_init(mm->master);
-	
+
 	/* Initialize the MGMTD Frontend Adapter Module */
 	mgmt_frntnd_adapter_init(mm->master, mm);
 

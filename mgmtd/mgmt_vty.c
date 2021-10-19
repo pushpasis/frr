@@ -55,9 +55,9 @@
 #endif
 
 
-/* 
+/*
  * Declare prototypes for command initialization routines defined by
- * backend components that have been moved to new MGMTD infra here 
+ * backend components that have been moved to new MGMTD infra here
  * one by one.
  */
 extern void static_vty_init(void);
@@ -65,15 +65,14 @@ extern void static_vty_init(void);
 /*
  * mgmt_enqueue_nb_command
  *
- * Add a config command from VTYSH for further processing. 
- * 
+ * Add a config command from VTYSH for further processing.
+ *
  * NOTE: This function is ALWAYS called from one of the
  * command handlers installed on MGMTD daemon that is invoked
  * by lib/vty.c on receiving a command from VTYSH.
  */
 void mgmt_enqueue_vty_nb_command(struct vty *vty, const char *xpath,
-				enum nb_operation operation,
-				const char *value)
+				 enum nb_operation operation, const char *value)
 {
 	switch (operation) {
 	case NB_OP_CREATE:
@@ -106,14 +105,13 @@ void mgmt_enqueue_vty_nb_command(struct vty *vty, const char *xpath,
  * mgmt_apply_nb_commands
  *
  * Apply all config command enqueued from VTYSH so far for further
- * processing. 
- * 
+ * processing.
+ *
  * NOTE: This function is ALWAYS called from one of the
  * command handlers installed on MGMTD daemon that is invoked
  * by lib/vty.c on receiving a command from VTYSH.
  */
-int mgmt_apply_vty_nb_commands(struct vty *vty, const char *xpath_base_fmt,
-				...)
+int mgmt_apply_vty_nb_commands(struct vty *vty, const char *xpath_base_fmt, ...)
 {
 	char xpath_base[XPATH_MAXLEN] = {};
 
@@ -133,74 +131,58 @@ int mgmt_apply_vty_nb_commands(struct vty *vty, const char *xpath_base_fmt,
 	return 0;
 }
 
-int mgmt_hndl_bknd_cmd(const struct cmd_element *cmd, struct vty *vty,
-			int argc, struct cmd_token *argv[])
+int mgmt_hndl_bknd_cmd(const struct cmd_element *cmd, struct vty *vty, int argc,
+		       struct cmd_token *argv[])
 {
-	vty_out(vty, "%s: %s, got the command '%s'\n", 
-		frr_get_progname(), __func__, vty->buf);
-	zlog_err("%s: %s, got the command '%s'", 
-		frr_get_progname(), __func__, vty->buf);
+	vty_out(vty, "%s: %s, got the command '%s'\n", frr_get_progname(),
+		__func__, vty->buf);
+	zlog_err("%s: %s, got the command '%s'", frr_get_progname(), __func__,
+		 vty->buf);
 	return 0;
 }
 
-DEFPY(show_mgmt_bcknd_adapter,
-	show_mgmt_bcknd_adapter_cmd,
-	"show mgmt backend-adapter all",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_BCKND_ADPTR_STR
-	"Display all Backend Adapters\n")
+DEFPY(show_mgmt_bcknd_adapter, show_mgmt_bcknd_adapter_cmd,
+      "show mgmt backend-adapter all",
+      SHOW_STR MGMTD_STR MGMTD_BCKND_ADPTR_STR "Display all Backend Adapters\n")
 {
 	mgmt_bcknd_adapter_status_write(vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_bcknd_xpath_reg,
-	show_mgmt_bcknd_xpath_reg_cmd,
-	"show mgmt backend-yang-xpath-registry",
-	SHOW_STR
-	MGMTD_STR
-	"Backend Adapter YANG Xpath Registry\n")
+DEFPY(show_mgmt_bcknd_xpath_reg, show_mgmt_bcknd_xpath_reg_cmd,
+      "show mgmt backend-yang-xpath-registry",
+      SHOW_STR MGMTD_STR "Backend Adapter YANG Xpath Registry\n")
 {
 	mgmt_bcknd_xpath_register_write(vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_frntnd_adapter,
-	show_mgmt_frntnd_adapter_cmd,
-	"show mgmt frontend-adapter all",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_FRNTND_ADPTR_STR
-	"Display all Frontend Adapters\n")
+DEFPY(show_mgmt_frntnd_adapter, show_mgmt_frntnd_adapter_cmd,
+      "show mgmt frontend-adapter all",
+      SHOW_STR MGMTD_STR MGMTD_FRNTND_ADPTR_STR
+      "Display all Frontend Adapters\n")
 {
 	mgmt_frntnd_adapter_status_write(vty, false);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_frntnd_adapter_detail,
-	show_mgmt_frntnd_adapter_detail_cmd,
-	"show mgmt frontend-adapter all detail",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_FRNTND_ADPTR_STR
-	"Display all Frontend Adapters\n"
-	"Details of commit stats\n")
+DEFPY(show_mgmt_frntnd_adapter_detail, show_mgmt_frntnd_adapter_detail_cmd,
+      "show mgmt frontend-adapter all detail",
+      SHOW_STR MGMTD_STR MGMTD_FRNTND_ADPTR_STR
+      "Display all Frontend Adapters\n"
+      "Details of commit stats\n")
 {
 	mgmt_frntnd_adapter_status_write(vty, true);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY_HIDDEN(mgmt_performance_measurement,
-	mgmt_performance_measurement_cmd,
-	"[no] mgmt performance-measurement",
-	NO_STR
-	MGMTD_STR
-	"Enable performance measurement\n")
+DEFPY_HIDDEN(mgmt_performance_measurement, mgmt_performance_measurement_cmd,
+	     "[no] mgmt performance-measurement",
+	     NO_STR MGMTD_STR "Enable performance measurement\n")
 {
 	if (no)
 		mgmt_frntnd_adapter_perf_measurement(vty, false);
@@ -210,50 +192,33 @@ DEFPY_HIDDEN(mgmt_performance_measurement,
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_reset_performance_stats,
-	mgmt_reset_performance_stats_cmd,
-	"mgmt reset-statistics",
-	MGMTD_STR
-	"Reset the Performance measurement statistics\n")
+DEFPY(mgmt_reset_performance_stats, mgmt_reset_performance_stats_cmd,
+      "mgmt reset-statistics",
+      MGMTD_STR "Reset the Performance measurement statistics\n")
 {
 	mgmt_frntnd_adapter_reset_perf_stats(vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_trxn,
-	show_mgmt_trxn_cmd,
-	"show mgmt transaction all",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_TRXN_STR
-	"Display all Transactions\n")
+DEFPY(show_mgmt_trxn, show_mgmt_trxn_cmd, "show mgmt transaction all",
+      SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display all Transactions\n")
 {
 	mgmt_trxn_status_write(vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_db_all,
-	show_mgmt_db_all_cmd,
-	"show mgmt database all",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_TRXN_STR
-	"Display all Databases\n")
+DEFPY(show_mgmt_db_all, show_mgmt_db_all_cmd, "show mgmt database all",
+      SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display all Databases\n")
 {
 	mgmt_db_status_write(vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_db_runn,
-	show_mgmt_db_runn_cmd,
-	"show mgmt database running",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_TRXN_STR
-	"Display Running Database\n")
+DEFPY(show_mgmt_db_runn, show_mgmt_db_runn_cmd, "show mgmt database running",
+      SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display Running Database\n")
 {
 	mgmt_db_hndl_t db_hndl;
 
@@ -268,13 +233,8 @@ DEFPY(show_mgmt_db_runn,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_db_cand,
-	show_mgmt_db_cand_cmd,
-	"show mgmt database candidate",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_DB_STR
-	"Display Candidate Database\n")
+DEFPY(show_mgmt_db_cand, show_mgmt_db_cand_cmd, "show mgmt database candidate",
+      SHOW_STR MGMTD_STR MGMTD_DB_STR "Display Candidate Database\n")
 {
 	mgmt_db_hndl_t db_hndl;
 
@@ -289,13 +249,9 @@ DEFPY(show_mgmt_db_cand,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_db_oper,
-	show_mgmt_db_oper_cmd,
-	"show mgmt database operational",
-	SHOW_STR
-	MGMTD_STR
-	MGMTD_DB_STR
-	"Display Operational Database\n")
+DEFPY(show_mgmt_db_oper, show_mgmt_db_oper_cmd,
+      "show mgmt database operational",
+      SHOW_STR MGMTD_STR MGMTD_DB_STR "Display Operational Database\n")
 {
 	mgmt_db_hndl_t db_hndl;
 
@@ -310,41 +266,31 @@ DEFPY(show_mgmt_db_oper,
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_commit_apply,
-      mgmt_commit_apply_cmd,
-      "mgmt commit-apply",
-      MGMTD_STR
-      "Validate and apply the set of config commands\n")
+DEFPY(mgmt_commit_apply, mgmt_commit_apply_cmd, "mgmt commit-apply",
+      MGMTD_STR "Validate and apply the set of config commands\n")
 {
 	if (vty_mgmt_send_commit_config(vty, false, false) != 0)
 		return CMD_WARNING_CONFIG_FAILED;
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_commit_check,
-      mgmt_commit_check_cmd,
-      "mgmt commit-check",
-      MGMTD_STR
-      "Validate the set of config commands only\n")
+DEFPY(mgmt_commit_check, mgmt_commit_check_cmd, "mgmt commit-check",
+      MGMTD_STR "Validate the set of config commands only\n")
 {
 	if (vty_mgmt_send_commit_config(vty, true, false) != 0)
 		return CMD_WARNING_CONFIG_FAILED;
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_commit_abort,
-      mgmt_commit_abort_cmd,
-      "mgmt commit-abort",
-      MGMTD_STR
-      "Abort and drop the set of config commands recently added\n")
+DEFPY(mgmt_commit_abort, mgmt_commit_abort_cmd, "mgmt commit-abort",
+      MGMTD_STR "Abort and drop the set of config commands recently added\n")
 {
 	if (vty_mgmt_send_commit_config(vty, false, true) != 0)
 		return CMD_WARNING_CONFIG_FAILED;
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_set_config_data,
-      mgmt_set_config_data_cmd,
+DEFPY(mgmt_set_config_data, mgmt_set_config_data_cmd,
       "mgmt set-config xpath WORD$path value WORD$val",
       MGMTD_STR
       "Set configuration data\n"
@@ -366,8 +312,7 @@ DEFPY(mgmt_set_config_data,
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_delete_config_data,
-      mgmt_delete_config_data_cmd,
+DEFPY(mgmt_delete_config_data, mgmt_delete_config_data_cmd,
       "mgmt delete-config xpath WORD$path",
       MGMTD_STR
       "Delete configuration data\n"
@@ -387,16 +332,14 @@ DEFPY(mgmt_delete_config_data,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_get_config,
-	  show_mgmt_get_config_cmd,
-	  "show mgmt get-config [db-name WORD$dbname] xpath WORD$path",
-	  SHOW_STR
-	  MGMTD_STR
-	  "Get configuration data from a specific configuration database\n"
-	  "DB name\n"
-	  "<candidate running operational>\n"
-	  "XPath expression specifying the YANG data path\n"
-	  "XPath string\n")
+DEFPY(show_mgmt_get_config, show_mgmt_get_config_cmd,
+      "show mgmt get-config [db-name WORD$dbname] xpath WORD$path",
+      SHOW_STR MGMTD_STR
+      "Get configuration data from a specific configuration database\n"
+      "DB name\n"
+      "<candidate running operational>\n"
+      "XPath expression specifying the YANG data path\n"
+      "XPath string\n")
 {
 	const char *xpath_list[VTY_MAXCFGCHANGES] = {0};
 	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
@@ -405,7 +348,8 @@ DEFPY(show_mgmt_get_config,
 		database = mgmt_db_name2id(dbname);
 
 	if (database == MGMTD_DB_NONE) {
-		vty_out(vty, "DB Name %s does not matches any existing database\n",
+		vty_out(vty,
+			"DB Name %s does not matches any existing database\n",
 			dbname);
 		return CMD_SUCCESS;
 	}
@@ -415,16 +359,14 @@ DEFPY(show_mgmt_get_config,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_get_data,
-	  show_mgmt_get_data_cmd,
-	  "show mgmt get-data [db-name WORD$dbname] xpath WORD$path",
-	  SHOW_STR
-	  MGMTD_STR
-	  "Get data from a specific database\n"
-	  "DB name\n"
-	  "<candidate running operational>\n"
-	  "XPath expression specifying the YANG data path\n"
-	  "XPath string\n")
+DEFPY(show_mgmt_get_data, show_mgmt_get_data_cmd,
+      "show mgmt get-data [db-name WORD$dbname] xpath WORD$path",
+      SHOW_STR MGMTD_STR
+      "Get data from a specific database\n"
+      "DB name\n"
+      "<candidate running operational>\n"
+      "XPath expression specifying the YANG data path\n"
+      "XPath string\n")
 {
 	const char *xpath_list[VTY_MAXCFGCHANGES] = {0};
 	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
@@ -433,7 +375,8 @@ DEFPY(show_mgmt_get_data,
 		database = mgmt_db_name2id(dbname);
 
 	if (database == MGMTD_DB_NONE) {
-		vty_out(vty, "DB Name %s does not matches any existing database\n",
+		vty_out(vty,
+			"DB Name %s does not matches any existing database\n",
 			dbname);
 		return CMD_SUCCESS;
 	}
@@ -443,11 +386,9 @@ DEFPY(show_mgmt_get_data,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_dump_data,
-      show_mgmt_dump_data_cmd,
+DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
       "show mgmt database-contents db-name WORD$dbname [xpath WORD$path] [file WORD$filepath] format WORD$format_str",
-      SHOW_STR
-      MGMTD_STR
+      SHOW_STR MGMTD_STR
       "Get Database Contenents from a specific database\n"
       "DB name\n"
       "<candidate | running | operational>\n"
@@ -466,7 +407,8 @@ DEFPY(show_mgmt_dump_data,
 	database = mgmt_db_name2id(dbname);
 
 	if (database == MGMTD_DB_NONE) {
-		vty_out(vty, "DB Name %s does not matches any existing database\n",
+		vty_out(vty,
+			"DB Name %s does not matches any existing database\n",
 			dbname);
 		return CMD_SUCCESS;
 	}
@@ -480,7 +422,8 @@ DEFPY(show_mgmt_dump_data,
 	if (filepath) {
 		f = fopen(filepath, "w");
 		if (!f) {
-			vty_out(vty, "Could not open file pointed by filepath %s\n",
+			vty_out(vty,
+				"Could not open file pointed by filepath %s\n",
 				filepath);
 			return CMD_SUCCESS;
 		}
@@ -488,7 +431,8 @@ DEFPY(show_mgmt_dump_data,
 
 	format = mgmt_str2format(format_str);
 	if (format == LYD_UNKNOWN) {
-		vty_out(vty, "String Format %s does not matches existing format\n",
+		vty_out(vty,
+			"String Format %s does not matches existing format\n",
 			format_str);
 		return CMD_SUCCESS;
 	}
@@ -500,20 +444,17 @@ DEFPY(show_mgmt_dump_data,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_map_xpath,
-	  show_mgmt_map_xpath_cmd,
-	  "show mgmt yang-xpath-subscription WORD$path",
-	  SHOW_STR
-	  MGMTD_STR
-	  "Get YANG Backend Subscription\n"
-	  "XPath expression specifying the YANG data path\n")
+DEFPY(show_mgmt_map_xpath, show_mgmt_map_xpath_cmd,
+      "show mgmt yang-xpath-subscription WORD$path",
+      SHOW_STR MGMTD_STR
+      "Get YANG Backend Subscription\n"
+      "XPath expression specifying the YANG data path\n")
 {
 	mgmt_bcknd_xpath_subscr_info_write(vty, path);
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_load_config,
-      mgmt_load_config_cmd,
+DEFPY(mgmt_load_config, mgmt_load_config_cmd,
       "mgmt load-config file WORD$filepath <merge|replace>",
       MGMTD_STR
       "Load configuration onto Candidate Database\n"
@@ -535,21 +476,23 @@ DEFPY(mgmt_load_config,
 
 	if (strncmp(argv[idx_merge]->arg, "merge", sizeof("merge")) == 0)
 		merge = true;
-	else if (strncmp(argv[idx_merge]->arg, "replace", sizeof("replace")) == 0)
+	else if (strncmp(argv[idx_merge]->arg, "replace", sizeof("replace"))
+		 == 0)
 		merge = false;
 	else {
-		vty_out(vty, "Chosen option: %s not valid\n", argv[idx_merge]->arg);
+		vty_out(vty, "Chosen option: %s not valid\n",
+			argv[idx_merge]->arg);
 		return CMD_SUCCESS;
 	}
 
 	ret = mgmt_db_load_config_from_file(db_hndl, filepath, merge);
 	if (ret != 0)
-		vty_out(vty, "Error with parsing the file with error code %d\n", ret);
+		vty_out(vty, "Error with parsing the file with error code %d\n",
+			ret);
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_save_config,
-      mgmt_save_config_cmd,
+DEFPY(mgmt_save_config, mgmt_save_config_cmd,
       "mgmt save-config db-name WORD$dbname file WORD$filepath",
       MGMTD_STR
       "Save configuration from database\n"
@@ -565,13 +508,13 @@ DEFPY(mgmt_save_config,
 	database = mgmt_db_name2id(dbname);
 
 	if (database == MGMTD_DB_NONE) {
-		vty_out(vty, "DB Name %s does not matches any existing database\n",
+		vty_out(vty,
+			"DB Name %s does not matches any existing database\n",
 			dbname);
 		return CMD_SUCCESS;
 	}
 
-	if (database != MGMTD_DB_CANDIDATE &&
-		database != MGMTD_DB_RUNNING) {
+	if (database != MGMTD_DB_CANDIDATE && database != MGMTD_DB_RUNNING) {
 		vty_out(vty, "DB Name %s is not a configuration database\n",
 			dbname);
 		return CMD_SUCCESS;
@@ -603,8 +546,7 @@ DEFPY(mgmt_save_config,
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_lock_db_candidate,
-      mgmt_lock_db_cand_cmd,
+DEFPY(mgmt_lock_db_candidate, mgmt_lock_db_cand_cmd,
       "mgmt lock-database candidate",
       MGMTD_STR
       "Lock the database\n"
@@ -615,8 +557,7 @@ DEFPY(mgmt_lock_db_candidate,
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_unlock_db_candidate,
-      mgmt_unlock_db_cand_cmd,
+DEFPY(mgmt_unlock_db_candidate, mgmt_unlock_db_cand_cmd,
       "mgmt unlock-database candidate",
       MGMTD_STR
       "Unlock the database\n"
@@ -627,19 +568,14 @@ DEFPY(mgmt_unlock_db_candidate,
 	return CMD_SUCCESS;
 }
 
-DEFPY(show_mgmt_cmt_hist,
-      show_mgmt_cmt_hist_cmd,
-      "show mgmt commit-history",
-      SHOW_STR
-      MGMTD_STR
-      "Show commit history\n")
+DEFPY(show_mgmt_cmt_hist, show_mgmt_cmt_hist_cmd, "show mgmt commit-history",
+      SHOW_STR MGMTD_STR "Show commit history\n")
 {
 	show_mgmt_cmt_history(vty);
 	return CMD_SUCCESS;
 }
 
-DEFPY(mgmt_rollback,
-      mgmt_rollback_cmd,
+DEFPY(mgmt_rollback, mgmt_rollback_cmd,
       "mgmt rollback <commit-id WORD$commit | last [(1-10)]$last>",
       MGMTD_STR
       "Rollback commits\n"
@@ -666,8 +602,8 @@ static struct cmd_node debug_node = {
 
 static int config_write_mgmt_debug(struct vty *vty)
 {
-	if (mgmt_debug_bcknd && mgmt_debug_frntnd && mgmt_debug_db && 
-		mgmt_debug_trxn) {
+	if (mgmt_debug_bcknd && mgmt_debug_frntnd && mgmt_debug_db
+	    && mgmt_debug_trxn) {
 		vty_out(vty, "debug mgmt all\n");
 		return 0;
 	}
@@ -684,13 +620,8 @@ static int config_write_mgmt_debug(struct vty *vty)
 }
 
 
-DEFPY(debug_mgmt_bcknd,
-      debug_mgmt_bcknd_cmd,
-      "[no$no] debug mgmt backend",
-      NO_STR
-      DEBUG_STR
-      MGMTD_STR
-      "Debug Backend Fucntionality")
+DEFPY(debug_mgmt_bcknd, debug_mgmt_bcknd_cmd, "[no$no] debug mgmt backend",
+      NO_STR DEBUG_STR MGMTD_STR "Debug Backend Fucntionality")
 {
 	if (no)
 		mgmt_debug_bcknd = false;
@@ -700,13 +631,8 @@ DEFPY(debug_mgmt_bcknd,
 	return CMD_SUCCESS;
 }
 
-DEFPY(debug_mgmt_frntnd,
-      debug_mgmt_frntnd_cmd,
-      "[no$no] debug mgmt frontend",
-      NO_STR
-      DEBUG_STR
-      MGMTD_STR
-      "Debug Frontend Fucntionality")
+DEFPY(debug_mgmt_frntnd, debug_mgmt_frntnd_cmd, "[no$no] debug mgmt frontend",
+      NO_STR DEBUG_STR MGMTD_STR "Debug Frontend Fucntionality")
 {
 	if (no)
 		mgmt_debug_frntnd = false;
@@ -716,13 +642,8 @@ DEFPY(debug_mgmt_frntnd,
 	return CMD_SUCCESS;
 }
 
-DEFPY(debug_mgmt_db,
-      debug_mgmt_db_cmd,
-      "[no$no] debug mgmt database",
-      NO_STR
-      DEBUG_STR
-      MGMTD_STR
-      "Debug Database Fucntionality")
+DEFPY(debug_mgmt_db, debug_mgmt_db_cmd, "[no$no] debug mgmt database",
+      NO_STR DEBUG_STR MGMTD_STR "Debug Database Fucntionality")
 {
 	if (no)
 		mgmt_debug_db = false;
@@ -732,13 +653,8 @@ DEFPY(debug_mgmt_db,
 	return CMD_SUCCESS;
 }
 
-DEFPY(debug_mgmt_trxn,
-      debug_mgmt_trxn_cmd,
-      "[no$no] debug mgmt transaction",
-      NO_STR
-      DEBUG_STR
-      MGMTD_STR
-      "Debug Transaction Fucntionality")
+DEFPY(debug_mgmt_trxn, debug_mgmt_trxn_cmd, "[no$no] debug mgmt transaction",
+      NO_STR DEBUG_STR MGMTD_STR "Debug Transaction Fucntionality")
 {
 	if (no)
 		mgmt_debug_trxn = false;
@@ -747,13 +663,8 @@ DEFPY(debug_mgmt_trxn,
 
 	return CMD_SUCCESS;
 }
-DEFPY(debug_mgmt_all,
-      debug_mgmt_all_cmd,
-      "[no$no] debug mgmt all",
-      NO_STR
-      DEBUG_STR
-      MGMTD_STR
-      "Debug All Fucntionality")
+DEFPY(debug_mgmt_all, debug_mgmt_all_cmd, "[no$no] debug mgmt all",
+      NO_STR DEBUG_STR MGMTD_STR "Debug All Fucntionality")
 {
 	if (no) {
 		mgmt_debug_bcknd = false;
@@ -772,8 +683,8 @@ DEFPY(debug_mgmt_all,
 
 void mgmt_vty_init(void)
 {
-	/* 
-	 * Initialize command handling from VTYSH connection. 
+	/*
+	 * Initialize command handling from VTYSH connection.
 	 * Call command initialization routines defined by
 	 * backend components that are moved new MGMTD infra
 	 * here one by one.

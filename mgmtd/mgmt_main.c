@@ -125,7 +125,7 @@ void sighup(void)
 	 */
 	/* Terminate all thread. */
 	mgmt_terminate();
-	
+
 	/*
 	 * mgmt_reset();
 	 */
@@ -143,7 +143,7 @@ __attribute__((__noreturn__)) void sigint(void)
 {
 	zlog_notice("Terminating on signal");
 	assert(mm->terminating == false);
-	mm->terminating = true;	/* global flag that shutting down */
+	mm->terminating = true; /* global flag that shutting down */
 
 	mgmt_terminate();
 
@@ -229,12 +229,8 @@ static void mgmt_vrf_terminate(void)
 
 static const struct frr_yang_module_info *const mgmt_yang_modules[] = {
 	// &frr_mgmt_info,
-	&frr_filter_info,
-	&frr_interface_info,
-	&frr_route_map_info,
-	&frr_routing_info,
-	&frr_vrf_info,
-	&frr_staticd_info,
+	&frr_filter_info,  &frr_interface_info, &frr_route_map_info,
+	&frr_routing_info, &frr_vrf_info,       &frr_staticd_info,
 };
 
 FRR_DAEMON_INFO(mgmtd, MGMTD, .vty_port = MGMTD_VTY_PORT,
@@ -244,8 +240,7 @@ FRR_DAEMON_INFO(mgmtd, MGMTD, .vty_port = MGMTD_VTY_PORT,
 		.signals = mgmt_signals, .n_signals = array_size(mgmt_signals),
 
 		.privs = &mgmt_privs, .yang_modules = mgmt_yang_modules,
-		.n_yang_modules = array_size(mgmt_yang_modules), 
-);
+		.n_yang_modules = array_size(mgmt_yang_modules), );
 
 #define DEPRECATED_OPTIONS ""
 

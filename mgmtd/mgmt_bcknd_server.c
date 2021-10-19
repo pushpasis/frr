@@ -28,16 +28,16 @@
 #include "mgmtd/mgmt_bcknd_adapter.h"
 
 #ifdef REDIRECT_DEBUG_TO_STDERR
-#define MGMTD_BCKND_SRVR_DBG(fmt, ...)				\
+#define MGMTD_BCKND_SRVR_DBG(fmt, ...)                                         \
 	fprintf(stderr, "%s: " fmt "\n", __func__, ##__VA_ARGS__)
-#define MGMTD_BCKND_SRVR_ERR(fmt, ...)				\
+#define MGMTD_BCKND_SRVR_ERR(fmt, ...)                                         \
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
-#define MGMTD_BCKND_SRVR_DBG(fmt, ...)				\
-	if (mgmt_debug_bcknd)					\
-		zlog_err("%s: " fmt , __func__, ##__VA_ARGS__)
-#define MGMTD_BCKND_SRVR_ERR(fmt, ...)				\
-	zlog_err("%s: ERROR: " fmt , __func__, ##__VA_ARGS__)
+#define MGMTD_BCKND_SRVR_DBG(fmt, ...)                                         \
+	if (mgmt_debug_bcknd)                                                  \
+	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+#define MGMTD_BCKND_SRVR_ERR(fmt, ...)                                         \
+	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
 
 static int mgmt_bcknd_listen_fd = 0;
@@ -64,8 +64,9 @@ static int mgmt_bcknd_conn_accept(struct thread *thread)
 	/* We can handle IPv4 or IPv6 socket. */
 	client_conn_fd = sockunion_accept(mgmt_bcknd_listen_fd, &su);
 	if (client_conn_fd < 0) {
-		MGMTD_BCKND_SRVR_ERR("Failed to accept MGMTD Backend client connection : %s",
-			 safe_strerror(errno));
+		MGMTD_BCKND_SRVR_ERR(
+			"Failed to accept MGMTD Backend client connection : %s",
+			safe_strerror(errno));
 		return -1;
 	}
 	set_nonblocking(client_conn_fd);
@@ -82,10 +83,9 @@ static void mgmt_bcknd_server_register_event(mgmt_event_t event)
 {
 	switch (event) {
 	case MGMTD_BCKND_SERVER:
-		thread_add_read(mgmt_bcknd_listen_tm,
-			mgmt_bcknd_conn_accept, NULL, 
-			mgmt_bcknd_listen_fd,
-			&mgmt_bcknd_listen_ev);
+		thread_add_read(mgmt_bcknd_listen_tm, mgmt_bcknd_conn_accept,
+				NULL, mgmt_bcknd_listen_fd,
+				&mgmt_bcknd_listen_ev);
 		assert(mgmt_bcknd_listen_ev);
 		// vector_set_index(Vvty_serv_thread, sock, vty_serv_thread);
 		break;
@@ -107,7 +107,7 @@ static void mgmt_bcknd_server_start(const char *hostname)
 	sock = socket(AF_UNIX, SOCK_STREAM, PF_UNSPEC);
 	if (sock < 0) {
 		MGMTD_BCKND_SRVR_ERR("Failed to create server socket: %s",
-			safe_strerror(errno));
+				     safe_strerror(errno));
 		goto mgmt_bcknd_server_start_failed;
 	}
 
@@ -124,7 +124,8 @@ static void mgmt_bcknd_server_start(const char *hostname)
 	unlink(addr.sun_path);
 	ret = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
-		MGMTD_BCKND_SRVR_ERR("Failed to bind server socket to '%s'. Err: %s",
+		MGMTD_BCKND_SRVR_ERR(
+			"Failed to bind server socket to '%s'. Err: %s",
 			addr.sun_path, safe_strerror(errno));
 		goto mgmt_bcknd_server_start_failed;
 	}
@@ -132,7 +133,7 @@ static void mgmt_bcknd_server_start(const char *hostname)
 	ret = listen(sock, MGMTD_BCKND_MAX_CONN);
 	if (ret < 0) {
 		MGMTD_BCKND_SRVR_ERR("Failed to listen on server socket: %s",
-			safe_strerror(errno));
+				     safe_strerror(errno));
 		goto mgmt_bcknd_server_start_failed;
 	}
 

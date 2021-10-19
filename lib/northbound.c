@@ -441,7 +441,7 @@ void nb_config_diff_del_changes(struct nb_config_cbs *changes)
  * excluding default leafs and leaf-lists. This is a recursive function.
  */
 void nb_config_diff_created(const struct lyd_node *dnode, uint32_t *seq,
-				   struct nb_config_cbs *changes)
+			    struct nb_config_cbs *changes)
 {
 	enum nb_operation operation;
 	struct lyd_node *child;
@@ -543,7 +543,7 @@ static inline void nb_config_diff_dnode_log(const char *context,
 }
 #endif
 
-/* 
+/*
  * Calculate the delta between two different configurations.
  *
  * NOTE: 'config1' is the reference DB, while 'config2' is
@@ -753,7 +753,8 @@ int nb_candidate_edit(struct nb_config *candidate,
 }
 
 static void nb_update_candidate_changes(struct nb_config *candidate,
-	struct nb_cfg_change *change, uint32_t *seq)
+					struct nb_cfg_change *change,
+					uint32_t *seq)
 {
 	enum nb_operation oper = change->operation;
 	char *xpath = change->xpath;
@@ -761,8 +762,7 @@ static void nb_update_candidate_changes(struct nb_config *candidate,
 	struct nb_config_cbs *cfg_chgs = &candidate->cfg_chgs;
 	int op;
 
-	switch (oper)
-	{
+	switch (oper) {
 	case NB_OP_CREATE:
 	case NB_OP_MODIFY:
 		root = yang_dnode_get(candidate->dnode, xpath);
@@ -776,8 +776,7 @@ static void nb_update_candidate_changes(struct nb_config *candidate,
 	}
 	LYD_TREE_DFS_BEGIN (root, dnode) {
 		op = nb_lyd_diff_get_op(dnode);
-		switch (op)
-		{
+		switch (op) {
 		case 'c':
 			nb_config_diff_created(dnode, seq, cfg_chgs);
 			LYD_TREE_DFS_continue = 1;
@@ -787,34 +786,31 @@ static void nb_update_candidate_changes(struct nb_config *candidate,
 			LYD_TREE_DFS_continue = 1;
 			break;
 		case 'r':
-			nb_config_diff_add_change(cfg_chgs, NB_OP_MODIFY,
-							  seq, dnode);
+			nb_config_diff_add_change(cfg_chgs, NB_OP_MODIFY, seq,
+						  dnode);
 			break;
 		default:
 			break;
 		}
-	LYD_TREE_DFS_END(root, dnode);
+		LYD_TREE_DFS_END(root, dnode);
 	}
-
 }
 
-static bool nb_is_operation_allowed(struct nb_node *nb_node, struct nb_cfg_change *change)
+static bool nb_is_operation_allowed(struct nb_node *nb_node,
+				    struct nb_cfg_change *change)
 {
 	enum nb_operation oper = change->operation;
-	if(lysc_is_key(nb_node->snode)) {
+	if (lysc_is_key(nb_node->snode)) {
 		if (oper == NB_OP_MODIFY || oper == NB_OP_DESTROY)
 			return false;
 	}
 	return true;
 }
 
-void nb_candidate_edit_config_changes(struct nb_config *candidate_config,
-				      struct nb_cfg_change cfg_changes[],
-				      size_t num_cfg_changes,
-				      const char *xpath_base,
-				      const char *curr_xpath,
-				      int xpath_index, char *err_buf,
-				      int err_bufsize, bool *error)
+void nb_candidate_edit_config_changes(
+	struct nb_config *candidate_config, struct nb_cfg_change cfg_changes[],
+	size_t num_cfg_changes, const char *xpath_base, const char *curr_xpath,
+	int xpath_index, char *err_buf, int err_bufsize, bool *error)
 {
 	uint32_t seq = 0;
 
@@ -857,8 +853,7 @@ void nb_candidate_edit_config_changes(struct nb_config *candidate_config,
 			continue;
 		}
 		/* Find if the node to be edited is not a key node */
-		if (!nb_is_operation_allowed(nb_node, change))
-		{
+		if (!nb_is_operation_allowed(nb_node, change)) {
 			zlog_err(" Xpath %s points to key node", xpath);
 			*error = true;
 			break;
@@ -896,8 +891,9 @@ void nb_candidate_edit_config_changes(struct nb_config *candidate_config,
 		 * happen in practice, unless there's a bug in the code. When
 		 * that happens, log the error but otherwise ignore it.
 		 */
-		snprintf(err_buf, err_bufsize, "%% Failed to edit configuration.\n\n%s",
-			yang_print_errors(ly_native_ctx, buf, sizeof(buf)));
+		snprintf(err_buf, err_bufsize,
+			 "%% Failed to edit configuration.\n\n%s",
+			 yang_print_errors(ly_native_ctx, buf, sizeof(buf)));
 	}
 }
 
@@ -929,7 +925,7 @@ int nb_candidate_update(struct nb_config *candidate)
  * validation process.
  */
 int nb_candidate_validate_yang(struct nb_config *candidate, char *errmsg,
-				      size_t errmsg_len)
+			       size_t errmsg_len)
 {
 	if (lyd_validate_all(&candidate->dnode, ly_native_ctx,
 			     LYD_VALIDATE_NO_STATE, NULL)
@@ -943,9 +939,9 @@ int nb_candidate_validate_yang(struct nb_config *candidate, char *errmsg,
 
 /* Perform code-level validation using the northbound callbacks. */
 int nb_candidate_validate_code(struct nb_context *context,
-				      struct nb_config *candidate,
-				      struct nb_config_cbs *changes,
-				      char *errmsg, size_t errmsg_len)
+			       struct nb_config *candidate,
+			       struct nb_config_cbs *changes, char *errmsg,
+			       size_t errmsg_len)
 {
 	struct nb_config_cb *cb;
 	struct lyd_node *root, *child;
@@ -984,9 +980,9 @@ int nb_candidate_validate_code(struct nb_context *context,
 }
 
 int nb_candidate_diff_and_validate_yang(struct nb_context *context,
-				        struct nb_config *candidate,
-				        struct nb_config_cbs *changes, char *errmsg,
-				        size_t errmsg_len)
+					struct nb_config *candidate,
+					struct nb_config_cbs *changes,
+					char *errmsg, size_t errmsg_len)
 {
 	if (nb_candidate_validate_yang(candidate, errmsg, sizeof(errmsg_len))
 	    != NB_OK)
@@ -1006,7 +1002,7 @@ int nb_candidate_validate(struct nb_context *context,
 	int ret;
 
 	ret = nb_candidate_diff_and_validate_yang(context, candidate, &changes,
-			                          errmsg, errmsg_len);
+						  errmsg, errmsg_len);
 	if (ret != NB_OK)
 		return ret;
 
@@ -1026,9 +1022,9 @@ int nb_candidate_commit_prepare(struct nb_context *context,
 {
 	struct nb_config_cbs changes;
 
-	if (!skip_validate &&
-		nb_candidate_validate_yang(candidate, errmsg, errmsg_len)
-	    != NB_OK) {
+	if (!skip_validate
+	    && nb_candidate_validate_yang(candidate, errmsg, errmsg_len)
+		       != NB_OK) {
 		flog_warn(EC_LIB_NB_CANDIDATE_INVALID,
 			  "%s: failed to validate candidate configuration",
 			  __func__);
@@ -1044,10 +1040,10 @@ int nb_candidate_commit_prepare(struct nb_context *context,
 		return NB_ERR_NO_CHANGES;
 	}
 
-	if (!skip_validate &&
-		nb_candidate_validate_code(context, candidate, &changes, errmsg,
-				       errmsg_len)
-	    != NB_OK) {
+	if (!skip_validate
+	    && nb_candidate_validate_code(context, candidate, &changes, errmsg,
+					  errmsg_len)
+		       != NB_OK) {
 		flog_warn(EC_LIB_NB_CANDIDATE_INVALID,
 			  "%s: failed to validate candidate configuration",
 			  __func__);
@@ -1060,7 +1056,7 @@ int nb_candidate_commit_prepare(struct nb_context *context,
 	 */
 	if (!*transaction)
 		*transaction = nb_transaction_new(context, candidate, &changes,
-					          comment, errmsg, errmsg_len);
+						  comment, errmsg, errmsg_len);
 	if (*transaction == NULL) {
 		flog_warn(EC_LIB_NB_TRANSACTION_CREATION_FAILED,
 			  "%s: failed to create transaction: %s", __func__,
