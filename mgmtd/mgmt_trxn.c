@@ -583,7 +583,7 @@ static void mgmt_trxn_req_free(struct mgmt_trxn_req **trxn_req)
 				free((void *)(*trxn_req)
 					     ->req.get_data->xpaths[indx]);
 		}
-		//pending_list = &(*trxn_req)->trxn->pending_get_datas;
+		pending_list = &(*trxn_req)->trxn->pending_get_datas;
 		req_list = &(*trxn_req)->trxn->get_data_reqs;
 		MGMTD_TRXN_DBG("Deleting GETDATA Req: %p for Trxn: %p",
 			       *trxn_req, (*trxn_req)->trxn);
@@ -1781,27 +1781,35 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 		(!get_reply->last_batch ? get_req->total_reply : -1);
 
 	MGMTD_TRXN_DBG("Sending %d Get-Config/Data replies (next-idx:%lld)",
-		       (int)data_reply->n_data, data_reply->next_indx);
+		(int) data_reply->n_data, data_reply->next_indx);
 
-	if (trxn_req->req_event == MGMTD_TRXN_PROC_GETCFG
-	    && mgmt_frntnd_send_get_cfg_reply(trxn_req->trxn->session_id,
-					      (uint64_t)trxn_req->trxn,
-					      get_req->db_id, trxn_req->req_id,
-					      MGMTD_SUCCESS, data_reply, NULL)
-		       != 0) {
-		MGMTD_TRXN_ERR(
-			"Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
-			trxn_req->trxn, trxn_req->trxn->session_id,
-			trxn_req->req_id);
-	} else if (mgmt_frntnd_send_get_data_reply(
-			   trxn_req->trxn->session_id, (uint64_t)trxn_req->trxn,
-			   get_req->db_id, trxn_req->req_id, MGMTD_SUCCESS,
-			   data_reply, NULL)
-		   != 0) {
-		MGMTD_TRXN_ERR(
-			"Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
-			trxn_req->trxn, trxn_req->trxn->session_id,
-			trxn_req->req_id);
+	switch (trxn_req->req_event) {
+	case MGMTD_TRXN_PROC_GETCFG:
+		if (mgmt_frntnd_send_get_cfg_reply(
+			trxn_req->trxn->session_id,
+			(uint64_t) trxn_req->trxn,
+			get_req->db_id, trxn_req->req_id,
+			MGMTD_SUCCESS, data_reply, NULL) != 0) {
+			MGMTD_TRXN_ERR("Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
+				trxn_req->trxn, trxn_req->trxn->session_id,
+				trxn_req->req_id);
+		}
+		break;
+	case MGMTD_TRXN_PROC_GETDATA:
+		if (mgmt_frntnd_send_get_data_reply(
+			trxn_req->trxn->session_id,
+			(uint64_t) trxn_req->trxn,
+			get_req->db_id, trxn_req->req_id,
+			MGMTD_SUCCESS, data_reply, NULL) != 0) {
+			MGMTD_TRXN_ERR("Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
+				trxn_req->trxn, trxn_req->trxn->session_id,
+				trxn_req->req_id);
+		}
+		break;
+	default:
+		MGMTD_TRXN_ERR("Invalid Trxn-Req-Event %u",
+			trxn_req->req_event);
+		break;
 	}
 
 	/*
