@@ -60,13 +60,13 @@ extern "C" {
  * Data-structures
  ***************************************************************/
 
-typedef uintptr_t mgmt_session_id_t;
+typedef uint64_t mgmt_session_id_t;
 #define MGMTD_SESSION_ID_NONE 0
 
-typedef uintptr_t mgmt_client_id_t;
+typedef uint64_t mgmt_client_id_t;
 #define MGMTD_CLIENT_ID_NONE 0
 
-typedef uintptr_t mgmt_client_req_id_t;
+typedef uint64_t mgmt_client_req_id_t;
 
 typedef Mgmtd__DatabaseId mgmt_database_id_t;
 #define MGMTD_DB_NONE MGMTD__DATABASE_ID__DB_NONE

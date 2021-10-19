@@ -454,13 +454,13 @@ static struct mgmt_trxn_req *mgmt_trxn_req_alloc(struct mgmt_trxn_ctxt *trxn,
 		assert(trxn_req->req.set_cfg);
 		mgmt_trxn_req_list_add_tail(&trxn->set_cfg_reqs, trxn_req);
 		MGMTD_TRXN_DBG(
-			"Added a new SETCFG Req: %p for Trxn: %p, Sessn: 0x%lx",
+			"Added a new SETCFG Req: %p for Trxn: %p, Sessn: 0x%llx",
 			trxn_req, trxn, trxn->session_id);
 		break;
 	case MGMTD_TRXN_PROC_COMMITCFG:
 		trxn->commit_cfg_req = trxn_req;
 		MGMTD_TRXN_DBG(
-			"Added a new COMMITCFG Req: %p for Trxn: %p, Sessn: 0x%lx",
+			"Added a new COMMITCFG Req: %p for Trxn: %p, Sessn: 0x%llx",
 			trxn_req, trxn, trxn->session_id);
 
 		FOREACH_MGMTD_BCKND_CLIENT_ID(id)
@@ -478,7 +478,7 @@ static struct mgmt_trxn_req *mgmt_trxn_req_alloc(struct mgmt_trxn_ctxt *trxn,
 		assert(trxn_req->req.get_data);
 		mgmt_trxn_req_list_add_tail(&trxn->get_cfg_reqs, trxn_req);
 		MGMTD_TRXN_DBG(
-			"Added a new GETCFG Req: %p for Trxn: %p, Sessn: 0x%lx",
+			"Added a new GETCFG Req: %p for Trxn: %p, Sessn: 0x%llx",
 			trxn_req, trxn, trxn->session_id);
 		break;
 	case MGMTD_TRXN_PROC_GETDATA:
@@ -488,7 +488,7 @@ static struct mgmt_trxn_req *mgmt_trxn_req_alloc(struct mgmt_trxn_ctxt *trxn,
 		assert(trxn_req->req.get_data);
 		mgmt_trxn_req_list_add_tail(&trxn->get_data_reqs, trxn_req);
 		MGMTD_TRXN_DBG(
-			"Added a new GETDATA Req: %p for Trxn: %p, Sessn: 0x%lx",
+			"Added a new GETDATA Req: %p for Trxn: %p, Sessn: 0x%llx",
 			trxn_req, trxn, trxn->session_id);
 		break;
 	default:
@@ -632,7 +632,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 	cmt_stats = mgmt_frntnd_get_sessn_commit_stats(trxn->session_id);
 
 	MGMTD_TRXN_DBG(
-		"Processing %d SET_CONFIG requests for Trxn:%p Session:0x%lx",
+		"Processing %d SET_CONFIG requests for Trxn:%p Session:0x%llx",
 		(int)mgmt_trxn_req_list_count(&trxn->set_cfg_reqs), trxn,
 		trxn->session_id);
 
@@ -686,7 +686,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 				trxn_req->req.set_cfg->dst_db_hndl);
 			if (ret != 0) {
 				MGMTD_TRXN_ERR(
-					"Failed to lock the DB %u for trxn: %p sessn 0x%lx, errstr %s!",
+					"Failed to lock the DB %u for trxn: %p sessn 0x%llx, errstr %s!",
 					trxn_req->req.set_cfg->dst_db_id, trxn,
 					trxn->session_id, strerror(ret));
 				mgmt_trxn_send_commit_cfg_reply(
@@ -712,7 +712,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 				   trxn_req->req_id, MGMTD_SUCCESS, NULL, false)
 			   != 0) {
 			MGMTD_TRXN_ERR(
-				"Failed to send SET_CONFIG_REPLY for trxn %p sessn 0x%lx",
+				"Failed to send SET_CONFIG_REPLY for trxn %p sessn 0x%llx",
 				trxn, trxn->session_id);
 			error = true;
 		}
@@ -761,7 +761,7 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 		       error_if_any)
 		       != 0) {
 		MGMTD_TRXN_ERR(
-			"Failed to send COMMIT-CONFIG-REPLY for Trxn %p Sessn 0x%lx",
+			"Failed to send COMMIT-CONFIG-REPLY for Trxn %p Sessn 0x%llx",
 			trxn, trxn->session_id);
 	}
 
@@ -774,7 +774,7 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 		       error_if_any, true)
 		       != 0) {
 		MGMTD_TRXN_ERR(
-			"Failed to send SET-CONFIG-REPLY for Trxn %p Sessn 0x%lx",
+			"Failed to send SET-CONFIG-REPLY for Trxn %p Sessn 0x%llx",
 			trxn, trxn->session_id);
 	}
 
@@ -1373,7 +1373,7 @@ static int mgmt_trxn_send_bcknd_trxn_create(struct mgmt_trxn_ctxt *trxn)
 	 * come back.
 	 */
 
-	MGMTD_TRXN_DBG("Trxn:%p Session:0x%lx, Phase(Current:'%s', Next: '%s')",
+	MGMTD_TRXN_DBG("Trxn:%p Session:0x%llx, Phase(Current:'%s', Next: '%s')",
 		       trxn, trxn->session_id,
 		       mgmt_trxn_commit_phase_str(trxn, true),
 		       mgmt_trxn_commit_phase_str(trxn, false));
@@ -1633,7 +1633,7 @@ static int mgmt_trxn_process_commit_cfg(struct thread *thread)
 	assert(trxn);
 
 	MGMTD_TRXN_DBG(
-		"Processing COMMIT_CONFIG for Trxn:%p Session:0x%lx, Phase(Current:'%s', Next: '%s')",
+		"Processing COMMIT_CONFIG for Trxn:%p Session:0x%llx, Phase(Current:'%s', Next: '%s')",
 		trxn, trxn->session_id, mgmt_trxn_commit_phase_str(trxn, true),
 		mgmt_trxn_commit_phase_str(trxn, false));
 
@@ -1664,12 +1664,12 @@ static int mgmt_trxn_process_commit_cfg(struct thread *thread)
 		assert(cmtcfg_req->next_phase
 		       == MGMTD_COMMIT_PHASE_VALIDATE_CFG);
 		MGMTD_TRXN_DBG(
-			"Trxn:%p Session:0x%lx, trigger sending CFG_VALIDATE_REQ to all backend clients",
+			"Trxn:%p Session:0x%llx, trigger sending CFG_VALIDATE_REQ to all backend clients",
 			trxn, trxn->session_id);
 #else  /* ifndef MGMTD_LOCAL_VALIDATIONS_ENABLED */
 		assert(cmtcfg_req->next_phase == MGMTD_COMMIT_PHASE_APPLY_CFG);
 		MGMTD_TRXN_DBG(
-			"Trxn:%p Session:0x%lx, trigger sending CFG_APPLY_REQ to all backend clients",
+			"Trxn:%p Session:0x%llx, trigger sending CFG_APPLY_REQ to all backend clients",
 			trxn, trxn->session_id);
 #endif /* ifndef MGMTD_LOCAL_VALIDATIONS_ENABLED */
 		break;
@@ -1716,7 +1716,7 @@ static int mgmt_trxn_process_commit_cfg(struct thread *thread)
 	}
 
 	MGMTD_TRXN_DBG(
-		"Trxn:%p Session:0x%lx, Phase updated to (Current:'%s', Next: '%s')",
+		"Trxn:%p Session:0x%llx, Phase updated to (Current:'%s', Next: '%s')",
 		trxn, trxn->session_id, mgmt_trxn_commit_phase_str(trxn, true),
 		mgmt_trxn_commit_phase_str(trxn, false));
 	return 0;
@@ -1790,7 +1790,7 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 			(uint64_t) trxn_req->trxn,
 			get_req->db_id, trxn_req->req_id,
 			MGMTD_SUCCESS, data_reply, NULL) != 0) {
-			MGMTD_TRXN_ERR("Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
+			MGMTD_TRXN_ERR("Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
 				trxn_req->trxn, trxn_req->trxn->session_id,
 				trxn_req->req_id);
 		}
@@ -1801,7 +1801,7 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 			(uint64_t) trxn_req->trxn,
 			get_req->db_id, trxn_req->req_id,
 			MGMTD_SUCCESS, data_reply, NULL) != 0) {
-			MGMTD_TRXN_ERR("Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%lx, Req: %ld",
+			MGMTD_TRXN_ERR("Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
 				trxn_req->trxn, trxn_req->trxn->session_id,
 				trxn_req->req_id);
 		}
@@ -1958,7 +1958,7 @@ static int mgmt_trxn_process_get_cfg(struct thread *thread)
 	assert(trxn);
 
 	MGMTD_TRXN_DBG(
-		"Processing %d GET_CONFIG requests for Trxn:%p Session:0x%lx",
+		"Processing %d GET_CONFIG requests for Trxn:%p Session:0x%llx",
 		(int)mgmt_trxn_req_list_count(&trxn->get_cfg_reqs), trxn,
 		trxn->session_id);
 
@@ -1979,7 +1979,7 @@ static int mgmt_trxn_process_get_cfg(struct thread *thread)
 
 		if (mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
 			MGMTD_TRXN_ERR(
-				"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%lx, Req: %ld!",
+				"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
 				trxn_req->req.get_data->db_id, trxn,
 				trxn->session_id, trxn_req->req_id);
 			error = true;
@@ -2027,7 +2027,7 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 	assert(trxn);
 
 	MGMTD_TRXN_DBG(
-		"Processing %d GET_DATA requests for Trxn:%p Session:0x%lx",
+		"Processing %d GET_DATA requests for Trxn:%p Session:0x%llx",
 		(int)mgmt_trxn_req_list_count(&trxn->get_data_reqs), trxn,
 		trxn->session_id);
 
@@ -2046,14 +2046,14 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 			goto mgmt_trxn_process_get_data_done;
 		}
 
-		if (mgmt_db_is_config(db_hndl)
-		    && mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
-			MGMTD_TRXN_ERR(
-				"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%lx, Req: %ld!",
-				trxn_req->req.get_data->db_id, trxn,
-				trxn->session_id, trxn_req->req_id);
-			error = true;
-			goto mgmt_trxn_process_get_data_done;
+		if (mgmt_db_is_config(db_hndl)) {
+			if (mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
+				MGMTD_TRXN_ERR(
+					"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
+					trxn_req->req.get_data->db_id, trxn,
+					trxn->session_id, trxn_req->req_id);
+				error = true;
+			}
 		} else {
 			/*
 			 * TODO: Trigger GET procedures for Backend
@@ -2083,7 +2083,7 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 		 * moved to corresponding pending list. No need to delete it.
 		 */
 		num_processed++;
-		if (num_processed == MGMTD_TRXN_MAX_NUM_GETCFG_PROC)
+		if (num_processed == MGMTD_TRXN_MAX_NUM_GETDATA_PROC)
 			break;
 	}
 
@@ -2192,7 +2192,7 @@ static void mgmt_trxn_unlock(struct mgmt_trxn_ctxt **trxn, const char *file,
 
 		mgmt_trxn_list_del(&mgmt_trxn_mm->mgmt_trxns, *trxn);
 
-		MGMTD_TRXN_DBG("Deleted %s Trxn %p for Sessn: 0x%lx",
+		MGMTD_TRXN_DBG("Deleted %s Trxn %p for Sessn: 0x%llx",
 			       mgmt_trxn_type2str((*trxn)->type), *trxn,
 			       (*trxn)->session_id);
 
@@ -2415,7 +2415,7 @@ int mgmt_trxn_send_commit_config_req(uint64_t trxn_id,
 
 	if (trxn->commit_cfg_req) {
 		MGMTD_TRXN_ERR(
-			"A commit is already in-progress for Trxn %p, session 0x%lx. Cannot start another!",
+			"A commit is already in-progress for Trxn %p, session 0x%llx. Cannot start another!",
 			trxn, trxn->session_id);
 		return -1;
 	}
@@ -2635,7 +2635,7 @@ int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 
 	if (!success) {
 		MGMTD_TRXN_ERR(
-			"CFGDATA_VALIDATE_REQ sent to '%s' failed for Trxn %p, Batches [0x%lx - 0x%lx], Err: %s",
+			"CFGDATA_VALIDATE_REQ sent to '%s' failed for Trxn %p, Batches [0x%llx - 0x%llx], Err: %s",
 			adptr->name, trxn, batch_ids[0],
 			batch_ids[num_batch_ids - 1],
 			error_if_any ? error_if_any : "None");
@@ -2681,7 +2681,7 @@ mgmt_trxn_notify_bcknd_cfg_apply_reply(uint64_t trxn_id, bool success,
 
 	if (!success) {
 		MGMTD_TRXN_ERR(
-			"CFGDATA_APPLY_REQ sent to '%s' failed for Trxn %p, Batches [0x%lx - 0x%lx], Err: %s",
+			"CFGDATA_APPLY_REQ sent to '%s' failed for Trxn %p, Batches [0x%llx - 0x%llx], Err: %s",
 			adptr->name, trxn, batch_ids[0],
 			batch_ids[num_batch_ids - 1],
 			error_if_any ? error_if_any : "None");
@@ -2729,7 +2729,7 @@ int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
 
 	if (!trxn->commit_cfg_req) {
 		MGMTD_TRXN_ERR(
-			"NO commit in-progress for Trxn %p, session 0x%lx!",
+			"NO commit in-progress for Trxn %p, session 0x%llx!",
 			trxn, trxn->session_id);
 		return -1;
 	}
@@ -2806,7 +2806,7 @@ void mgmt_trxn_status_write(struct vty *vty)
 	FOREACH_TRXN_IN_LIST(mgmt_trxn_mm, trxn)
 	{
 		vty_out(vty, "  Trxn-Id: \t\t\t%p\n", trxn);
-		vty_out(vty, "    Session-Id: \t\t0x%lx\n", trxn->session_id);
+		vty_out(vty, "    Session-Id: \t\t0x%llx\n", trxn->session_id);
 		vty_out(vty, "    Type: \t\t\t%s\n",
 			mgmt_trxn_type2str(trxn->type));
 		vty_out(vty, "    Ref-Count: \t\t\t%d\n", trxn->refcount);

@@ -497,7 +497,7 @@ static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
 	bcknd_msg.trxn_req = &trxn_req;
 
 	MGMTD_BCKND_ADPTR_DBG(
-		"Sending TRXN_REQ message to Backend client '%s' for Trxn-Id %lx",
+		"Sending TRXN_REQ message to Backend client '%s' for Trxn-Id %llx",
 		adptr->name, trxn_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
@@ -525,7 +525,7 @@ mgmt_bcknd_send_cfgdata_create_req(struct mgmt_bcknd_client_adapter *adptr,
 	bcknd_msg.cfg_data_req = &cfgdata_req;
 
 	MGMTD_BCKND_ADPTR_DBG(
-		"Sending CFGDATA_CREATE_REQ message to Backend client '%s' for Trxn-Id %lx, Batch-Id: %lx",
+		"Sending CFGDATA_CREATE_REQ message to Backend client '%s' for Trxn-Id %llx, Batch-Id: %llx",
 		adptr->name, trxn_id, batch_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
@@ -550,7 +550,7 @@ mgmt_bcknd_send_cfgvalidate_req(struct mgmt_bcknd_client_adapter *adptr,
 	bcknd_msg.cfg_validate_req = &vldt_req;
 
 	MGMTD_BCKND_ADPTR_DBG(
-		"Sending CFG_VALIDATE_REQ message to Backend client '%s' for Trxn-Id %lx, #Batches: %d [0x%lx - 0x%lx]",
+		"Sending CFG_VALIDATE_REQ message to Backend client '%s' for Trxn-Id %llx, #Batches: %d [0x%llx - 0x%llx]",
 		adptr->name, trxn_id, (int)num_batch_ids, batch_ids[0],
 		batch_ids[num_batch_ids - 1]);
 
@@ -572,7 +572,7 @@ static int mgmt_bcknd_send_cfgapply_req(struct mgmt_bcknd_client_adapter *adptr,
 	bcknd_msg.cfg_apply_req = &apply_req;
 
 	MGMTD_BCKND_ADPTR_DBG(
-		"Sending CFG_APPLY_REQ message to Backend client '%s' for Trxn-Id 0x%lx",
+		"Sending CFG_APPLY_REQ message to Backend client '%s' for Trxn-Id 0x%llx",
 		adptr->name, trxn_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);

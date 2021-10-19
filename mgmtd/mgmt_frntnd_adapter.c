@@ -879,11 +879,11 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Created new Config Trxn 0x%lx for session %p",
+			"Created new Config Trxn 0x%llx for session %p",
 			sessn->cfg_trxn_id, sessn);
 	} else {
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Config Trxn 0x%lx for session %p already created",
+			"Config Trxn 0x%llx for session %p already created",
 			sessn->cfg_trxn_id, sessn);
 
 		if (setcfg_req->implicit_commit) {
@@ -1007,11 +1007,11 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Created new Show Trxn 0x%lx for session %p",
+			"Created new Show Trxn 0x%llx for session %p",
 			sessn->trxn_id, sessn);
 	} else {
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Show Trxn 0x%lx for session %p already created",
+			"Show Trxn 0x%llx for session %p already created",
 			sessn->trxn_id, sessn);
 	}
 
@@ -1092,11 +1092,11 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Created new Show Trxn 0x%lx for session %p",
+			"Created new Show Trxn 0x%llx for session %p",
 			sessn->trxn_id, sessn);
 	} else {
 		MGMTD_FRNTND_ADPTR_DBG(
-			"Show Trxn 0x%lx for session %p already created",
+			"Show Trxn 0x%llx for session %p already created",
 			sessn->trxn_id, sessn);
 	}
 
@@ -1747,7 +1747,7 @@ int mgmt_frntnd_send_set_cfg_reply(mgmt_session_id_t session_id,
 	if (!sessn || sessn->cfg_trxn_id != trxn_id) {
 		if (sessn)
 			MGMTD_FRNTND_ADPTR_ERR(
-				"Trxn_id doesnot match, session trxn is 0x%lx, current trxn 0x%lx",
+				"Trxn_id doesnot match, session trxn is 0x%llx, current trxn 0x%llx",
 				sessn->cfg_trxn_id, trxn_id);
 		return -1;
 	}
@@ -1805,9 +1805,7 @@ int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
 	if (!sessn || sessn->trxn_id != trxn_id)
 		return -1;
 
-	return 0;
-
-	return mgmt_frntnd_send_getcfg_reply(sessn, db_id, req_id,
+	return mgmt_frntnd_send_getdata_reply(sessn, db_id, req_id,
 					     result == MGMTD_SUCCESS, data_resp,
 					     error_if_any);
 }
@@ -1966,7 +1964,7 @@ void mgmt_frntnd_adapter_status_write(struct vty *vty, bool detail)
 		vty_out(vty, "    Sessions\n");
 		FOREACH_SESSN_IN_LIST(adptr, sessn)
 		{
-			vty_out(vty, "      Client-Id: \t\t\t0x%lx\n",
+			vty_out(vty, "      Client-Id: \t\t\t0x%llx\n",
 				sessn->client_id);
 			vty_out(vty, "        Session-Id: \t\t\t%p\n", sessn);
 			vty_out(vty, "        DB-Locks:\n");
