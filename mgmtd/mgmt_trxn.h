@@ -69,13 +69,10 @@ static inline const char *mgmt_trxn_type2str(mgmt_trxn_type_t type)
 	switch (type) {
 	case MGMTD_TRXN_TYPE_NONE:
 		return "None";
-		break;
 	case MGMTD_TRXN_TYPE_CONFIG:
 		return "CONFIG";
-		break;
 	case MGMTD_TRXN_TYPE_SHOW:
 		return "SHOW";
-		break;
 	default:
 		break;
 	}
@@ -84,10 +81,6 @@ static inline const char *mgmt_trxn_type2str(mgmt_trxn_type_t type)
 }
 
 extern int mgmt_trxn_init(struct mgmt_master *cm, struct thread_master *tm);
-
-// extern void mgmt_trxn_lock(mgmt_trxn_ctxt_t *trxn);
-
-// extern void mgmt_trxn_unlock(mgmt_trxn_ctxt_t **trxn);
 
 extern mgmt_session_id_t mgmt_config_trxn_in_progress(void);
 

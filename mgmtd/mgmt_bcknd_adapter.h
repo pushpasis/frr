@@ -31,7 +31,7 @@
 #define MGMTD_FIND_ADAPTER_BY_INDEX(adapter_index)                             \
 	mgmt_adaptr_ref[adapter_index]
 
-// List of adapter clients of MGMTD
+/* List of adapter clients of MGMTD */
 #define MGMTD_BCKND_CLIENT_INDEX_STATICD (1 << MGMTD_BCKND_CLIENT_ID_STATICD)
 #define MGMTD_BCKND_CLIENT_INDEX_BGPD (1 << MGMTD_BCKND_CLIENT_ID_BGPD)
 
@@ -71,20 +71,19 @@ typedef struct mgmt_bcknd_client_adapter_ {
 	char xpath_reg[MGMTD_MAX_NUM_XPATH_REG][MGMTD_MAX_XPATH_LEN];
 
 	/* IO streams for read and write */
-	// pthread_mutex_t ibuf_mtx;
+	/* pthread_mutex_t ibuf_mtx; */
 	struct stream_fifo *ibuf_fifo;
-	// pthread_mutex_t obuf_mtx;
+	/* pthread_mutex_t obuf_mtx; */
 	struct stream_fifo *obuf_fifo;
 
-	// /* Private I/O buffers */
+	/* Private I/O buffers */
 	struct stream *ibuf_work;
 	struct stream *obuf_work;
 	uint8_t msg_buf[MGMTD_BCKND_MSG_MAX_LEN];
 
 	/* Buffer of data waiting to be written to client. */
-	// struct buffer *wb;
+	/* struct buffer *wb; */
 
-	// int adapter_index;
 	int refcount;
 	uint32_t num_msg_tx;
 	uint32_t num_msg_rx;

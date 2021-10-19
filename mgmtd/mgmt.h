@@ -44,8 +44,6 @@
 #include "mgmtd/mgmt_trxn.h"
 #include "mgmtd/mgmt_db.h"
 
-// #define MGMTD_MAX_HOSTNAME 64	/* Linux max, is larger than most other sys
-// */
 
 #define MGMTD_VTY_PORT 2622
 #define MGMTD_SOCKET_BUF_SIZE 65535
@@ -57,11 +55,6 @@
 		__typeof__(b) _b = (b);                                        \
 		_a > _b ? _a : _b;                                             \
 	})
-
-// #define REDIRECT_DEBUG_TO_STDERR
-
-// extern struct frr_pthread *mgmt_pth_io;
-// extern struct frr_pthread *mgmt_pth_ka;
 
 extern bool mgmt_debug_bcknd;
 extern bool mgmt_debug_frntnd;
@@ -101,11 +94,6 @@ struct mgmt_master {
 		cmt_dlist; /* List of last 10 commits executed. */
 };
 
-// DECLARE_HOOK(mgmt_inst_delete, (struct mgmt *mgmt), (mgmt))
-// DECLARE_HOOK(mgmt_inst_config_write,
-// 		(struct mgmt *mgmt, struct vty *vty),
-// 		(mgmt, vty))
-
 extern struct mgmt_master *mm;
 
 /* Inline functions */
@@ -123,7 +111,7 @@ extern void mgmt_terminate(void);
 extern void mgmt_reset(void);
 extern time_t mgmt_clock(void);
 
-extern int mgmt_config_write(struct vty *);
+extern int mgmt_config_write(struct vty *vty);
 
 extern void mgmt_master_init(struct thread_master *master,
 			     const int buffer_size);
@@ -135,6 +123,7 @@ extern void mgmt_pthreads_finish(void);
 static inline char *timestamp_string(time_t ts)
 {
 	time_t tbuf;
+
 	tbuf = time(NULL) - (mgmt_clock() - ts);
 	return ctime(&tbuf);
 }

@@ -75,23 +75,22 @@ typedef struct mgmt_frntnd_client_adapter_ {
 	uint32_t flags;
 
 	char name[MGMTD_CLIENT_NAME_MAX_LEN];
-	// uint8_t num_xpath_reg;
-	// char xpath_reg[MGMTD_MAX_NUM_XPATH_REG][MGMTD_MAX_XPATH_LEN];
+	/* uint8_t num_xpath_reg; */
+	/* char xpath_reg[MGMTD_MAX_NUM_XPATH_REG][MGMTD_MAX_XPATH_LEN]; */
 
 	struct mgmt_frntnd_sessn_list_head frntnd_sessns;
 
 	/* IO streams for read and write */
-	// pthread_mutex_t ibuf_mtx;
+	/* pthread_mutex_t ibuf_mtx; */
 	struct stream_fifo *ibuf_fifo;
-	// pthread_mutex_t obuf_mtx;
+	/* pthread_mutex_t obuf_mtx; */
 	struct stream_fifo *obuf_fifo;
 
-	// /* Private I/O buffers */
+	/* Private I/O buffers */
 	struct stream *ibuf_work;
 	struct stream *obuf_work;
 
 	/* Buffer of data waiting to be written to client. */
-	// struct buffer *wb;
 
 	int refcount;
 	uint32_t num_msg_tx;

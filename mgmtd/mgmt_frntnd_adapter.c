@@ -39,8 +39,10 @@
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
 #define MGMTD_FRNTND_ADPTR_DBG(fmt, ...)                                       \
-	if (mgmt_debug_frntnd)                                                 \
-	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+	do {                                                                   \
+		if (mgmt_debug_frntnd)                                         \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
 #define MGMTD_FRNTND_ADPTR_ERR(fmt, ...)                                       \
 	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
@@ -77,10 +79,10 @@ DECLARE_LIST(mgmt_frntnd_sessn_list, mgmt_frntnd_sessn_ctxt_t, list_linkage);
 			      &(adptr)->frntnd_sessns, (sessn)))
 
 #define FOREACH_SESSN_IN_LIST_SAFE(adptr, sessn)                               \
-	frr_each_safe (mgmt_frntnd_sessn_list, &(adptr)->frntnd_sessns, (sessn))
+	frr_each_safe(mgmt_frntnd_sessn_list, &(adptr)->frntnd_sessns, (sessn))
 
-static struct thread_master *mgmt_frntnd_adptr_tm = NULL;
-static struct mgmt_master *mgmt_frntnd_adptr_cm = NULL;
+static struct thread_master *mgmt_frntnd_adptr_tm;
+static struct mgmt_master *mgmt_frntnd_adptr_cm;
 
 static struct mgmt_frntnd_adptr_list_head mgmt_frntnd_adptrs = {0};
 
@@ -281,9 +283,8 @@ mgmt_frntnd_create_session(mgmt_frntnd_client_adapter_t *adptr,
 	mgmt_frntnd_sessn_ctxt_t *sessn;
 
 	sessn = mgmt_frntnd_find_session_by_id(adptr, client_id);
-	if (sessn) {
+	if (sessn)
 		mgmt_frntnd_cleanup_session(&sessn);
-	}
 
 	sessn = XCALLOC(MTYPE_MGMTD_FRNTND_SESSN,
 			sizeof(mgmt_frntnd_sessn_ctxt_t));
@@ -422,9 +423,8 @@ static int mgmt_frntnd_send_lockdb_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	lockdb_reply.req_id = req_id;
 	lockdb_reply.lock = lock_db;
 	lockdb_reply.success = success;
-	if (error_if_any) {
+	if (error_if_any)
 		lockdb_reply.error_if_any = (char *)error_if_any;
-	}
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__LOCK_DB_REPLY;
@@ -458,9 +458,8 @@ static int mgmt_frntnd_send_setcfg_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	setcfg_reply.db_id = db_id;
 	setcfg_reply.req_id = req_id;
 	setcfg_reply.success = success;
-	if (error_if_any) {
+	if (error_if_any)
 		setcfg_reply.error_if_any = (char *)error_if_any;
-	}
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__SET_CONFIG_REPLY;
@@ -504,9 +503,8 @@ static int mgmt_frntnd_send_commitcfg_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	commcfg_reply.req_id = req_id;
 	commcfg_reply.success = success;
 	commcfg_reply.validate_only = validate_only;
-	if (error_if_any) {
+	if (error_if_any)
 		commcfg_reply.error_if_any = (char *)error_if_any;
-	}
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__COMMIT_CONFIG_REPLY;
@@ -548,9 +546,8 @@ static int mgmt_frntnd_send_getcfg_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	getcfg_reply.req_id = req_id;
 	getcfg_reply.success = success;
 	getcfg_reply.data = data;
-	if (error_if_any) {
+	if (error_if_any)
 		getcfg_reply.error_if_any = (char *)error_if_any;
-	}
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__GET_CONFIG_REPLY;
@@ -590,9 +587,8 @@ static int mgmt_frntnd_send_getdata_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	getdata_reply.req_id = req_id;
 	getdata_reply.success = success;
 	getdata_reply.data = data;
-	if (error_if_any) {
+	if (error_if_any)
 		getdata_reply.error_if_any = (char *)error_if_any;
-	}
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__GET_DATA_REPLY;
@@ -1410,9 +1406,8 @@ static int mgmt_frntnd_adapter_proc_msgbufs(struct thread *thread)
 
 	for (; processed < MGMTD_FRNTND_MAX_NUM_MSG_PROC;) {
 		work = stream_fifo_pop_safe(adptr->ibuf_fifo);
-		if (!work) {
+		if (!work)
 			break;
-		}
 
 		processed += mgmt_frntnd_adapter_process_msg(
 			adptr, STREAM_DATA(work), stream_get_endp(work));
@@ -1553,7 +1548,7 @@ static int mgmt_frntnd_adapter_write(struct thread *thread)
 	for (s = stream_fifo_head(adptr->obuf_fifo);
 	     s && processed < MGMTD_FRNTND_MAX_NUM_MSG_WRITE;
 	     s = stream_fifo_head(adptr->obuf_fifo)) {
-		// msg_size = (int)stream_get_size(s);
+		/* msg_size = (int)stream_get_size(s); */
 		msg_size = (int)STREAM_READABLE(s);
 		bytes_written = stream_flush(s, adptr->conn_fd);
 		if (bytes_written == -1
@@ -1701,7 +1696,7 @@ mgmt_frntnd_client_adapter_t *mgmt_frntnd_create_adapter(int conn_fd,
 		adptr->ibuf_fifo = stream_fifo_new();
 		adptr->ibuf_work = stream_new(MGMTD_FRNTND_MSG_MAX_LEN);
 		adptr->obuf_fifo = stream_fifo_new();
-		// adptr->obuf_work = stream_new(MGMTD_FRNTND_MSG_MAX_LEN);
+		/* adptr->obuf_work = stream_new(MGMTD_FRNTND_MSG_MAX_LEN); */
 		adptr->obuf_work = NULL;
 		mgmt_frntnd_adapter_lock(adptr);
 
@@ -1811,7 +1806,7 @@ int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
 int mgmt_frntnd_send_data_notify(mgmt_database_id_t db_id,
 				 mgmt_yang_data_t *data_resp[], int num_data)
 {
-	// mgmt_frntnd_sessn_ctxt_t *sessn;
+	/* mgmt_frntnd_sessn_ctxt_t *sessn; */
 
 	return 0;
 }
@@ -1846,9 +1841,8 @@ mgmt_frntnd_adapter_cmt_stats_write(struct vty *vty,
 {
 	char buf[100] = {0};
 
-	if (!mm->perf_stats_en) {
+	if (!mm->perf_stats_en)
 		return;
-	}
 
 	vty_out(vty, "    Num-Commits: \t\t\t%lu\n",
 		adptr->cmt_stats.commit_cnt);
@@ -1921,9 +1915,8 @@ mgmt_frntnd_adapter_setcfg_stats_write(struct vty *vty,
 {
 	char buf[100] = {0};
 
-	if (!mm->perf_stats_en) {
+	if (!mm->perf_stats_en)
 		return;
-	}
 
 	vty_out(vty, "    Num-Set-Cfg: \t\t\t%lu\n",
 		adptr->setcfg_stats.set_cfg_count);

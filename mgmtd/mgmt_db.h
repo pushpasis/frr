@@ -52,6 +52,8 @@
 #define MGMTD_COMMIT_INDEX_FILE_NAME "/etc/frr/commit-index.dat"
 #define MGMTD_COMMIT_TIME_STR_LEN 30
 
+extern struct nb_config *running_config;
+
 typedef uintptr_t mgmt_db_hndl_t;
 
 typedef void (*mgmt_db_node_iter_fn)(mgmt_db_hndl_t db_hndl, char *xpath,

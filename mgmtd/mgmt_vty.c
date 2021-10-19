@@ -81,11 +81,6 @@ void mgmt_enqueue_vty_nb_command(struct vty *vty, const char *xpath,
 	case NB_OP_MOVE:
 	case NB_OP_PRE_VALIDATE:
 		/* Process on MGMTD daemon itself */
-		// zlog_err("%s, cmd: '%s', '%s' xpath: '%s' ==> '%s'",
-		// 	__func__, vty->buf, nb_operation_name(operation),
-		// 	xpath, value ? value : "Nil");
-		// vty_out(vty, "MGMTD: Equeued XPATH '%s' ==> '%s'\n", xpath,
-		// 	value ? value : "Nil");
 		nb_cli_enqueue_change(vty, xpath, operation, value);
 		break;
 	case NB_OP_APPLY_FINISH:
@@ -123,9 +118,6 @@ int mgmt_apply_vty_nb_commands(struct vty *vty, const char *xpath_base_fmt, ...)
 		vsnprintf(xpath_base, sizeof(xpath_base), xpath_base_fmt, ap);
 		va_end(ap);
 	}
-
-	// zlog_err("%s, cmd: '%s'", __func__, vty->buf);
-	// vty_out(vty, "MGMTD: Applying command '%s'\n", xpath_base);
 
 	vty_mgmt_send_config_data(vty);
 	return 0;
@@ -737,5 +729,4 @@ void mgmt_vty_init(void)
 	/*
 	 * TODO: Register and handlers for auto-completion here.
 	 */
-	// cmd_variable_handler_register(mgmt_viewvrf_var_handlers);
 }

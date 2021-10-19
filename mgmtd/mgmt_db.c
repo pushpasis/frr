@@ -43,8 +43,10 @@
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
 #define MGMTD_DB_DBG(fmt, ...)                                                 \
-	if (mgmt_debug_db)                                                     \
-	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+	do {                                                                   \
+		if (mgmt_debug_db)                                             \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
 #define MGMTD_DB_ERR(fmt, ...)                                                 \
 	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
@@ -72,7 +74,7 @@ struct mgmt_cmt_info_t {
 DECLARE_DLIST(mgmt_cmt_info_dlist, struct mgmt_cmt_info_t, cmt_dlist);
 
 #define FOREACH_CMT_REC(mm, cmt_info)                                          \
-	frr_each_safe (mgmt_cmt_info_dlist, &mm->cmt_dlist, cmt_info)
+	frr_each_safe(mgmt_cmt_info_dlist, &mm->cmt_dlist, cmt_info)
 
 const char *mgmt_db_names[MGMTD_DB_MAX_ID + 1] = {
 	MGMTD_DB_NAME_NONE,	/* MGMTD_DB_NONE */
@@ -82,10 +84,8 @@ const char *mgmt_db_names[MGMTD_DB_MAX_ID + 1] = {
 	"Unknown/Invalid",	 /* MGMTD_DB_ID_MAX */
 };
 
-static struct mgmt_master *mgmt_db_mm = NULL;
+static struct mgmt_master *mgmt_db_mm;
 static mgmt_db_ctxt_t running, candidate, oper;
-
-extern struct nb_config *running_config;
 
 /* Dump the data tree of the specified format in the file pointed by the path */
 static int mgmt_db_dump_in_memory(mgmt_db_ctxt_t *db_ctxt,
@@ -155,7 +155,7 @@ static int mgmt_db_replace_dst_with_src_db(mgmt_db_ctxt_t *src,
 		ly_out_free(out, NULL, 0);
 	}
 
-	// TODO: Update the versions if nb_config present
+	/* TODO: Update the versions if nb_config present */
 
 	return 0;
 }
@@ -443,7 +443,7 @@ static int mgmt_db_rollback_to_cmt(struct vty *vty,
 		}
 	}
 
-	// Internally trigger a commit-request.
+	/* Internally trigger a commit-request. */
 	ret = mgmt_trxn_rollback_trigger_cfg_apply(src_db_hndl, dst_db_hndl);
 	if (ret != 0) {
 		mgmt_db_unlock(dst_db_hndl);
@@ -464,7 +464,7 @@ int mgmt_db_init(struct mgmt_master *mm)
 	if (mgmt_db_mm || mm->running_db || mm->candidate_db || mm->oper_db)
 		assert(!"Call mgmt_db_init() only once!");
 
-	// Use Running DB from NB module???
+	/* Use Running DB from NB module??? */
 	if (!running_config)
 		assert(!"Call mgmt_db_init() after frr_init() only!");
 
@@ -654,7 +654,7 @@ struct nb_config *mgmt_db_get_nb_config(mgmt_db_hndl_t db_hndl)
 	if (!db_ctxt)
 		return NULL;
 
-	return (db_ctxt->config_db ? db_ctxt->root.cfg_root : NULL);
+	return db_ctxt->config_db ? db_ctxt->root.cfg_root : NULL;
 }
 
 static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt, char *base_xpath,
@@ -759,9 +759,8 @@ static int mgmt_walk_db_nodes(mgmt_db_ctxt_t *db_ctxt, char *base_xpath,
 			(*num_nodes) += num_found;
 		}
 
-		if (ret != 0) {
+		if (ret != 0)
 			break;
-		}
 
 		if (alloc_xp)
 			free(xpath);
@@ -791,7 +790,7 @@ int mgmt_db_lookup_data_nodes(mgmt_db_hndl_t db_hndl, const char *xpath,
 	if (xpath[0] == '.' && xpath[1] == '/')
 		xpath += 2;
 
-	strncpy(base_xpath, xpath, sizeof(base_xpath));
+	strlcpy(base_xpath, xpath, sizeof(base_xpath));
 	mgmt_remove_trailing_separator(base_xpath, '/');
 
 	return (mgmt_walk_db_nodes(db_ctxt, base_xpath, NULL, NULL, NULL,
@@ -900,7 +899,7 @@ int mgmt_db_iter_data(mgmt_db_hndl_t db_hndl, char *base_xpath,
 
 	mgmt_remove_trailing_separator(base_xpath, '/');
 
-	strncpy(xpath, base_xpath, sizeof(xpath));
+	strlcpy(xpath, base_xpath, sizeof(xpath));
 
 	MGMTD_DB_DBG(" -- START DB walk for DBid: %d", db_ctxt->db_id);
 
@@ -910,12 +909,11 @@ int mgmt_db_iter_data(mgmt_db_hndl_t db_hndl, char *base_xpath,
 						: db_ctxt->root.dnode_root;
 
 		/* get first top-level sibling */
-		while (base_dnode->parent) {
+		while (base_dnode->parent)
 			base_dnode = lyd_parent(base_dnode);
-		}
-		while (base_dnode->prev->next) {
+
+		while (base_dnode->prev->next)
 			base_dnode = base_dnode->prev;
-		}
 
 		LY_LIST_FOR (base_dnode, node) {
 			ret = mgmt_walk_db_nodes(db_ctxt, xpath, node, iter_fn,
@@ -958,7 +956,7 @@ void mgmt_db_dump_tree(struct vty *vty, mgmt_db_hndl_t db_hndl,
 	}
 
 	if (xpath) {
-		strncpy(base_xpath, xpath, MGMTD_MAX_XPATH_LEN);
+		strlcpy(base_xpath, xpath, MGMTD_MAX_XPATH_LEN);
 		mgmt_remove_trailing_separator(base_xpath, '/');
 	}
 

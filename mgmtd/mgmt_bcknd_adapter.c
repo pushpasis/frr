@@ -39,8 +39,10 @@
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
 #define MGMTD_BCKND_ADPTR_DBG(fmt, ...)                                        \
-	if (mgmt_debug_bcknd)                                                  \
-	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+	do {                                                                   \
+		if (mgmt_debug_bcknd)                                          \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
 #define MGMTD_BCKND_ADPTR_ERR(fmt, ...)                                        \
 	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
@@ -95,23 +97,27 @@ static const mgmt_bcknd_xpath_map_reg_t xpath_static_map_reg[] = {
 	{.xpath_regexp = "/frr-interface:lib/*",
 	 .num_clients = 2,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD,
-			   MGMTD_BCKND_CLIENT_BGPD}},
+			   MGMTD_BCKND_CLIENT_BGPD}
+	},
 	{.xpath_regexp =
 		 "/frr-routing:routing/control-plane-protocols/"
 		 "control-plane-protocol[type='frr-staticd:staticd']"
 		 "[name='staticd'][vrf='default']/frr-staticd:staticd/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}},
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}
+	},
 	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/"
 			 "control-plane-protocol[type='frr-bgp:bgp']"
 			 "[name='bgp'][vrf='default']/frr-bgp:bgp/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}}};
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
+	}
+};
 
 #define MGMTD_BCKND_MAX_NUM_XPATH_MAP 256
 static mgmt_bcknd_xpath_regexp_map_t
 	mgmt_xpath_map[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
-static int mgmt_num_xpath_maps = 0;
+static int mgmt_num_xpath_maps;
 
 static struct thread_master *mgmt_bcknd_adptr_tm = NULL;
 
@@ -199,26 +205,17 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 	int rexp_len, xpath_len;
 	bool match = true, re_wild = false, xp_wild = false;
 	bool key = false, incr_re = false, incr_xp = false;
-	// char re_str[1024], xp_str[1024];
 
 	rexp_len = strlen(xpath_regexp);
 	xpath_len = strlen(xpath);
-	// memset(re_str, 0, sizeof(re_str));
-	// memset(xp_str, 0, sizeof(xp_str));
 
 	if (!rexp_len || !xpath_len)
 		return 0;
-
-	// MGMTD_BCKND_ADPTR_DBG(" REGEXP: '%s'", xpath_regexp);
 
 	for (re_indx = 0, xp_indx = 0;
 	     match && re_indx < rexp_len && xp_indx < xpath_len;) {
 		incr_re = true;
 		incr_xp = true;
-
-		// re_str[re_indx] = xpath_regexp[re_indx];
-		// xp_str[xp_indx] = xpath[xp_indx];
-		// MGMTD_BCKND_ADPTR_DBG("'%s' || '%s'", re_str, xp_str);
 
 		if (!key && xpath_regexp[re_indx] == '\''
 		    && xpath[xp_indx] == '\'')
@@ -254,22 +251,15 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 			incr_xp = true;
 		}
 
-		// MGMTD_BCKND_ADPTR_DBG("K:%d, RI:%d, RX:%d, RW:%d, XW:%d,
-		// M:%d, IR: %d, IX:%d", 	key, re_indx, xp_indx, re_wild,
-		// xp_wild, match, incr_re, incr_xp);
-
 		if (incr_re)
 			re_indx++;
 		if (incr_xp)
 			xp_indx++;
 	}
 
-	if (match) {
+	if (match)
 		match_len++;
-	}
 
-	// MGMTD_BCKND_ADPTR_DBG(" - REGEXP: %s, Match: %d",
-	// 	xpath_regexp, match_len);
 	return match_len;
 }
 
@@ -648,9 +638,8 @@ static int mgmt_bcknd_adapter_proc_msgbufs(struct thread *thread)
 
 	for (; processed < MGMTD_BCKND_MAX_NUM_MSG_PROC;) {
 		work = stream_fifo_pop_safe(adptr->ibuf_fifo);
-		if (!work) {
+		if (!work)
 			break;
-		}
 
 		processed += mgmt_bcknd_adapter_process_msg(
 			adptr, STREAM_DATA(work), stream_get_endp(work));
@@ -734,9 +723,8 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 			mgmt_bcknd_adapter_disconnect(adptr);
 			return -1;
 		}
-		if (msg_hdr->len > bytes_left) {
+		if (msg_hdr->len > bytes_left)
 			break;
-		}
 
 		total_bytes += msg_hdr->len;
 		bytes_left -= msg_hdr->len;
@@ -789,7 +777,7 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 	for (s = stream_fifo_head(adptr->obuf_fifo);
 	     s && processed < MGMTD_BCKND_MAX_NUM_MSG_WRITE;
 	     s = stream_fifo_head(adptr->obuf_fifo)) {
-		// msg_size = (int)stream_get_size(s);
+		/* msg_size = (int)stream_get_size(s); */
 		msg_size = (int)STREAM_READABLE(s);
 		bytes_written = stream_flush(s, adptr->conn_fd);
 		if (bytes_written == -1
@@ -866,8 +854,6 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl, char *xpath,
 	root = parms->cfg_chgs;
 	seq = &parms->seq;
 	nb_config_diff_created(node, seq, root);
-
-	return;
 }
 
 static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
@@ -1003,7 +989,7 @@ mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(int conn_fd,
 		adptr->ibuf_fifo = stream_fifo_new();
 		adptr->ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
 		adptr->obuf_fifo = stream_fifo_new();
-		// adptr->obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
+		/* adptr->obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN); */
 		adptr->obuf_work = NULL;
 		mgmt_bcknd_adapter_lock(adptr);
 
@@ -1262,9 +1248,8 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 				subscr.xpath_subscr[id].own_oper_data ? "T"
 								      : "F");
 			adptr = mgmt_bcknd_get_adapter_by_id(id);
-			if (adptr) {
-				vty_out(vty, "    -- Adapter: %p\n", adptr);
-			}
+			if (adptr)
+				vty_out(vty, "    -- Adapter: 0x%p\n", adptr);
 		}
 	}
 }

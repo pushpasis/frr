@@ -30,8 +30,8 @@
 static bool mgmt_connected = false;
 
 static mgmt_lib_hndl_t frntd_lib_hndl;
-static struct thread_master *master = NULL;
-static mgmt_session_id_t frntnd_session_id[NUM_TEST_SESSIONS] = {0};
+static struct thread_master *master;
+static mgmt_session_id_t frntnd_session_id[NUM_TEST_SESSIONS];
 
 static void mgmt_test_frntnd_server_connected(mgmt_lib_hndl_t lib_hndl,
 					      mgmt_user_data_t usr_data,
@@ -88,7 +88,8 @@ static mgmt_frntnd_client_params_t client_params = {
 };
 
 /* Main routine of mgmt. Treatment of argument and start mgmt finite
-   state machine is handled at here. */
+ * state machine is handled at here.
+ */
 int main(int argc, char **argv)
 {
 	struct thread thread;

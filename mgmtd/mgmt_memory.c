@@ -24,7 +24,8 @@
 #include "mgmt_memory.h"
 
 /* this file is temporary in nature;  definitions should be moved to the
- * files they're used in */
+ * files they're used in
+ */
 
 DEFINE_MGROUP(MGMTD, "mgmt");
 DEFINE_MTYPE(MGMTD, MGMTD, "MGMTD instance");
