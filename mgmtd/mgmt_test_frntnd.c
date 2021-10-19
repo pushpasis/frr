@@ -27,7 +27,7 @@
 
 #define NUM_TEST_SESSIONS 10
 
-static bool mgmt_connected = false;
+static bool mgmt_connected;
 
 static mgmt_lib_hndl_t frntd_lib_hndl;
 static struct thread_master *master;

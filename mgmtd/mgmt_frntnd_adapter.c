@@ -1960,7 +1960,7 @@ void mgmt_frntnd_adapter_status_write(struct vty *vty, bool detail)
 			vty_out(vty, "      Client-Id: \t\t\t0x%lx\n",
 				sessn->client_id);
 			vty_out(vty, "        Session-Id: \t\t\t%p\n", sessn);
-			vty_out(vty, "        DB-Locks: \n");
+			vty_out(vty, "        DB-Locks:\n");
 			FOREACH_MGMTD_DB_ID(db_id)
 			{
 				if (sessn->db_write_locked[db_id]

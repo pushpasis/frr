@@ -462,11 +462,11 @@ int mgmt_db_init(struct mgmt_master *mm)
 	struct lyd_node *root;
 
 	if (mgmt_db_mm || mm->running_db || mm->candidate_db || mm->oper_db)
-		assert(!"Call mgmt_db_init() only once!");
+		assert(!"MGMTD: Call db_init only once!");
 
 	/* Use Running DB from NB module??? */
 	if (!running_config)
-		assert(!"Call mgmt_db_init() after frr_init() only!");
+		assert(!"MGMTD: Call db_init after frr_init only!");
 
 	if (mgmt_db_load_cfg_from_file(MGMTD_STARTUP_DB_FILE_PATH, &root)
 	    == 0) {

@@ -34,24 +34,23 @@
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
 #define MGMTD_FRNTND_SRVR_DBG(fmt, ...)                                        \
-	if (mgmt_debug_bcknd)                                                  \
-	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+	do {                                                                   \
+		if (mgmt_debug_bcknd)                                          \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
 #define MGMTD_FRNTND_SRVR_ERR(fmt, ...)                                        \
 	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
 
-static int mgmt_frntnd_listen_fd = 0;
-static struct thread_master *mgmt_frntnd_listen_tm = NULL;
-static struct thread *mgmt_frntnd_listen_ev = NULL;
+static int mgmt_frntnd_listen_fd;
+static struct thread_master *mgmt_frntnd_listen_tm;
+static struct thread *mgmt_frntnd_listen_ev;
 static void mgmt_frntnd_server_register_event(mgmt_event_t event);
 
 static int mgmt_frntnd_conn_accept(struct thread *thread)
 {
 	int client_conn_fd;
 	union sockunion su;
-	// int ret;
-	// unsigned int on;
-	// struct prefix p;
 
 	if (!mgmt_frntnd_listen_fd)
 		return -1;
@@ -87,7 +86,7 @@ static void mgmt_frntnd_server_register_event(mgmt_event_t event)
 				NULL, mgmt_frntnd_listen_fd,
 				&mgmt_frntnd_listen_ev);
 		assert(mgmt_frntnd_listen_ev);
-		// vector_set_index(Vvty_serv_thread, sock, vty_serv_thread);
+		/* vector_set_index(Vvty_serv_thread, sock, vty_serv_thread); */
 		break;
 	default:
 		assert(!"mgmt_frntnd_server_post_event() called incorrectly");
@@ -110,14 +109,6 @@ static void mgmt_frntnd_server_start(const char *hostname)
 				      safe_strerror(errno));
 		goto mgmt_frntnd_server_start_failed;
 	}
-
-	// sockopt_v6only(AF_UNIX, sock);
-	// sockopt_reuseaddr(sock);
-	// sockopt_reuseport(sock);
-	// set_cloexec(sock);
-
-	// setsockopt_so_recvbuf(sock, 1048576);
-	// setsockopt_so_sendbuf(sock, 1048576);
 
 	addr.sun_family = AF_UNIX,
 	strlcpy(addr.sun_path, MGMTD_FRNTND_SERVER_PATH, sizeof(addr.sun_path));
@@ -147,9 +138,9 @@ static void mgmt_frntnd_server_start(const char *hostname)
 	return;
 
 mgmt_frntnd_server_start_failed:
-	if (sock) {
+	if (sock)
 		close(sock);
-	}
+
 	mgmt_frntnd_listen_fd = 0;
 	exit(-1);
 }

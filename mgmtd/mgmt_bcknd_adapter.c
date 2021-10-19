@@ -119,7 +119,7 @@ static mgmt_bcknd_xpath_regexp_map_t
 	mgmt_xpath_map[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
 static int mgmt_num_xpath_maps;
 
-static struct thread_master *mgmt_bcknd_adptr_tm = NULL;
+static struct thread_master *mgmt_bcknd_adptr_tm;
 
 static struct mgmt_bcknd_adptr_list_head mgmt_bcknd_adptrs = {0};
 

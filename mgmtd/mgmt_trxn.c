@@ -487,7 +487,7 @@ static mgmt_trxn_req_t *mgmt_trxn_req_alloc(mgmt_trxn_ctxt_t *trxn,
 
 	MGMTD_TRXN_LOCK(trxn);
 
-	return (trxn_req);
+	return trxn_req;
 }
 
 static void mgmt_trxn_req_free(mgmt_trxn_req_t **trxn_req)
@@ -1490,8 +1490,6 @@ static int mgmt_trxn_send_bcknd_cfg_apply(mgmt_trxn_ctxt_t *trxn)
 	mgmt_bcknd_client_id_t id;
 	mgmt_bcknd_client_adapter_t *adptr;
 	mgmt_commit_cfg_req_t *cmtcfg_req;
-	// mgmt_trxn_batch_id_t *batch_ids;
-	// size_t indx, num_batches;
 	struct mgmt_trxn_batch_list_head *btch_list;
 	mgmt_trxn_bcknd_cfg_batch_t *cfg_btch;
 
@@ -1718,9 +1716,8 @@ static void mgmt_init_get_data_reply(mgmt_get_data_reply_t *get_reply)
 {
 	size_t indx;
 
-	for (indx = 0; indx < array_size(get_reply->reply_data); indx++) {
+	for (indx = 0; indx < array_size(get_reply->reply_data); indx++)
 		get_reply->reply_datap[indx] = &get_reply->reply_data[indx];
-	}
 }
 
 static void mgmt_reset_get_data_reply(mgmt_get_data_reply_t *get_reply)
@@ -2241,14 +2238,14 @@ static void mgmt_trxn_register_event(mgmt_trxn_ctxt_t *trxn,
 		assert(trxn->clnup);
 		break;
 	default:
-		assert(!"mgmt_trxn_register_event() called incorrectly");
+		assert(!"MGMTD TRXN: register_event called incorrectly");
 	}
 }
 
 int mgmt_trxn_init(struct mgmt_master *mm, struct thread_master *tm)
 {
 	if (mgmt_trxn_mm || mgmt_trxn_tm)
-		assert(!"Call mgmt_trxn_init() only once");
+		assert(!"MGMTD TRXN: Call trxn_init() only once");
 
 	mgmt_trxn_mm = mm;
 	mgmt_trxn_tm = tm;
