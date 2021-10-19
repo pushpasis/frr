@@ -75,7 +75,7 @@ typedef struct mgmt_bcknd_trxn_req_ {
 PREDECL_LIST(mgmt_bcknd_batch_list);
 typedef struct mgmt_bcknd_batch_ctxt_ {
 	/* Batch-Id as assigned by MGMTD */
-	mgmt_trxn_batch_id_t batch_id;
+	uint64_t batch_id;
 
 	mgmt_bcknd_trxn_req_t trxn_req;
 
@@ -92,7 +92,7 @@ struct mgmt_bcknd_client_ctxt_;
 PREDECL_LIST(mgmt_bcknd_trxn_list);
 typedef struct mgmt_bcknd_trxn_ctxt_ {
 	/* Trxn-Id as assigned by MGMTD */
-	mgmt_trxn_id_t trxn_id;
+	uint64_t trxn_id;
 	uint32_t flags;
 
 	mgmt_bcknd_client_trxn_ctxt_t client_data;
@@ -173,7 +173,7 @@ const char *mgmt_bcknd_client_names[MGMTD_CLIENT_NAME_MAX_LEN] = {
 /* Forward declarations */
 static void
 mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				 mgmt_event_t event);
+				 enum mgmt_event event);
 static void
 mgmt_bcknd_client_schedule_conn_retry(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 				      unsigned long intvl_secs);
@@ -186,8 +186,8 @@ static void mgmt_bcknd_server_disconnect(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	/* Notify client through registered callback (if any) */
 	if (clnt_ctxt->client_params.conn_notify_cb)
 		(void)(*clnt_ctxt->client_params.conn_notify_cb)(
-			(mgmt_lib_hndl_t)clnt_ctxt,
-			clnt_ctxt->client_params.user_data, false);
+			(uint64_t)clnt_ctxt, clnt_ctxt->client_params.user_data,
+			false);
 
 	if (clnt_ctxt->conn_fd) {
 		close(clnt_ctxt->conn_fd);
@@ -205,8 +205,7 @@ static void mgmt_bcknd_server_disconnect(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static mgmt_bcknd_batch_ctxt_t *
-mgmt_bcknd_find_batch_by_id(mgmt_bcknd_trxn_ctxt_t *trxn,
-			    mgmt_trxn_batch_id_t batch_id)
+mgmt_bcknd_find_batch_by_id(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
 {
 	mgmt_bcknd_batch_ctxt_t *batch = NULL;
 
@@ -220,8 +219,7 @@ mgmt_bcknd_find_batch_by_id(mgmt_bcknd_trxn_ctxt_t *trxn,
 }
 
 static mgmt_bcknd_batch_ctxt_t *
-mgmt_bcknd_batch_create(mgmt_bcknd_trxn_ctxt_t *trxn,
-			mgmt_trxn_batch_id_t batch_id)
+mgmt_bcknd_batch_create(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
 {
 	mgmt_bcknd_batch_ctxt_t *batch = NULL;
 
@@ -287,7 +285,7 @@ static void mgmt_bcknd_cleanup_all_batches(mgmt_bcknd_trxn_ctxt_t *trxn)
 
 static mgmt_bcknd_trxn_ctxt_t *
 mgmt_bcknd_find_trxn_by_id(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-			   mgmt_trxn_id_t trxn_id)
+			   uint64_t trxn_id)
 {
 	mgmt_bcknd_trxn_ctxt_t *trxn = NULL;
 
@@ -301,8 +299,7 @@ mgmt_bcknd_find_trxn_by_id(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static mgmt_bcknd_trxn_ctxt_t *
-mgmt_bcknd_trxn_create(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-		       mgmt_trxn_id_t trxn_id)
+mgmt_bcknd_trxn_create(mgmt_bcknd_client_ctxt_t *clnt_ctxt, uint64_t trxn_id)
 {
 	mgmt_bcknd_trxn_ctxt_t *trxn = NULL;
 
@@ -355,7 +352,7 @@ static void mgmt_bcknd_trxn_delete(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		 */
 		if (clnt_ctxt->client_params.trxn_notify_cb)
 			(void)(*clnt_ctxt->client_params.trxn_notify_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				&(*trxn)->client_data, false);
 
@@ -377,7 +374,7 @@ static void mgmt_bcknd_cleanup_all_trxns(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 }
 
 static int mgmt_bcknd_send_trxn_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				      mgmt_trxn_id_t trxn_id, bool create,
+				      uint64_t trxn_id, bool create,
 				      bool success)
 {
 	Mgmtd__BckndMessage bcknd_msg;
@@ -400,7 +397,7 @@ static int mgmt_bcknd_send_trxn_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				       mgmt_trxn_id_t trxn_id, bool create)
+				       uint64_t trxn_id, bool create)
 {
 	mgmt_bcknd_trxn_ctxt_t *trxn;
 
@@ -422,7 +419,7 @@ static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 
 		if (clnt_ctxt->client_params.trxn_notify_cb)
 			(void)(*clnt_ctxt->client_params.trxn_notify_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				&trxn->client_data, true);
 	} else {
@@ -446,9 +443,10 @@ static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return 0;
 }
 
-static int mgmt_bcknd_send_cfgdata_create_reply(
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_id, bool success, const char *error_if_any)
+static int
+mgmt_bcknd_send_cfgdata_create_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+				     uint64_t trxn_id, uint64_t batch_id,
+				     bool success, const char *error_if_any)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataCreateReply cfgdata_reply;
@@ -625,8 +623,7 @@ static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
  */
 static int mgmt_bcknd_update_setcfg_in_batch(
 	mgmt_bcknd_client_ctxt_t *clnt_ctxt, mgmt_bcknd_trxn_ctxt_t *trxn,
-	mgmt_trxn_batch_id_t batch_id, mgmt_yang_cfgdata_req_t *cfg_req[],
-	int num_req)
+	uint64_t batch_id, mgmt_yang_cfgdata_req_t *cfg_req[], int num_req)
 {
 	mgmt_bcknd_batch_ctxt_t *batch = NULL;
 	mgmt_bcknd_trxn_req_t *trxn_req = NULL;
@@ -687,8 +684,7 @@ static int mgmt_bcknd_update_setcfg_in_batch(
 }
 
 static int mgmt_bcknd_process_cfgdata_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					  mgmt_trxn_id_t trxn_id,
-					  mgmt_trxn_batch_id_t batch_id,
+					  uint64_t trxn_id, uint64_t batch_id,
 					  mgmt_yang_cfgdata_req_t *cfg_req[],
 					  int num_req, bool end_of_data)
 {
@@ -716,8 +712,8 @@ static int mgmt_bcknd_process_cfgdata_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static int mgmt_bcknd_send_validate_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					  mgmt_trxn_id_t trxn_id,
-					  mgmt_trxn_batch_id_t batch_ids[],
+					  uint64_t trxn_id,
+					  uint64_t batch_ids[],
 					  size_t num_batch_ids, bool success,
 					  const char *error_if_any)
 {
@@ -748,8 +744,8 @@ static int mgmt_bcknd_send_validate_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					   mgmt_trxn_id_t trxn_id,
-					   mgmt_trxn_batch_id_t batch_ids[],
+					   uint64_t trxn_id,
+					   uint64_t batch_ids[],
 					   size_t num_batch_ids)
 {
 	int ret = 0;
@@ -833,8 +829,7 @@ static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static int mgmt_bcknd_send_apply_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				       mgmt_trxn_id_t trxn_id,
-				       mgmt_trxn_batch_id_t batch_ids[],
+				       uint64_t trxn_id, uint64_t batch_ids[],
 				       size_t num_batch_ids, bool success,
 				       const char *error_if_any)
 {
@@ -872,7 +867,7 @@ static int mgmt_bcknd_trxn_proc_cfgapply(mgmt_bcknd_trxn_ctxt_t *trxn)
 	mgmt_bcknd_batch_ctxt_t *batch;
 	char err_buf[BUFSIZ];
 	size_t num_processed;
-	static mgmt_trxn_batch_id_t batch_ids[MGMTD_BCKND_MAX_BATCH_IDS_IN_REQ];
+	static uint64_t batch_ids[MGMTD_BCKND_MAX_BATCH_IDS_IN_REQ];
 
 	assert(trxn && trxn->clnt_ctxt);
 	clnt_ctxt = trxn->clnt_ctxt;
@@ -935,7 +930,7 @@ static int mgmt_bcknd_trxn_proc_cfgapply(mgmt_bcknd_trxn_ctxt_t *trxn)
 }
 
 static int mgmt_bcknd_process_cfg_apply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					mgmt_trxn_id_t trxn_id)
+					uint64_t trxn_id)
 {
 	mgmt_bcknd_trxn_ctxt_t *trxn;
 
@@ -985,17 +980,15 @@ static int mgmt_bcknd_client_handle_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		       == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_VALIDATE_REQ);
 		mgmt_bcknd_process_cfg_validate(
 			clnt_ctxt,
-			(mgmt_trxn_id_t)bcknd_msg->cfg_validate_req->trxn_id,
-			(mgmt_trxn_batch_id_t *)
-				bcknd_msg->cfg_validate_req->batch_ids,
+			(uint64_t)bcknd_msg->cfg_validate_req->trxn_id,
+			(uint64_t *)bcknd_msg->cfg_validate_req->batch_ids,
 			bcknd_msg->cfg_validate_req->n_batch_ids);
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__CFGDATA_APPLY_REQ:
 		assert(bcknd_msg->message_case
 		       == MGMTD__BCKND_MESSAGE__MESSAGE_CFG_APPLY_REQ);
 		mgmt_bcknd_process_cfg_apply(
-			clnt_ctxt,
-			(mgmt_trxn_id_t)bcknd_msg->cfg_apply_req->trxn_id);
+			clnt_ctxt, (uint64_t)bcknd_msg->cfg_apply_req->trxn_id);
 		break;
 	default:
 		break;
@@ -1409,8 +1402,8 @@ static int mgmt_bcknd_server_connect(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 	/* Notify client through registered callback (if any) */
 	if (clnt_ctxt->client_params.conn_notify_cb)
 		(void)(*clnt_ctxt->client_params.conn_notify_cb)(
-			(mgmt_lib_hndl_t)clnt_ctxt,
-			clnt_ctxt->client_params.user_data, true);
+			(uint64_t)clnt_ctxt, clnt_ctxt->client_params.user_data,
+			true);
 
 	/* Send SUBSCRIBE_REQ message */
 	if (mgmt_bcknd_send_subscr_req(clnt_ctxt, false, 0, NULL) != 0)
@@ -1438,7 +1431,7 @@ static int mgmt_bcknd_client_conn_timeout(struct thread *thread)
 
 static void
 mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				 mgmt_event_t event)
+				 enum mgmt_event event)
 {
 	struct timeval tv = {0};
 
@@ -1498,8 +1491,8 @@ extern struct nb_config *running_config;
 /*
  * Initialize library and try connecting with MGMTD.
  */
-mgmt_lib_hndl_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
-					   struct thread_master *master_thread)
+uint64_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
+				    struct thread_master *master_thread)
 {
 	assert(master_thread && params && strlen(params->name)
 	       && !mgmt_bcknd_clntctxt.tm);
@@ -1533,15 +1526,15 @@ mgmt_lib_hndl_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
 
 	MGMTD_BCKND_CLNT_DBG("Initialized client '%s'", params->name);
 
-	return (mgmt_lib_hndl_t)&mgmt_bcknd_clntctxt;
+	return (uint64_t)&mgmt_bcknd_clntctxt;
 }
 
 /*
  * Subscribe with MGMTD for one or more YANG subtree(s).
  */
-mgmt_result_t mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl_t lib_hndl,
-					     char *reg_yang_xpaths[],
-					     int num_reg_xpaths)
+enum mgmt_result mgmt_bcknd_subscribe_yang_data(uint64_t lib_hndl,
+						char *reg_yang_xpaths[],
+						int num_reg_xpaths)
 {
 	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
 
@@ -1561,9 +1554,9 @@ mgmt_result_t mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl_t lib_hndl,
 /*
  * Unsubscribe with MGMTD for one or more YANG subtree(s).
  */
-mgmt_result_t mgmt_bcknd_unsubscribe_yang_data(mgmt_lib_hndl_t lib_hndl,
-					       char *reg_yang_xpaths[],
-					       int num_reg_xpaths)
+enum mgmt_result mgmt_bcknd_unsubscribe_yang_data(uint64_t lib_hndl,
+						  char *reg_yang_xpaths[],
+						  int num_reg_xpaths)
 {
 	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
 
@@ -1583,9 +1576,9 @@ mgmt_result_t mgmt_bcknd_unsubscribe_yang_data(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send one or more YANG notifications to MGMTD daemon.
  */
-mgmt_result_t mgmt_bcknd_send_yang_notify(mgmt_lib_hndl_t lib_hndl,
-					  mgmt_yang_data_t *data_elems[],
-					  int num_elems)
+enum mgmt_result mgmt_bcknd_send_yang_notify(uint64_t lib_hndl,
+					     mgmt_yang_data_t *data_elems[],
+					     int num_elems)
 {
 	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
 
@@ -1599,7 +1592,7 @@ mgmt_result_t mgmt_bcknd_send_yang_notify(mgmt_lib_hndl_t lib_hndl,
 /*
  * Destroy library and cleanup everything.
  */
-void mgmt_bcknd_client_lib_destroy(mgmt_lib_hndl_t lib_hndl)
+void mgmt_bcknd_client_lib_destroy(uint64_t lib_hndl)
 {
 	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
 

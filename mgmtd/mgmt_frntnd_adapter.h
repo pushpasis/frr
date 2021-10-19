@@ -121,29 +121,29 @@ extern struct mgmt_frntnd_client_adapter *
 mgmt_frntnd_get_adapter(const char *name);
 
 extern int mgmt_frntnd_send_set_cfg_reply(
-	mgmt_session_id_t session_id, mgmt_trxn_id_t trxn_id,
+	mgmt_session_id_t session_id, uint64_t trxn_id,
 	mgmt_database_id_t db_id, mgmt_client_req_id_t req_id,
-	mgmt_result_t result, const char *error_if_any, bool implcit_commit);
+	enum mgmt_result result, const char *error_if_any, bool implcit_commit);
 
 extern int mgmt_frntnd_send_commit_cfg_reply(
-	mgmt_session_id_t session_id, mgmt_trxn_id_t trxn_id,
+	mgmt_session_id_t session_id, uint64_t trxn_id,
 	mgmt_database_id_t src_db_id, mgmt_database_id_t dst_db_id,
-	mgmt_client_req_id_t req_id, bool validate_only, mgmt_result_t result,
-	const char *error_if_any);
+	mgmt_client_req_id_t req_id, bool validate_only,
+	enum mgmt_result result, const char *error_if_any);
 
 extern int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
-					  mgmt_trxn_id_t trxn_id,
+					  uint64_t trxn_id,
 					  mgmt_database_id_t db_id,
 					  mgmt_client_req_id_t req_id,
-					  mgmt_result_t result,
+					  enum mgmt_result result,
 					  mgmt_yang_data_reply_t *data_resp,
 					  const char *error_if_any);
 
 extern int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
-					   mgmt_trxn_id_t trxn_id,
+					   uint64_t trxn_id,
 					   mgmt_database_id_t db_id,
 					   mgmt_client_req_id_t req_id,
-					   mgmt_result_t result,
+					   enum mgmt_result result,
 					   mgmt_yang_data_reply_t *data_resp,
 					   const char *error_if_any);
 

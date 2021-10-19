@@ -143,32 +143,32 @@ mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
 			      struct nb_config_cbs **cfg_chgs);
 
 extern int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
-				  mgmt_trxn_id_t trxn_id);
+				  uint64_t trxn_id);
 
 extern int mgmt_bcknd_destroy_trxn(struct mgmt_bcknd_client_adapter *adptr,
-				   mgmt_trxn_id_t trxn_id);
+				   uint64_t trxn_id);
 
 extern int mgmt_bcknd_send_cfg_data_create_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_id, struct mgmt_bcknd_cfgreq *cfg_req,
-	bool end_of_data);
+	struct mgmt_bcknd_client_adapter *adptr, uint64_t trxn_id,
+	uint64_t batch_id, struct mgmt_bcknd_cfgreq *cfg_req, bool end_of_data);
 
-extern int mgmt_bcknd_send_cfg_validate_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids);
+extern int
+mgmt_bcknd_send_cfg_validate_req(struct mgmt_bcknd_client_adapter *adptr,
+				 uint64_t trxn_id, uint64_t batch_ids[],
+				 size_t num_batch_ids);
 
 extern int
 mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
-			      mgmt_trxn_id_t trxn_id);
+			      uint64_t trxn_id);
 
 extern int mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
-					mgmt_trxn_id_t trxn_id,
-					mgmt_trxn_batch_id_t batch_id,
+					uint64_t trxn_id, uint64_t batch_id,
 					struct mgmt_bcknd_datareq *data_req);
 
-extern int mgmt_bcknd_send_get_next_data_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_id, struct mgmt_bcknd_datareq *data_req);
+extern int
+mgmt_bcknd_send_get_next_data_req(struct mgmt_bcknd_client_adapter *adptr,
+				  uint64_t trxn_id, uint64_t batch_id,
+				  struct mgmt_bcknd_datareq *data_req);
 
 extern void mgmt_bcknd_adapter_status_write(struct vty *vty);
 

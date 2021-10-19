@@ -45,7 +45,7 @@
 static int mgmt_bcknd_listen_fd;
 static struct thread_master *mgmt_bcknd_listen_tm;
 static struct thread *mgmt_bcknd_listen_ev;
-static void mgmt_bcknd_server_register_event(mgmt_event_t event);
+static void mgmt_bcknd_server_register_event(enum mgmt_event event);
 
 static int mgmt_bcknd_conn_accept(struct thread *thread)
 {
@@ -78,7 +78,7 @@ static int mgmt_bcknd_conn_accept(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_bcknd_server_register_event(mgmt_event_t event)
+static void mgmt_bcknd_server_register_event(enum mgmt_event event)
 {
 	switch (event) {
 	case MGMTD_BCKND_SERVER:

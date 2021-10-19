@@ -84,69 +84,59 @@ extern int mgmt_trxn_init(struct mgmt_master *cm, struct thread_master *tm);
 
 extern mgmt_session_id_t mgmt_config_trxn_in_progress(void);
 
-extern mgmt_trxn_id_t mgmt_create_trxn(mgmt_session_id_t session_id,
-				       mgmt_trxn_type_t type);
+extern uint64_t mgmt_create_trxn(mgmt_session_id_t session_id,
+				 mgmt_trxn_type_t type);
 
-extern void mgmt_destroy_trxn(mgmt_trxn_id_t *trxn_id);
+extern void mgmt_destroy_trxn(uint64_t *trxn_id);
 
-extern bool mgmt_trxn_id_is_valid(mgmt_trxn_id_t trxn_id);
+extern bool mgmt_trxn_id_is_valid(uint64_t trxn_id);
 
-extern mgmt_trxn_type_t mgmt_get_trxn_type(mgmt_trxn_id_t trxn_id);
+extern mgmt_trxn_type_t mgmt_get_trxn_type(uint64_t trxn_id);
 
-extern int mgmt_trxn_send_set_config_req(mgmt_trxn_id_t trxn_id,
-					 mgmt_client_req_id_t req_id,
-					 mgmt_database_id_t db_id,
-					 uint64_t db_hndl,
-					 mgmt_yang_cfgdata_req_t *cfg_req[],
-					 size_t num_req, bool implicit_commit,
-					 mgmt_database_id_t dst_db_id,
-					 uint64_t dst_db_hndl);
+extern int mgmt_trxn_send_set_config_req(
+	uint64_t trxn_id, mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
+	uint64_t db_hndl, mgmt_yang_cfgdata_req_t *cfg_req[], size_t num_req,
+	bool implicit_commit, mgmt_database_id_t dst_db_id,
+	uint64_t dst_db_hndl);
 
 extern int mgmt_trxn_send_commit_config_req(
-	mgmt_trxn_id_t trxn_id, mgmt_client_req_id_t req_id,
+	uint64_t trxn_id, mgmt_client_req_id_t req_id,
 	mgmt_database_id_t src_db_id, uint64_t dst_db_hndl,
 	mgmt_database_id_t dst_db_id, uint64_t src_db_hndl, bool validate_only,
 	bool abort, bool implicit);
 
-extern int mgmt_trxn_send_commit_config_reply(mgmt_trxn_id_t trxn_id,
-					      bool success,
+extern int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
 					      const char *error_if_any);
 
-extern int mgmt_trxn_send_get_config_req(mgmt_trxn_id_t trxn_id,
-					 mgmt_client_req_id_t req_id,
-					 mgmt_database_id_t db_id,
-					 uint64_t db_hndl,
-					 mgmt_yang_getdata_req_t **data_req,
-					 size_t num_reqs);
+extern int mgmt_trxn_send_get_config_req(
+	uint64_t trxn_id, mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
+	uint64_t db_hndl, mgmt_yang_getdata_req_t **data_req, size_t num_reqs);
 
-extern int mgmt_trxn_send_get_data_req(mgmt_trxn_id_t trxn_id,
-				       mgmt_client_req_id_t req_id,
-				       mgmt_database_id_t db_id,
-				       uint64_t db_hndl,
-				       mgmt_yang_getdata_req_t **data_req,
-				       size_t num_reqs);
+extern int mgmt_trxn_send_get_data_req(
+	uint64_t trxn_id, mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
+	uint64_t db_hndl, mgmt_yang_getdata_req_t **data_req, size_t num_reqs);
 
 extern int
 mgmt_trxn_notify_bcknd_adapter_conn(struct mgmt_bcknd_client_adapter *adptr,
 				    bool connect);
 
 extern int
-mgmt_trxn_notify_bcknd_trxn_reply(mgmt_trxn_id_t trxn_id, bool create,
-				  bool success,
+mgmt_trxn_notify_bcknd_trxn_reply(uint64_t trxn_id, bool create, bool success,
 				  struct mgmt_bcknd_client_adapter *adptr);
 
-extern int mgmt_trxn_notify_bcknd_cfgdata_reply(
-	mgmt_trxn_id_t trxn_id, mgmt_trxn_batch_id_t batch_id, bool success,
-	char *error_if_any, struct mgmt_bcknd_client_adapter *adptr);
+extern int
+mgmt_trxn_notify_bcknd_cfgdata_reply(uint64_t trxn_id, uint64_t batch_id,
+				     bool success, char *error_if_any,
+				     struct mgmt_bcknd_client_adapter *adptr);
 
 extern int mgmt_trxn_notify_bcknd_cfg_validate_reply(
-	mgmt_trxn_id_t trxn_id, bool success, mgmt_trxn_batch_id_t batch_ids[],
+	uint64_t trxn_id, bool success, uint64_t batch_ids[],
 	size_t num_batch_ids, char *error_if_any,
 	struct mgmt_bcknd_client_adapter *adptr);
 
 extern int
-mgmt_trxn_notify_bcknd_cfg_apply_reply(mgmt_trxn_id_t trxn_id, bool success,
-				       mgmt_trxn_batch_id_t batch_ids[],
+mgmt_trxn_notify_bcknd_cfg_apply_reply(uint64_t trxn_id, bool success,
+				       uint64_t batch_ids[],
 				       size_t num_batch_ids, char *error_if_any,
 				       struct mgmt_bcknd_client_adapter *adptr);
 

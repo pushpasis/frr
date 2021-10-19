@@ -74,8 +74,8 @@ enum event {
 };
 
 struct nb_config *vty_mgmt_candidate_config = NULL;
-	
-static mgmt_lib_hndl_t mgmt_lib_hndl = 0;
+
+static uint64_t mgmt_lib_hndl = 0;
 static bool mgmt_frntnd_connected = false;
 static bool mgmt_candidate_db_wr_locked = false;
 
@@ -3244,13 +3244,12 @@ void vty_init_vtysh(void)
 	vtyvec = vector_init(VECTOR_MIN_SIZE);
 }
 
-static void vty_mgmt_server_connected(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	bool connected)
+static void vty_mgmt_server_connected(uint64_t lib_hndl, uint64_t usr_data,
+				      bool connected)
 {
 	zlog_err("%sGot %sconnected %s MGMTD Frontend Server",
-		!connected ? "ERROR: " : "", !connected ? "dis: " : "",
-		!connected ? "from" : "to");
+		 !connected ? "ERROR: " : "", !connected ? "dis: " : "",
+		 !connected ? "from" : "to");
 
 	mgmt_frntnd_connected = connected;
 
@@ -3260,10 +3259,10 @@ static void vty_mgmt_server_connected(
 	 */
 }
 
-static void vty_mgmt_session_created(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_client_id_t client_id, bool create, bool success,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt)
+static void vty_mgmt_session_created(uint64_t lib_hndl, uint64_t usr_data,
+				     mgmt_client_id_t client_id, bool create,
+				     bool success, mgmt_session_id_t session_id,
+				     uintptr_t user_ctxt)
 {
 	struct vty *vty;
 
@@ -3282,11 +3281,13 @@ static void vty_mgmt_session_created(
 		vty->mgmt_session_id = session_id;
 }
 
-static void vty_mgmt_db_lock_notified(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_client_id_t client_id, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt, mgmt_client_req_id_t req_id, bool lock_db,
-	bool success, mgmt_database_id_t db_id, char *errmsg_if_any)
+static void vty_mgmt_db_lock_notified(uint64_t lib_hndl, uint64_t usr_data,
+				      mgmt_client_id_t client_id,
+				      mgmt_session_id_t session_id,
+				      uintptr_t user_ctxt,
+				      mgmt_client_req_id_t req_id, bool lock_db,
+				      bool success, mgmt_database_id_t db_id,
+				      char *errmsg_if_any)
 {
 	struct vty *vty;
 
@@ -3306,10 +3307,10 @@ static void vty_mgmt_db_lock_notified(
 }
 
 static void vty_mgmt_set_config_result_notified(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_client_id_t client_id, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt, mgmt_client_req_id_t req_id, bool success,
-	mgmt_database_id_t db_id, char *errmsg_if_any)
+	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
+	mgmt_session_id_t session_id, uintptr_t user_ctxt,
+	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
+	char *errmsg_if_any)
 {
 	struct vty *vty;
 
@@ -3330,11 +3331,10 @@ static void vty_mgmt_set_config_result_notified(
 }
 
 static void vty_mgmt_commit_config_result_notified(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_client_id_t client_id, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt, mgmt_client_req_id_t req_id, bool success,
-	mgmt_database_id_t src_db_id, mgmt_database_id_t dst_db_id,
-	bool validate_only, char *errmsg_if_any)
+	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
+	mgmt_session_id_t session_id, uintptr_t user_ctxt,
+	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t src_db_id,
+	mgmt_database_id_t dst_db_id, bool validate_only, char *errmsg_if_any)
 {
 	struct vty *vty;
 
@@ -3357,12 +3357,12 @@ static void vty_mgmt_commit_config_result_notified(
 
 static mgmt_client_req_id_t last_req_id = 0xFFFFFFFFFFFFFFFF;
 
-static mgmt_result_t vty_mgmt_get_data_result_notified(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
-	mgmt_client_id_t client_id, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt, mgmt_client_req_id_t req_id, bool success,
-	mgmt_database_id_t db_id, mgmt_yang_data_t *yang_data[],
-	size_t num_data, int next_key, char *errmsg_if_any)
+static enum mgmt_result vty_mgmt_get_data_result_notified(
+	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
+	mgmt_session_id_t session_id, uintptr_t user_ctxt,
+	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
+	mgmt_yang_data_t *yang_data[], size_t num_data, int next_key,
+	char *errmsg_if_any)
 {
 	struct vty *vty;
 	size_t indx;
@@ -3427,10 +3427,10 @@ bool vty_mgmt_frntnd_enabled(void)
 	return mgmt_lib_hndl && mgmt_frntnd_connected ? true : false;
 }
 
-int vty_mgmt_send_lockdb_req(struct vty *vty,
-	mgmt_database_id_t db_id, bool lock)
+int vty_mgmt_send_lockdb_req(struct vty *vty, mgmt_database_id_t db_id,
+			     bool lock)
 {
-	mgmt_result_t ret;
+	enum mgmt_result ret;
 
 	if (mgmt_lib_hndl && vty->mgmt_session_id) {
 		vty->mgmt_req_id++;
@@ -3519,13 +3519,12 @@ int vty_mgmt_send_config_data(struct vty *vty)
 	return 0;
 }
 
-int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only,
-	bool abort)
+int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only, bool abort)
 {
-	mgmt_result_t ret;
+	enum mgmt_result ret;
 
 	if (mgmt_lib_hndl && vty->mgmt_session_id) {
-			vty->mgmt_req_id++;
+		vty->mgmt_req_id++;
 		ret = mgmt_frntnd_commit_config_data(
 			mgmt_lib_hndl, vty->mgmt_session_id, vty->mgmt_req_id,
 			MGMTD_DB_CANDIDATE, MGMTD_DB_RUNNING, validate_only,
@@ -3547,9 +3546,9 @@ int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only,
 }
 
 int vty_mgmt_send_get_config(struct vty *vty, mgmt_database_id_t database,
-	const char** xpath_list, int num_req)
+			     const char **xpath_list, int num_req)
 {
-	mgmt_result_t ret;
+	enum mgmt_result ret;
 	mgmt_yang_data_t yang_data[VTY_MAXCFGCHANGES];
 	mgmt_yang_getdata_req_t get_req[VTY_MAXCFGCHANGES];
 	mgmt_yang_getdata_req_t *getreq[VTY_MAXCFGCHANGES];
@@ -3586,9 +3585,9 @@ int vty_mgmt_send_get_config(struct vty *vty, mgmt_database_id_t database,
 }
 
 int vty_mgmt_send_get_data(struct vty *vty, mgmt_database_id_t database,
-	const char** xpath_list, int num_req)
+			   const char **xpath_list, int num_req)
 {
-	mgmt_result_t ret;
+	enum mgmt_result ret;
 	mgmt_yang_data_t yang_data[VTY_MAXCFGCHANGES];
 	mgmt_yang_getdata_req_t get_req[VTY_MAXCFGCHANGES];
 	mgmt_yang_getdata_req_t *getreq[VTY_MAXCFGCHANGES];

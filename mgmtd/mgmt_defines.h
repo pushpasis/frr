@@ -47,18 +47,14 @@
  */
 #define MGMTD_PACK_TX_MSGS
 
-typedef uintptr_t mgmt_lib_hndl_t;
-
-typedef uintptr_t mgmt_user_data_t;
-
-typedef enum mgmt_result_ {
+enum mgmt_result {
 	MGMTD_SUCCESS = 0,
 	MGMTD_INVALID_PARAM,
 	MGMTD_INTERNAL_ERROR,
 	MGMTD_UNKNOWN_FAILURE
-} mgmt_result_t;
+};
 
-typedef enum mgmt_event_ {
+enum mgmt_event {
 	MGMTD_BCKND_SERVER = 1,
 	MGMTD_BCKND_CONN_INIT,
 	MGMTD_BCKND_CONN_READ,
@@ -74,12 +70,10 @@ typedef enum mgmt_event_ {
 	MGMTD_FRNTND_CONN_WRITE,
 	MGMTD_FRNTND_CONN_WRITES_ON,
 	MGMTD_FRNTND_PROC_MSG
-} mgmt_event_t;
+} mgmt_event;
 
-typedef uintptr_t mgmt_trxn_id_t;
 #define MGMTD_TRXN_ID_NONE 0
 
-typedef uintptr_t mgmt_trxn_batch_id_t;
 #define MGMTD_TRXN_BATCH_ID_NONE 0
 
 #endif /* _FRR_MGMTD_DEFINES_H */

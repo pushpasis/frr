@@ -60,8 +60,8 @@ enum mgmt_sessn_event {
 struct mgmt_frntnd_sessn_ctxt {
 	struct mgmt_frntnd_client_adapter *adptr;
 	mgmt_client_id_t client_id;
-	mgmt_trxn_id_t trxn_id;
-	mgmt_trxn_id_t cfg_trxn_id;
+	uint64_t trxn_id;
+	uint64_t cfg_trxn_id;
 	uint8_t db_write_locked[MGMTD_DB_MAX_ID];
 	uint8_t db_read_locked[MGMTD_DB_MAX_ID];
 	uint8_t db_locked_implict[MGMTD_DB_MAX_ID];
@@ -90,7 +90,7 @@ static struct mgmt_frntnd_adptr_list_head mgmt_frntnd_adptrs = {0};
 /* Forward declarations */
 static void
 mgmt_frntnd_adptr_register_event(struct mgmt_frntnd_client_adapter *adptr,
-				 mgmt_event_t event);
+				 enum mgmt_event event);
 static void
 mgmt_frntnd_adapter_disconnect(struct mgmt_frntnd_client_adapter *adptr);
 static void
@@ -1612,7 +1612,7 @@ static int mgmt_frntnd_adapter_resume_writes(struct thread *thread)
 
 static void
 mgmt_frntnd_adptr_register_event(struct mgmt_frntnd_client_adapter *adptr,
-				 mgmt_event_t event)
+				 enum mgmt_event event)
 {
 	struct timeval tv = {0};
 
@@ -1734,10 +1734,12 @@ struct mgmt_frntnd_client_adapter *mgmt_frntnd_get_adapter(const char *name)
 	return mgmt_frntnd_find_adapter_by_name(name);
 }
 
-int mgmt_frntnd_send_set_cfg_reply(
-	mgmt_session_id_t session_id, mgmt_trxn_id_t trxn_id,
-	mgmt_database_id_t db_id, mgmt_client_req_id_t req_id,
-	mgmt_result_t result, const char *error_if_any, bool implicit_commit)
+int mgmt_frntnd_send_set_cfg_reply(mgmt_session_id_t session_id,
+				   uint64_t trxn_id, mgmt_database_id_t db_id,
+				   mgmt_client_req_id_t req_id,
+				   enum mgmt_result result,
+				   const char *error_if_any,
+				   bool implicit_commit)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -1755,13 +1757,11 @@ int mgmt_frntnd_send_set_cfg_reply(
 		error_if_any, implicit_commit);
 }
 
-int mgmt_frntnd_send_commit_cfg_reply(mgmt_session_id_t session_id,
-				      mgmt_trxn_id_t trxn_id,
-				      mgmt_database_id_t src_db_id,
-				      mgmt_database_id_t dst_db_id,
-				      mgmt_client_req_id_t req_id,
-				      bool validate_only, mgmt_result_t result,
-				      const char *error_if_any)
+int mgmt_frntnd_send_commit_cfg_reply(
+	mgmt_session_id_t session_id, uint64_t trxn_id,
+	mgmt_database_id_t src_db_id, mgmt_database_id_t dst_db_id,
+	mgmt_client_req_id_t req_id, bool validate_only,
+	enum mgmt_result result, const char *error_if_any)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -1775,10 +1775,9 @@ int mgmt_frntnd_send_commit_cfg_reply(mgmt_session_id_t session_id,
 }
 
 int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
-				   mgmt_trxn_id_t trxn_id,
-				   mgmt_database_id_t db_id,
+				   uint64_t trxn_id, mgmt_database_id_t db_id,
 				   mgmt_client_req_id_t req_id,
-				   mgmt_result_t result,
+				   enum mgmt_result result,
 				   mgmt_yang_data_reply_t *data_resp,
 				   const char *error_if_any)
 {
@@ -1794,10 +1793,9 @@ int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
 }
 
 int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
-				    mgmt_trxn_id_t trxn_id,
-				    mgmt_database_id_t db_id,
+				    uint64_t trxn_id, mgmt_database_id_t db_id,
 				    mgmt_client_req_id_t req_id,
-				    mgmt_result_t result,
+				    enum mgmt_result result,
 				    mgmt_yang_data_reply_t *data_resp,
 				    const char *error_if_any)
 {

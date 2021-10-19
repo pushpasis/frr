@@ -29,13 +29,12 @@
 
 static bool mgmt_connected;
 
-static mgmt_lib_hndl_t frntd_lib_hndl;
+static uint64_t frntd_lib_hndl;
 static struct thread_master *master;
 static mgmt_session_id_t frntnd_session_id[NUM_TEST_SESSIONS];
 
-static void mgmt_test_frntnd_server_connected(mgmt_lib_hndl_t lib_hndl,
-					      mgmt_user_data_t usr_data,
-					      bool connected)
+static void mgmt_test_frntnd_server_connected(uint64_t lib_hndl,
+					      uint64_t usr_data, bool connected)
 {
 	int indx;
 
@@ -56,13 +55,10 @@ static void mgmt_test_frntnd_server_connected(mgmt_lib_hndl_t lib_hndl,
 	}
 }
 
-static void mgmt_test_frntnd_session_created(mgmt_lib_hndl_t lib_hndl,
-					     mgmt_user_data_t usr_data,
-					     mgmt_client_id_t client_id,
-					     bool create, bool success,
-					     mgmt_session_id_t session_id,
-					     mgmt_client_req_id_t req_id,
-					     uintptr_t user_ctxt)
+static void mgmt_test_frntnd_session_created(
+	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
+	bool create, bool success, mgmt_session_id_t session_id,
+	mgmt_client_req_id_t req_id, uintptr_t user_ctxt)
 {
 	if (!success) {
 		printf("ERROR: %s session for client %lu failed!\n",

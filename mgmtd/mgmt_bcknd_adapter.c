@@ -100,13 +100,13 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD,
 			   MGMTD_BCKND_CLIENT_BGPD}},
 	{.xpath_regexp =
-		 "/frr-routing:routing/control-plane-protocols/			\
-		  control-plane-protocol[type='frr-staticd:staticd']	\
+		 "/frr-routing:routing/control-plane-protocols/			 \
+		  control-plane-protocol[type='frr-staticd:staticd']	 \
 		  [name='staticd'][vrf='default']/frr-staticd:staticd/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}},
-	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	\
-			  control-plane-protocol[type='frr-bgp:bgp']			\
+	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	 \
+			  control-plane-protocol[type='frr-bgp:bgp']			 \
 			  [name='bgp'][vrf='default']/frr-bgp:bgp/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}}};
@@ -126,7 +126,7 @@ static struct mgmt_bcknd_client_adapter
 /* Forward declarations */
 static void
 mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
-				mgmt_event_t event);
+				enum mgmt_event event);
 
 static struct mgmt_bcknd_client_adapter *
 mgmt_bcknd_find_adapter_by_fd(int conn_fd)
@@ -382,8 +382,7 @@ mgmt_bcknd_adapter_handle_msg(struct mgmt_bcknd_client_adapter *adptr,
 		mgmt_trxn_notify_bcknd_cfg_validate_reply(
 			bcknd_msg->cfg_validate_reply->trxn_id,
 			bcknd_msg->cfg_validate_reply->success,
-			(mgmt_trxn_batch_id_t *)
-				bcknd_msg->cfg_validate_reply->batch_ids,
+			(uint64_t *)bcknd_msg->cfg_validate_reply->batch_ids,
 			bcknd_msg->cfg_validate_reply->n_batch_ids,
 			bcknd_msg->cfg_validate_reply->error_if_any, adptr);
 		break;
@@ -405,8 +404,7 @@ mgmt_bcknd_adapter_handle_msg(struct mgmt_bcknd_client_adapter *adptr,
 		mgmt_trxn_notify_bcknd_cfg_apply_reply(
 			bcknd_msg->cfg_apply_reply->trxn_id,
 			bcknd_msg->cfg_apply_reply->success,
-			(mgmt_trxn_batch_id_t *)
-				bcknd_msg->cfg_apply_reply->batch_ids,
+			(uint64_t *)bcknd_msg->cfg_apply_reply->batch_ids,
 			bcknd_msg->cfg_apply_reply->n_batch_ids,
 			bcknd_msg->cfg_apply_reply->error_if_any, adptr);
 		break;
@@ -484,7 +482,7 @@ static int mgmt_bcknd_adapter_send_msg(struct mgmt_bcknd_client_adapter *adptr,
 }
 
 static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
-				    mgmt_trxn_id_t trxn_id, bool create)
+				    uint64_t trxn_id, bool create)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndTrxnReq trxn_req;
@@ -505,10 +503,11 @@ static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgdata_create_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_id, mgmt_yang_cfgdata_req_t **cfgdata_reqs,
-	size_t num_reqs, bool end_of_data)
+static int
+mgmt_bcknd_send_cfgdata_create_req(struct mgmt_bcknd_client_adapter *adptr,
+				   uint64_t trxn_id, uint64_t batch_id,
+				   mgmt_yang_cfgdata_req_t **cfgdata_reqs,
+				   size_t num_reqs, bool end_of_data)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataCreateReq cfgdata_req;
@@ -532,9 +531,10 @@ static int mgmt_bcknd_send_cfgdata_create_req(
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgvalidate_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids)
+static int
+mgmt_bcknd_send_cfgvalidate_req(struct mgmt_bcknd_client_adapter *adptr,
+				uint64_t trxn_id, uint64_t batch_ids[],
+				size_t num_batch_ids)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataValidateReq vldt_req;
@@ -558,7 +558,7 @@ static int mgmt_bcknd_send_cfgvalidate_req(
 }
 
 static int mgmt_bcknd_send_cfgapply_req(struct mgmt_bcknd_client_adapter *adptr,
-					mgmt_trxn_id_t trxn_id)
+					uint64_t trxn_id)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataApplyReq apply_req;
@@ -890,7 +890,7 @@ static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 
 static void
 mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
-				mgmt_event_t event)
+				enum mgmt_event event)
 {
 	struct timeval tv = {0};
 
@@ -1051,20 +1051,19 @@ int mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
 }
 
 int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
-			   mgmt_trxn_id_t trxn_id)
+			   uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, true);
 }
 
 int mgmt_bcknd_destroy_trxn(struct mgmt_bcknd_client_adapter *adptr,
-			    mgmt_trxn_id_t trxn_id)
+			    uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, false);
 }
 
 int mgmt_bcknd_send_cfg_data_create_req(struct mgmt_bcknd_client_adapter *adptr,
-					mgmt_trxn_id_t trxn_id,
-					mgmt_trxn_batch_id_t batch_id,
+					uint64_t trxn_id, uint64_t batch_id,
 					struct mgmt_bcknd_cfgreq *cfg_req,
 					bool end_of_data)
 {
@@ -1073,9 +1072,10 @@ int mgmt_bcknd_send_cfg_data_create_req(struct mgmt_bcknd_client_adapter *adptr,
 		cfg_req->num_reqs, end_of_data);
 }
 
-extern int mgmt_bcknd_send_cfg_validate_req(
-	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
-	mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids)
+extern int
+mgmt_bcknd_send_cfg_validate_req(struct mgmt_bcknd_client_adapter *adptr,
+				 uint64_t trxn_id, uint64_t batch_ids[],
+				 size_t num_batch_ids)
 {
 	return mgmt_bcknd_send_cfgvalidate_req(adptr, trxn_id, batch_ids,
 					       num_batch_ids);
@@ -1083,22 +1083,20 @@ extern int mgmt_bcknd_send_cfg_validate_req(
 
 extern int
 mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
-			      mgmt_trxn_id_t trxn_id)
+			      uint64_t trxn_id)
 {
 	return mgmt_bcknd_send_cfgapply_req(adptr, trxn_id);
 }
 
 int mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
-				 mgmt_trxn_id_t trxn_id,
-				 mgmt_trxn_batch_id_t batch_id,
+				 uint64_t trxn_id, uint64_t batch_id,
 				 struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;
 }
 
 int mgmt_bcknd_send_get_next_data_req(struct mgmt_bcknd_client_adapter *adptr,
-				      mgmt_trxn_id_t trxn_id,
-				      mgmt_trxn_batch_id_t batch_id,
+				      uint64_t trxn_id, uint64_t batch_id,
 				      struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;

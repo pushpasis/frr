@@ -1335,11 +1335,10 @@ static struct cmd_node debug_node = {
 	.config_write = static_config_write_debug,
 };
 
-mgmt_lib_hndl_t mgmt_lib_hndl;
+uint64_t mgmt_lib_hndl;
 
-static void static_mgmt_bcknd_client_connect(mgmt_lib_hndl_t lib_hndl,
-					     mgmt_user_data_t usr_data,
-					     bool connected)
+static void static_mgmt_bcknd_client_connect(uint64_t lib_hndl,
+					     uint64_t usr_data, bool connected)
 {
 	(void)usr_data;
 
@@ -1353,8 +1352,7 @@ static void static_mgmt_bcknd_client_connect(mgmt_lib_hndl_t lib_hndl,
 		(void)mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl, NULL, 0);
 }
 
-static void static_mgmt_trxn_notify(mgmt_lib_hndl_t lib_hndl,
-				    mgmt_user_data_t usr_data,
+static void static_mgmt_trxn_notify(uint64_t lib_hndl, uint64_t usr_data,
 				    mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
 				    bool destroyed)
 {
@@ -1374,8 +1372,8 @@ static void static_mgmt_trxn_notify(mgmt_lib_hndl_t lib_hndl,
 	}
 }
 
-static mgmt_result_t static_mgmt_data_validate(
-	mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result static_mgmt_data_validate(
+	uint64_t lib_hndl, uint64_t usr_data,
 	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
 	struct nb_yang_value *data, bool delete, char *error_if_any)
 {
@@ -1387,8 +1385,8 @@ static mgmt_result_t static_mgmt_data_validate(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t
-static_mgmt_data_apply(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result
+static_mgmt_data_apply(uint64_t lib_hndl, uint64_t usr_data,
 		       mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
 		       struct nb_yang_xpath *xpath, struct nb_yang_value *data,
 		       bool delete)
@@ -1401,8 +1399,8 @@ static_mgmt_data_apply(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t
-static_mgmt_get_data_elem(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result
+static_mgmt_get_data_elem(uint64_t lib_hndl, uint64_t usr_data,
 			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
 			  struct nb_yang_xpath *xpath,
 			  struct nb_yang_xpath_elem *elem)
@@ -1415,8 +1413,8 @@ static_mgmt_get_data_elem(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t
-static_mgmt_get_data(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result
+static_mgmt_get_data(uint64_t lib_hndl, uint64_t usr_data,
 		     mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
 		     struct nb_yang_xpath *xpath, bool keys_only,
 		     struct nb_yang_xpath_elem **elems, int *num_elems,
@@ -1430,8 +1428,8 @@ static_mgmt_get_data(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_result_t
-static_mgmt_get_next_data(mgmt_lib_hndl_t lib_hndl, mgmt_user_data_t usr_data,
+static enum mgmt_result
+static_mgmt_get_next_data(uint64_t lib_hndl, uint64_t usr_data,
 			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
 			  struct nb_yang_xpath *xpath, bool keys_only,
 			  struct nb_yang_xpath_elem **elems, int *num_elems)

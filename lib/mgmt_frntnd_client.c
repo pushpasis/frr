@@ -94,7 +94,7 @@ static mgmt_frntnd_client_ctxt_t mgmt_frntnd_clntctxt = {0};
 /* Forward declarations */
 static void
 mgmt_frntnd_client_register_event(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
-				  mgmt_event_t event);
+				  enum mgmt_event event);
 static void
 mgmt_frntnd_client_schedule_conn_retry(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 				       unsigned long intvl_secs);
@@ -567,7 +567,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.sess_req_result_cb)
 			(*sessn->clnt_ctxt->client_params.sess_req_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id,
 				frntnd_msg->sessn_reply->create,
@@ -586,7 +586,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.lock_db_result_cb)
 			(*sessn->clnt_ctxt->client_params.lock_db_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id, (mgmt_session_id_t)sessn,
 				sessn->user_ctxt,
@@ -610,7 +610,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.set_config_result_cb)
 			(*sessn->clnt_ctxt->client_params.set_config_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id, (mgmt_session_id_t)sessn,
 				sessn->user_ctxt,
@@ -633,7 +633,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.commit_cfg_result_cb)
 			(*sessn->clnt_ctxt->client_params.commit_cfg_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id, (mgmt_session_id_t)sessn,
 				sessn->user_ctxt,
@@ -658,7 +658,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.get_data_result_cb)
 			(*sessn->clnt_ctxt->client_params.get_data_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id, (mgmt_session_id_t)sessn,
 				sessn->user_ctxt,
@@ -691,7 +691,7 @@ static int mgmt_frntnd_client_handle_msg(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 		if (sessn && sessn->clnt_ctxt
 		    && sessn->clnt_ctxt->client_params.get_data_result_cb)
 			(*sessn->clnt_ctxt->client_params.get_data_result_cb)(
-				(mgmt_lib_hndl_t)clnt_ctxt,
+				(uint64_t)clnt_ctxt,
 				clnt_ctxt->client_params.user_data,
 				sessn->client_id, (mgmt_session_id_t)sessn,
 				sessn->user_ctxt,
@@ -967,8 +967,8 @@ static int mgmt_frntnd_server_connect(mgmt_frntnd_client_ctxt_t *clnt_ctxt)
 	/* Notify client through registered callback (if any) */
 	if (clnt_ctxt->client_params.conn_notify_cb)
 		(void)(*clnt_ctxt->client_params.conn_notify_cb)(
-			(mgmt_lib_hndl_t)clnt_ctxt,
-			clnt_ctxt->client_params.user_data, true);
+			(uint64_t)clnt_ctxt, clnt_ctxt->client_params.user_data,
+			true);
 
 	return 0;
 
@@ -992,7 +992,7 @@ static int mgmt_frntnd_client_conn_timeout(struct thread *thread)
 
 static void
 mgmt_frntnd_client_register_event(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
-				  mgmt_event_t event)
+				  enum mgmt_event event)
 {
 	struct timeval tv = {0};
 
@@ -1043,8 +1043,8 @@ mgmt_frntnd_client_schedule_conn_retry(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 /*
  * Initialize library and try connecting with MGMTD.
  */
-mgmt_lib_hndl_t mgmt_frntnd_client_lib_init(mgmt_frntnd_client_params_t *params,
-					    struct thread_master *master_thread)
+uint64_t mgmt_frntnd_client_lib_init(mgmt_frntnd_client_params_t *params,
+				     struct thread_master *master_thread)
 {
 	assert(master_thread && params && strlen(params->name)
 	       && !mgmt_frntnd_clntctxt.tm);
@@ -1075,15 +1075,15 @@ mgmt_lib_hndl_t mgmt_frntnd_client_lib_init(mgmt_frntnd_client_params_t *params,
 
 	MGMTD_FRNTND_CLNT_DBG("Initialized client '%s'", params->name);
 
-	return (mgmt_lib_hndl_t)&mgmt_frntnd_clntctxt;
+	return (uint64_t)&mgmt_frntnd_clntctxt;
 }
 
 /*
  * Create a new Session for a Frontend Client connection.
  */
-mgmt_result_t mgmt_frntnd_create_client_session(mgmt_lib_hndl_t lib_hndl,
-						mgmt_client_id_t client_id,
-						uintptr_t user_ctxt)
+enum mgmt_result mgmt_frntnd_create_client_session(uint64_t lib_hndl,
+						   mgmt_client_id_t client_id,
+						   uintptr_t user_ctxt)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1110,8 +1110,9 @@ mgmt_result_t mgmt_frntnd_create_client_session(mgmt_lib_hndl_t lib_hndl,
 /*
  * Delete an existing Session for a Frontend Client connection.
  */
-mgmt_result_t mgmt_frntnd_destroy_client_session(mgmt_lib_hndl_t lib_hndl,
-						 mgmt_session_id_t session_id)
+enum mgmt_result
+mgmt_frntnd_destroy_client_session(uint64_t lib_hndl,
+				   mgmt_session_id_t session_id)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1136,10 +1137,10 @@ mgmt_result_t mgmt_frntnd_destroy_client_session(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send UN/LOCK_DB_REQ to MGMTD for a specific Datastore DB.
  */
-mgmt_result_t mgmt_frntnd_lock_db(mgmt_lib_hndl_t lib_hndl,
-				  mgmt_session_id_t session_id,
-				  mgmt_client_req_id_t req_id,
-				  mgmt_database_id_t db_id, bool lock_db)
+enum mgmt_result mgmt_frntnd_lock_db(uint64_t lib_hndl,
+				     mgmt_session_id_t session_id,
+				     mgmt_client_req_id_t req_id,
+				     mgmt_database_id_t db_id, bool lock_db)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1163,13 +1164,12 @@ mgmt_result_t mgmt_frntnd_lock_db(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send SET_CONFIG_REQ to MGMTD for one or more config data(s).
  */
-mgmt_result_t mgmt_frntnd_set_config_data(mgmt_lib_hndl_t lib_hndl,
-					  mgmt_session_id_t session_id,
-					  mgmt_client_req_id_t req_id,
-					  mgmt_database_id_t db_id,
-					  mgmt_yang_cfgdata_req_t **config_req,
-					  int num_reqs, bool implicit_commit,
-					  mgmt_database_id_t dst_db_id)
+enum mgmt_result
+mgmt_frntnd_set_config_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
+			    mgmt_client_req_id_t req_id,
+			    mgmt_database_id_t db_id,
+			    mgmt_yang_cfgdata_req_t **config_req, int num_reqs,
+			    bool implicit_commit, mgmt_database_id_t dst_db_id)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1194,12 +1194,12 @@ mgmt_result_t mgmt_frntnd_set_config_data(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send SET_CONFIG_REQ to MGMTD for one or more config data(s).
  */
-mgmt_result_t mgmt_frntnd_commit_config_data(mgmt_lib_hndl_t lib_hndl,
-					     mgmt_session_id_t session_id,
-					     mgmt_client_req_id_t req_id,
-					     mgmt_database_id_t src_db_id,
-					     mgmt_database_id_t dst_db_id,
-					     bool validate_only, bool abort)
+enum mgmt_result mgmt_frntnd_commit_config_data(uint64_t lib_hndl,
+						mgmt_session_id_t session_id,
+						mgmt_client_req_id_t req_id,
+						mgmt_database_id_t src_db_id,
+						mgmt_database_id_t dst_db_id,
+						bool validate_only, bool abort)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1223,12 +1223,11 @@ mgmt_result_t mgmt_frntnd_commit_config_data(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send GET_CONFIG_REQ to MGMTD for one or more config data item(s).
  */
-mgmt_result_t mgmt_frntnd_get_config_data(mgmt_lib_hndl_t lib_hndl,
-					  mgmt_session_id_t session_id,
-					  mgmt_client_req_id_t req_id,
-					  mgmt_database_id_t db_id,
-					  mgmt_yang_getdata_req_t *data_req[],
-					  int num_reqs)
+enum mgmt_result
+mgmt_frntnd_get_config_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
+			    mgmt_client_req_id_t req_id,
+			    mgmt_database_id_t db_id,
+			    mgmt_yang_getdata_req_t *data_req[], int num_reqs)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 	mgmt_frntnd_client_session_t *sessn;
@@ -1252,8 +1251,8 @@ mgmt_result_t mgmt_frntnd_get_config_data(mgmt_lib_hndl_t lib_hndl,
 /*
  * Send GET_DATA_REQ to MGMTD for one or more config data item(s).
  */
-mgmt_result_t
-mgmt_frntnd_get_data(mgmt_lib_hndl_t lib_hndl, mgmt_session_id_t session_id,
+enum mgmt_result
+mgmt_frntnd_get_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
 		     mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
 		     mgmt_yang_getdata_req_t *data_req[], int num_reqs)
 {
@@ -1279,8 +1278,8 @@ mgmt_frntnd_get_data(mgmt_lib_hndl_t lib_hndl, mgmt_session_id_t session_id,
 /*
  * Send NOTIFY_REGISTER_REQ to MGMTD daemon.
  */
-mgmt_result_t mgmt_frntnd_register_yang_notify(
-	mgmt_lib_hndl_t lib_hndl, mgmt_session_id_t session_id,
+enum mgmt_result mgmt_frntnd_register_yang_notify(
+	uint64_t lib_hndl, mgmt_session_id_t session_id,
 	mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
 	bool register_req, mgmt_yang_xpath_t *data_req[], int num_reqs)
 {
@@ -1306,7 +1305,7 @@ mgmt_result_t mgmt_frntnd_register_yang_notify(
 /*
  * Destroy library and cleanup everything.
  */
-void mgmt_frntnd_client_lib_destroy(mgmt_lib_hndl_t lib_hndl)
+void mgmt_frntnd_client_lib_destroy(uint64_t lib_hndl)
 {
 	mgmt_frntnd_client_ctxt_t *clnt_ctxt;
 
