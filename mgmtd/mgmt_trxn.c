@@ -112,8 +112,8 @@ PREDECL_LIST(mgmt_trxn_batch_list);
 struct mgmt_trxn_bcknd_cfg_batch {
 	mgmt_trxn_ctxt_t *trxn;
 	mgmt_bcknd_client_id_t bcknd_id;
-	mgmt_bcknd_client_adapter_t *bcknd_adptr;
-	mgmt_bcknd_xpath_subscr_info_t
+	struct mgmt_bcknd_client_adapter *bcknd_adptr;
+	union mgmt_bcknd_xpath_subscr_info
 		xp_subscr[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	mgmt_yang_cfgdata_req_t cfg_data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	mgmt_yang_cfgdata_req_t *cfg_datap[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
@@ -159,7 +159,7 @@ struct mgmt_commit_cfg_req {
 	 * Details on all the Backend Clients associated with
 	 * this commit.
 	 */
-	mgmt_bcknd_client_subscr_info_t subscr_info;
+	struct mgmt_bcknd_client_subscr_info subscr_info;
 
 	/*
 	 * List of backend batches for this commit to be validated
@@ -301,8 +301,9 @@ static inline const char *mgmt_trxn_commit_phase_str(mgmt_trxn_ctxt_t *trxn,
 static void mgmt_trxn_lock(mgmt_trxn_ctxt_t *trxn, const char *file, int line);
 static void mgmt_trxn_unlock(mgmt_trxn_ctxt_t **trxn, const char *file,
 			     int line);
-static int mgmt_trxn_send_bcknd_trxn_delete(mgmt_trxn_ctxt_t *trxn,
-					    mgmt_bcknd_client_adapter_t *adptr);
+static int
+mgmt_trxn_send_bcknd_trxn_delete(mgmt_trxn_ctxt_t *trxn,
+				 struct mgmt_bcknd_client_adapter *adptr);
 
 static struct thread_master *mgmt_trxn_tm;
 static struct mgmt_master *mgmt_trxn_mm;
@@ -312,7 +313,7 @@ static void mgmt_trxn_register_event(mgmt_trxn_ctxt_t *trxn,
 
 static int
 mgmt_move_bcknd_commit_to_next_phase(mgmt_trxn_ctxt_t *trxn,
-				     mgmt_bcknd_client_adapter_t *adptr);
+				     struct mgmt_bcknd_client_adapter *adptr);
 
 static mgmt_trxn_ctxt_t *mgmt_trxn_id2ctxt(mgmt_trxn_id_t trxn_id)
 {
@@ -332,7 +333,7 @@ static mgmt_trxn_ctxt_t *mgmt_trxn_id2ctxt(mgmt_trxn_id_t trxn_id)
 
 static struct mgmt_trxn_bcknd_cfg_batch *
 mgmt_trxn_cfg_batch_alloc(mgmt_trxn_ctxt_t *trxn, mgmt_bcknd_client_id_t id,
-			  mgmt_bcknd_client_adapter_t *bcknd_adptr)
+			  struct mgmt_bcknd_client_adapter *bcknd_adptr)
 {
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
 
@@ -501,7 +502,7 @@ static void mgmt_trxn_req_free(struct mgmt_trxn_req **trxn_req)
 	struct mgmt_trxn_req_list_head *req_list = NULL;
 	struct mgmt_trxn_req_list_head *pending_list = NULL;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	switch ((*trxn_req)->req_event) {
 	case MGMTD_TRXN_PROC_SETCFG:
@@ -953,7 +954,7 @@ mgmt_try_move_commit_to_next_phase(mgmt_trxn_ctxt_t *trxn,
 
 static int
 mgmt_move_bcknd_commit_to_next_phase(mgmt_trxn_ctxt_t *trxn,
-				     mgmt_bcknd_client_adapter_t *adptr)
+				     struct mgmt_bcknd_client_adapter *adptr)
 {
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_batch_list_head *curr_list, *next_list;
@@ -994,11 +995,11 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 	struct nb_config_cb *cb, *nxt;
 	struct nb_config_change *chg;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
-	mgmt_bcknd_client_subscr_info_t subscr_info;
+	struct mgmt_bcknd_client_subscr_info subscr_info;
 	char *xpath = NULL, *value = NULL;
 	char err_buf[1024];
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	bool found_validator;
 	int num_chgs = 0;
@@ -1329,7 +1330,7 @@ mgmt_trxn_prepare_config_done:
 static int mgmt_trxn_send_bcknd_trxn_create(mgmt_trxn_ctxt_t *trxn)
 {
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
 
@@ -1375,12 +1376,13 @@ static int mgmt_trxn_send_bcknd_trxn_create(mgmt_trxn_ctxt_t *trxn)
 	return 0;
 }
 
-static int mgmt_trxn_send_bcknd_cfg_data(mgmt_trxn_ctxt_t *trxn,
-					 mgmt_bcknd_client_adapter_t *adptr)
+static int
+mgmt_trxn_send_bcknd_cfg_data(mgmt_trxn_ctxt_t *trxn,
+			      struct mgmt_bcknd_client_adapter *adptr)
 {
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
-	mgmt_bcknd_cfgreq_t cfg_req = {0};
+	struct mgmt_bcknd_cfgreq cfg_req = {0};
 	size_t num_batches, indx;
 
 	assert(trxn->type == MGMTD_TRXN_TYPE_CONFIG && trxn->commit_cfg_req);
@@ -1430,8 +1432,9 @@ static int mgmt_trxn_send_bcknd_cfg_data(mgmt_trxn_ctxt_t *trxn,
 	return 0;
 }
 
-static int mgmt_trxn_send_bcknd_trxn_delete(mgmt_trxn_ctxt_t *trxn,
-					    mgmt_bcknd_client_adapter_t *adptr)
+static int
+mgmt_trxn_send_bcknd_trxn_delete(mgmt_trxn_ctxt_t *trxn,
+				 struct mgmt_bcknd_client_adapter *adptr)
 {
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -1494,7 +1497,7 @@ static int mgmt_trxn_cfg_commit_timedout(struct thread *thread)
 static int mgmt_trxn_send_bcknd_cfg_apply(mgmt_trxn_ctxt_t *trxn)
 {
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_batch_list_head *btch_list;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -1557,7 +1560,7 @@ static int mgmt_trxn_send_bcknd_cfg_apply(mgmt_trxn_ctxt_t *trxn)
 static int mgmt_trxn_send_bcknd_cfg_validate(mgmt_trxn_ctxt_t *trxn)
 {
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	mgmt_trxn_batch_id_t *batch_ids;
 	size_t indx, num_batches;
@@ -2426,7 +2429,7 @@ int mgmt_trxn_send_commit_config_req(
 	return 0;
 }
 
-int mgmt_trxn_notify_bcknd_adapter_conn(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_trxn_notify_bcknd_adapter_conn(struct mgmt_bcknd_client_adapter *adptr,
 					bool connect)
 {
 	mgmt_trxn_ctxt_t *trxn;
@@ -2512,7 +2515,7 @@ int mgmt_trxn_notify_bcknd_adapter_conn(mgmt_bcknd_client_adapter_t *adptr,
 
 int mgmt_trxn_notify_bcknd_trxn_reply(mgmt_trxn_id_t trxn_id, bool create,
 				      bool success,
-				      mgmt_bcknd_client_adapter_t *adptr)
+				      struct mgmt_bcknd_client_adapter *adptr)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_commit_cfg_req *cmtcfg_req = NULL;
@@ -2555,10 +2558,9 @@ int mgmt_trxn_notify_bcknd_trxn_reply(mgmt_trxn_id_t trxn_id, bool create,
 	return 0;
 }
 
-int mgmt_trxn_notify_bcknd_cfgdata_reply(mgmt_trxn_id_t trxn_id,
-					 mgmt_trxn_batch_id_t batch_id,
-					 bool success, char *error_if_any,
-					 mgmt_bcknd_client_adapter_t *adptr)
+int mgmt_trxn_notify_bcknd_cfgdata_reply(
+	mgmt_trxn_id_t trxn_id, mgmt_trxn_batch_id_t batch_id, bool success,
+	char *error_if_any, struct mgmt_bcknd_client_adapter *adptr)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -2608,7 +2610,7 @@ int mgmt_trxn_notify_bcknd_cfgdata_reply(mgmt_trxn_id_t trxn_id,
 int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 	mgmt_trxn_id_t trxn_id, bool success, mgmt_trxn_batch_id_t batch_ids[],
 	size_t num_batch_ids, char *error_if_any,
-	mgmt_bcknd_client_adapter_t *adptr)
+	struct mgmt_bcknd_client_adapter *adptr)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -2654,7 +2656,7 @@ extern int
 mgmt_trxn_notify_bcknd_cfg_apply_reply(mgmt_trxn_id_t trxn_id, bool success,
 				       mgmt_trxn_batch_id_t batch_ids[],
 				       size_t num_batch_ids, char *error_if_any,
-				       mgmt_bcknd_client_adapter_t *adptr)
+				       struct mgmt_bcknd_client_adapter *adptr)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;

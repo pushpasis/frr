@@ -65,23 +65,23 @@
  * Please see xpath_map_reg[] in lib/mgmt_bcknd_client.c
  * for the actual map
  */
-typedef struct mgmt_bcknd_xpath_map_reg_ {
+struct mgmt_bcknd_xpath_map_reg {
 	const char *xpath_regexp; /* Longest matching regular expression */
 	uint8_t num_clients;      /* Number of clients */
 	const char *bcknd_clients
 		[MGMTD_BCKND_MAX_CLIENTS_PER_XPATH_REG]; /* List of clients */
-} mgmt_bcknd_xpath_map_reg_t;
+};
 
-typedef struct mgmt_bcknd_xpath_regexp_map_ {
+struct mgmt_bcknd_xpath_regexp_map {
 	const char *xpath_regexp;
-	mgmt_bcknd_client_subscr_info_t bcknd_subscrs;
-} mgmt_bcknd_xpath_regexp_map_t;
+	struct mgmt_bcknd_client_subscr_info bcknd_subscrs;
+};
 
-typedef struct mgmt_bcknd_get_adptr_config_params_ {
-	mgmt_bcknd_client_adapter_t *adptr;
+struct mgmt_bcknd_get_adptr_config_params {
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct nb_config_cbs *cfg_chgs;
 	uint32_t seq;
-} mgmt_bcknd_get_adptr_cfgreq_params_t;
+};
 
 /*
  * Static mapping of YANG XPath regular expressions and
@@ -93,29 +93,25 @@ typedef struct mgmt_bcknd_get_adptr_config_params_ {
  * handle real-time mapping of YANG xpaths to one or
  * more interested backend client adapters.
  */
-static const mgmt_bcknd_xpath_map_reg_t xpath_static_map_reg[] = {
+static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 	{.xpath_regexp = "/frr-interface:lib/*",
 	 .num_clients = 2,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD,
-			   MGMTD_BCKND_CLIENT_BGPD}
-	},
+			   MGMTD_BCKND_CLIENT_BGPD}},
 	{.xpath_regexp =
-		 "/frr-routing:routing/control-plane-protocols/"
-		 "control-plane-protocol[type='frr-staticd:staticd']"
-		 "[name='staticd'][vrf='default']/frr-staticd:staticd/*",
+		 "/frr-routing:routing/control-plane-protocols/			\
+		  control-plane-protocol[type='frr-staticd:staticd']	\
+		  [name='staticd'][vrf='default']/frr-staticd:staticd/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}
-	},
-	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/"
-			 "control-plane-protocol[type='frr-bgp:bgp']"
-			 "[name='bgp'][vrf='default']/frr-bgp:bgp/*",
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}},
+	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	\
+			  control-plane-protocol[type='frr-bgp:bgp']			\
+			  [name='bgp'][vrf='default']/frr-bgp:bgp/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
-	}
-};
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}}};
 
 #define MGMTD_BCKND_MAX_NUM_XPATH_MAP 256
-static mgmt_bcknd_xpath_regexp_map_t
+static struct mgmt_bcknd_xpath_regexp_map
 	mgmt_xpath_map[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
 static int mgmt_num_xpath_maps;
 
@@ -123,16 +119,18 @@ static struct thread_master *mgmt_bcknd_adptr_tm;
 
 static struct mgmt_bcknd_adptr_list_head mgmt_bcknd_adptrs = {0};
 
-static mgmt_bcknd_client_adapter_t
+static struct mgmt_bcknd_client_adapter
 	*mgmt_bcknd_adptrs_by_id[MGMTD_BCKND_CLIENT_ID_MAX] = {0};
 
 /* Forward declarations */
-static void mgmt_bcknd_adptr_register_event(mgmt_bcknd_client_adapter_t *adptr,
-					    mgmt_event_t event);
+static void
+mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
+				mgmt_event_t event);
 
-static mgmt_bcknd_client_adapter_t *mgmt_bcknd_find_adapter_by_fd(int conn_fd)
+static struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_find_adapter_by_fd(int conn_fd)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	FOREACH_ADPTR_IN_LIST(adptr)
 	{
@@ -143,10 +141,10 @@ static mgmt_bcknd_client_adapter_t *mgmt_bcknd_find_adapter_by_fd(int conn_fd)
 	return NULL;
 }
 
-static mgmt_bcknd_client_adapter_t *
+static struct mgmt_bcknd_client_adapter *
 mgmt_bcknd_find_adapter_by_name(const char *name)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	FOREACH_ADPTR_IN_LIST(adptr)
 	{
@@ -263,7 +261,8 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 	return match_len;
 }
 
-static void mgmt_bcknd_adapter_disconnect(mgmt_bcknd_client_adapter_t *adptr)
+static void
+mgmt_bcknd_adapter_disconnect(struct mgmt_bcknd_client_adapter *adptr)
 {
 	if (adptr->conn_fd) {
 		close(adptr->conn_fd);
@@ -284,9 +283,9 @@ static void mgmt_bcknd_adapter_disconnect(mgmt_bcknd_client_adapter_t *adptr)
 }
 
 static void
-mgmt_bcknd_adapter_cleanup_old_conn(mgmt_bcknd_client_adapter_t *adptr)
+mgmt_bcknd_adapter_cleanup_old_conn(struct mgmt_bcknd_client_adapter *adptr)
 {
-	mgmt_bcknd_client_adapter_t *old;
+	struct mgmt_bcknd_client_adapter *old;
 
 	FOREACH_ADPTR_IN_LIST(old)
 	{
@@ -303,8 +302,9 @@ mgmt_bcknd_adapter_cleanup_old_conn(mgmt_bcknd_client_adapter_t *adptr)
 	}
 }
 
-static int mgmt_bcknd_adapter_handle_msg(mgmt_bcknd_client_adapter_t *adptr,
-					 Mgmtd__BckndMessage *bcknd_msg)
+static int
+mgmt_bcknd_adapter_handle_msg(struct mgmt_bcknd_client_adapter *adptr,
+			      Mgmtd__BckndMessage *bcknd_msg)
 {
 	switch (bcknd_msg->type) {
 	case MGMTD__BCKND_MESSAGE__TYPE__SUBSCRIBE_REQ:
@@ -417,14 +417,14 @@ static int mgmt_bcknd_adapter_handle_msg(mgmt_bcknd_client_adapter_t *adptr,
 }
 
 static inline void
-mgmt_bcknd_adapter_sched_msg_write(mgmt_bcknd_client_adapter_t *adptr)
+mgmt_bcknd_adapter_sched_msg_write(struct mgmt_bcknd_client_adapter *adptr)
 {
 	if (!CHECK_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF))
 		mgmt_bcknd_adptr_register_event(adptr, MGMTD_BCKND_CONN_WRITE);
 }
 
 static inline void
-mgmt_bcknd_adapter_writes_on(mgmt_bcknd_client_adapter_t *adptr)
+mgmt_bcknd_adapter_writes_on(struct mgmt_bcknd_client_adapter *adptr)
 {
 	MGMTD_BCKND_ADPTR_DBG("Resume writing msgs for '%s'", adptr->name);
 	UNSET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF);
@@ -433,13 +433,13 @@ mgmt_bcknd_adapter_writes_on(mgmt_bcknd_client_adapter_t *adptr)
 }
 
 static inline void
-mgmt_bcknd_adapter_writes_off(mgmt_bcknd_client_adapter_t *adptr)
+mgmt_bcknd_adapter_writes_off(struct mgmt_bcknd_client_adapter *adptr)
 {
 	SET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_WRITES_OFF);
 	MGMTD_BCKND_ADPTR_DBG("Pause writing msgs for '%s'", adptr->name);
 }
 
-static int mgmt_bcknd_adapter_send_msg(mgmt_bcknd_client_adapter_t *adptr,
+static int mgmt_bcknd_adapter_send_msg(struct mgmt_bcknd_client_adapter *adptr,
 				       Mgmtd__BckndMessage *bcknd_msg)
 {
 	size_t msg_size;
@@ -482,7 +482,7 @@ static int mgmt_bcknd_adapter_send_msg(mgmt_bcknd_client_adapter_t *adptr,
 	return 0;
 }
 
-static int mgmt_bcknd_send_trxn_req(mgmt_bcknd_client_adapter_t *adptr,
+static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
 				    mgmt_trxn_id_t trxn_id, bool create)
 {
 	Mgmtd__BckndMessage bcknd_msg;
@@ -505,7 +505,7 @@ static int mgmt_bcknd_send_trxn_req(mgmt_bcknd_client_adapter_t *adptr,
 }
 
 static int mgmt_bcknd_send_cfgdata_create_req(
-	mgmt_bcknd_client_adapter_t *adptr, mgmt_trxn_id_t trxn_id,
+	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
 	mgmt_trxn_batch_id_t batch_id, mgmt_yang_cfgdata_req_t **cfgdata_reqs,
 	size_t num_reqs, bool end_of_data)
 {
@@ -531,10 +531,9 @@ static int mgmt_bcknd_send_cfgdata_create_req(
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgvalidate_req(mgmt_bcknd_client_adapter_t *adptr,
-					   mgmt_trxn_id_t trxn_id,
-					   mgmt_trxn_batch_id_t batch_ids[],
-					   size_t num_batch_ids)
+static int mgmt_bcknd_send_cfgvalidate_req(
+	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
+	mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataValidateReq vldt_req;
@@ -557,7 +556,7 @@ static int mgmt_bcknd_send_cfgvalidate_req(mgmt_bcknd_client_adapter_t *adptr,
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
 
-static int mgmt_bcknd_send_cfgapply_req(mgmt_bcknd_client_adapter_t *adptr,
+static int mgmt_bcknd_send_cfgapply_req(struct mgmt_bcknd_client_adapter *adptr,
 					mgmt_trxn_id_t trxn_id)
 {
 	Mgmtd__BckndMessage bcknd_msg;
@@ -579,7 +578,7 @@ static int mgmt_bcknd_send_cfgapply_req(mgmt_bcknd_client_adapter_t *adptr,
 }
 
 static uint16_t
-mgmt_bcknd_adapter_process_msg(mgmt_bcknd_client_adapter_t *adptr,
+mgmt_bcknd_adapter_process_msg(struct mgmt_bcknd_client_adapter *adptr,
 			       uint8_t *msg_buf, uint16_t bytes_read)
 {
 	Mgmtd__BckndMessage *bcknd_msg;
@@ -626,11 +625,11 @@ mgmt_bcknd_adapter_process_msg(mgmt_bcknd_client_adapter_t *adptr,
 
 static int mgmt_bcknd_adapter_proc_msgbufs(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct stream *work;
 	int processed = 0;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr);
 
 	if (adptr->conn_fd == 0)
@@ -664,13 +663,13 @@ static int mgmt_bcknd_adapter_proc_msgbufs(struct thread *thread)
 
 static int mgmt_bcknd_adapter_read(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 	int bytes_read, msg_cnt;
 	size_t total_bytes, bytes_left;
 	mgmt_bcknd_msg_hdr_t *msg_hdr;
 	bool incomplete = false;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	total_bytes = 0;
@@ -763,9 +762,9 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 	int msg_size = 0;
 	struct stream *s = NULL;
 	struct stream *free = NULL;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	/* Ensure pushing any pending write buffer to FIFO */
@@ -819,9 +818,9 @@ static int mgmt_bcknd_adapter_write(struct thread *thread)
 
 static int mgmt_bcknd_adapter_resume_writes(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	mgmt_bcknd_adapter_writes_on(adptr);
@@ -833,9 +832,9 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl, char *xpath,
 					struct lyd_node *node,
 					struct nb_node *nb_node, void *ctxt)
 {
-	mgmt_bcknd_client_subscr_info_t subscr_info;
-	mgmt_bcknd_get_adptr_cfgreq_params_t *parms;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_subscr_info subscr_info;
+	struct mgmt_bcknd_get_adptr_config_params *parms;
+	struct mgmt_bcknd_client_adapter *adptr;
 	struct nb_config_cbs *root;
 	uint32_t *seq;
 
@@ -845,7 +844,7 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl, char *xpath,
 		return;
 	}
 
-	parms = (mgmt_bcknd_get_adptr_cfgreq_params_t *)ctxt;
+	parms = (struct mgmt_bcknd_get_adptr_config_params *)ctxt;
 
 	adptr = parms->adptr;
 	if (!subscr_info.xpath_subscr[adptr->id].subscribed)
@@ -858,9 +857,9 @@ static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl, char *xpath,
 
 static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
-	adptr = (mgmt_bcknd_client_adapter_t *)THREAD_ARG(thread);
+	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
 	assert(adptr && adptr->conn_fd);
 
 	/*
@@ -888,8 +887,9 @@ static int mgmt_bcknd_adapter_conn_init(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_bcknd_adptr_register_event(mgmt_bcknd_client_adapter_t *adptr,
-					    mgmt_event_t event)
+static void
+mgmt_bcknd_adptr_register_event(struct mgmt_bcknd_client_adapter *adptr,
+				mgmt_event_t event)
 {
 	struct timeval tv = {0};
 
@@ -930,12 +930,12 @@ static void mgmt_bcknd_adptr_register_event(mgmt_bcknd_client_adapter_t *adptr,
 	}
 }
 
-void mgmt_bcknd_adapter_lock(mgmt_bcknd_client_adapter_t *adptr)
+void mgmt_bcknd_adapter_lock(struct mgmt_bcknd_client_adapter *adptr)
 {
 	adptr->refcount++;
 }
 
-extern void mgmt_bcknd_adapter_unlock(mgmt_bcknd_client_adapter_t **adptr)
+extern void mgmt_bcknd_adapter_unlock(struct mgmt_bcknd_client_adapter **adptr)
 {
 	assert(*adptr && (*adptr)->refcount);
 
@@ -970,15 +970,15 @@ int mgmt_bcknd_adapter_init(struct thread_master *tm)
 	return 0;
 }
 
-mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(int conn_fd,
-						       union sockunion *from)
+struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_create_adapter(int conn_fd, union sockunion *from)
 {
-	mgmt_bcknd_client_adapter_t *adptr = NULL;
+	struct mgmt_bcknd_client_adapter *adptr = NULL;
 
 	adptr = mgmt_bcknd_find_adapter_by_fd(conn_fd);
 	if (!adptr) {
 		adptr = XCALLOC(MTYPE_MGMTD_BCKND_ADPATER,
-				sizeof(mgmt_bcknd_client_adapter_t));
+				sizeof(struct mgmt_bcknd_client_adapter));
 		assert(adptr);
 
 		adptr->conn_fd = conn_fd;
@@ -1013,24 +1013,25 @@ mgmt_bcknd_client_adapter_t *mgmt_bcknd_create_adapter(int conn_fd,
 	return adptr;
 }
 
-mgmt_bcknd_client_adapter_t *
+struct mgmt_bcknd_client_adapter *
 mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id)
 {
 	return (id < MGMTD_BCKND_CLIENT_ID_MAX ? mgmt_bcknd_adptrs_by_id[id]
 					       : NULL);
 }
 
-mgmt_bcknd_client_adapter_t *mgmt_bcknd_get_adapter_by_name(const char *name)
+struct mgmt_bcknd_client_adapter *
+mgmt_bcknd_get_adapter_by_name(const char *name)
 {
 	return mgmt_bcknd_find_adapter_by_name(name);
 }
 
-int mgmt_bcknd_get_adapter_config(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
 				  mgmt_db_hndl_t db_hndl,
 				  struct nb_config_cbs **cfg_chgs)
 {
 	char base_xpath[] = "/";
-	mgmt_bcknd_get_adptr_cfgreq_params_t parms;
+	struct mgmt_bcknd_get_adptr_config_params parms;
 
 	assert(cfg_chgs);
 
@@ -1048,22 +1049,22 @@ int mgmt_bcknd_get_adapter_config(mgmt_bcknd_client_adapter_t *adptr,
 	return 0;
 }
 
-int mgmt_bcknd_create_trxn(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
 			   mgmt_trxn_id_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, true);
 }
 
-int mgmt_bcknd_destroy_trxn(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_destroy_trxn(struct mgmt_bcknd_client_adapter *adptr,
 			    mgmt_trxn_id_t trxn_id)
 {
 	return mgmt_bcknd_send_trxn_req(adptr, trxn_id, false);
 }
 
-int mgmt_bcknd_send_cfg_data_create_req(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_send_cfg_data_create_req(struct mgmt_bcknd_client_adapter *adptr,
 					mgmt_trxn_id_t trxn_id,
 					mgmt_trxn_batch_id_t batch_id,
-					mgmt_bcknd_cfgreq_t *cfg_req,
+					struct mgmt_bcknd_cfgreq *cfg_req,
 					bool end_of_data)
 {
 	return mgmt_bcknd_send_cfgdata_create_req(
@@ -1071,33 +1072,33 @@ int mgmt_bcknd_send_cfg_data_create_req(mgmt_bcknd_client_adapter_t *adptr,
 		cfg_req->num_reqs, end_of_data);
 }
 
-extern int mgmt_bcknd_send_cfg_validate_req(mgmt_bcknd_client_adapter_t *adptr,
-					    mgmt_trxn_id_t trxn_id,
-					    mgmt_trxn_batch_id_t batch_ids[],
-					    size_t num_batch_ids)
+extern int mgmt_bcknd_send_cfg_validate_req(
+	struct mgmt_bcknd_client_adapter *adptr, mgmt_trxn_id_t trxn_id,
+	mgmt_trxn_batch_id_t batch_ids[], size_t num_batch_ids)
 {
 	return mgmt_bcknd_send_cfgvalidate_req(adptr, trxn_id, batch_ids,
 					       num_batch_ids);
 }
 
-extern int mgmt_bcknd_send_cfg_apply_req(mgmt_bcknd_client_adapter_t *adptr,
-					 mgmt_trxn_id_t trxn_id)
+extern int
+mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
+			      mgmt_trxn_id_t trxn_id)
 {
 	return mgmt_bcknd_send_cfgapply_req(adptr, trxn_id);
 }
 
-int mgmt_bcknd_send_get_data_req(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
 				 mgmt_trxn_id_t trxn_id,
 				 mgmt_trxn_batch_id_t batch_id,
-				 mgmt_bcknd_datareq_t *data_req)
+				 struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;
 }
 
-int mgmt_bcknd_send_get_next_data_req(mgmt_bcknd_client_adapter_t *adptr,
+int mgmt_bcknd_send_get_next_data_req(struct mgmt_bcknd_client_adapter *adptr,
 				      mgmt_trxn_id_t trxn_id,
 				      mgmt_trxn_batch_id_t batch_id,
-				      mgmt_bcknd_datareq_t *data_req)
+				      struct mgmt_bcknd_datareq *data_req)
 {
 	return 0;
 }
@@ -1107,12 +1108,12 @@ int mgmt_bcknd_send_get_next_data_req(mgmt_bcknd_client_adapter_t *adptr,
  * Backend Clients that should be contacted for various purposes.
  */
 int mgmt_bcknd_get_subscr_info_for_xpath(
-	const char *xpath, mgmt_bcknd_client_subscr_info_t *subscr_info)
+	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info)
 {
 	int indx, match, max_match = 0, num_reg;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_subscr_info_t *reg_maps[array_size(mgmt_xpath_map)] =
-		{0};
+	struct mgmt_bcknd_client_subscr_info
+		*reg_maps[array_size(mgmt_xpath_map)] = {0};
 
 	if (!subscr_info)
 		return -1;
@@ -1156,7 +1157,7 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 
 void mgmt_bcknd_adapter_status_write(struct vty *vty)
 {
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	vty_out(vty, "MGMTD Backend Adapters\n");
 
@@ -1177,7 +1178,7 @@ void mgmt_bcknd_xpath_register_write(struct vty *vty)
 {
 	int indx;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	vty_out(vty, "MGMTD Backend XPath Registry\n");
 
@@ -1224,9 +1225,9 @@ void mgmt_bcknd_xpath_register_write(struct vty *vty)
 
 void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 {
-	mgmt_bcknd_client_subscr_info_t subscr;
+	struct mgmt_bcknd_client_subscr_info subscr;
 	mgmt_bcknd_client_id_t id;
-	mgmt_bcknd_client_adapter_t *adptr;
+	struct mgmt_bcknd_client_adapter *adptr;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr) != 0) {
 		vty_out(vty, "ERROR: Failed to get subscriber for '%s'\n",

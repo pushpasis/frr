@@ -127,28 +127,28 @@ extern int mgmt_trxn_send_get_data_req(mgmt_trxn_id_t trxn_id,
 				       size_t num_reqs);
 
 extern int
-mgmt_trxn_notify_bcknd_adapter_conn(mgmt_bcknd_client_adapter_t *adptr,
+mgmt_trxn_notify_bcknd_adapter_conn(struct mgmt_bcknd_client_adapter *adptr,
 				    bool connect);
 
 extern int
 mgmt_trxn_notify_bcknd_trxn_reply(mgmt_trxn_id_t trxn_id, bool create,
 				  bool success,
-				  mgmt_bcknd_client_adapter_t *adptr);
+				  struct mgmt_bcknd_client_adapter *adptr);
 
 extern int mgmt_trxn_notify_bcknd_cfgdata_reply(
 	mgmt_trxn_id_t trxn_id, mgmt_trxn_batch_id_t batch_id, bool success,
-	char *error_if_any, mgmt_bcknd_client_adapter_t *adptr);
+	char *error_if_any, struct mgmt_bcknd_client_adapter *adptr);
 
 extern int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 	mgmt_trxn_id_t trxn_id, bool success, mgmt_trxn_batch_id_t batch_ids[],
 	size_t num_batch_ids, char *error_if_any,
-	mgmt_bcknd_client_adapter_t *adptr);
+	struct mgmt_bcknd_client_adapter *adptr);
 
 extern int
 mgmt_trxn_notify_bcknd_cfg_apply_reply(mgmt_trxn_id_t trxn_id, bool success,
 				       mgmt_trxn_batch_id_t batch_ids[],
 				       size_t num_batch_ids, char *error_if_any,
-				       mgmt_bcknd_client_adapter_t *adptr);
+				       struct mgmt_bcknd_client_adapter *adptr);
 
 extern void mgmt_trxn_status_write(struct vty *vty);
 
