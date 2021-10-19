@@ -241,6 +241,8 @@ struct mgmt_trxn_ctxt_ {
 
 	struct thread *proc_set_cfg;
 	struct thread *proc_comm_cfg;
+	struct thread *proc_get_cfg;
+	struct thread *proc_get_data;
 	struct thread *comm_cfg_timeout;
 	struct thread *clnup;
 
@@ -563,7 +565,7 @@ static void mgmt_trxn_req_free(mgmt_trxn_req_t **trxn_req)
 			if ((*trxn_req)->req.get_data->xpaths[indx])
 				free((void *)(*trxn_req)->req.get_data->xpaths[indx]);
 		}
-		pending_list = &(*trxn_req)->trxn->pending_get_datas;
+		//pending_list = &(*trxn_req)->trxn->pending_get_datas;
 		req_list = &(*trxn_req)->trxn->get_data_reqs;
 		MGMTD_TRXN_DBG("Deleting GETDATA Req: %p for Trxn: %p",
 			*trxn_req, (*trxn_req)->trxn);
@@ -1905,7 +1907,6 @@ static int mgmt_trxn_process_get_cfg(struct thread *thread)
 		}
 
 mgmt_trxn_process_get_cfg_done:
-
 		if (error) {
 			/*
 			 * Delete the trxn request.
@@ -1919,7 +1920,6 @@ mgmt_trxn_process_get_cfg_done:
 		 * Else the transaction would have been already deleted or
 		 * moved to corresponding pending list. No need to delete it.
 		 */
-
 		num_processed++;
 		if (num_processed == MGMTD_TRXN_MAX_NUM_GETCFG_PROC) {
 			break;
@@ -1964,14 +1964,14 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 			goto mgmt_trxn_process_get_data_done;
 		}
 
-		if (mgmt_db_is_config(db_hndl) &&
-			mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
-			MGMTD_TRXN_ERR("Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%lx, Req: %ld!", 
-				trxn_req->req.get_data->db_id, trxn,
-				trxn->session_id, trxn_req->req_id);
-			error = true;
-			goto mgmt_trxn_process_get_data_done;
-		} else {
+		if (mgmt_db_is_config(db_hndl)) {
+			if (mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
+			        MGMTD_TRXN_ERR("Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%lx, Req: %ld!", 
+				        trxn_req->req.get_data->db_id, trxn,
+				        trxn->session_id, trxn_req->req_id);
+			        error = true;
+		        }
+                } else {
 			/* 
 			 * TODO: Trigger GET procedures for Backend 
 			 * For now return back error.
@@ -1982,11 +1982,9 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 				trxn_req->req_id, MGMTD_INTERNAL_ERROR,
 				NULL, "GET-DATA on Oper DB is not supported yet!");
 			error = true;
-			goto mgmt_trxn_process_get_data_done;
 		}
 
 mgmt_trxn_process_get_data_done:
-
 		if (error) {
 			/*
 			 * Delete the trxn request.
@@ -2000,7 +1998,6 @@ mgmt_trxn_process_get_data_done:
 		 * Else the transaction would have been already deleted or
 		 * moved to corresponding pending list. No need to delete it.
 		 */
-
 		num_processed++;
 		if (num_processed == MGMTD_TRXN_MAX_NUM_GETCFG_PROC) {
 			break;
@@ -2153,14 +2150,14 @@ static void mgmt_trxn_register_event(
 	case MGMTD_TRXN_PROC_GETCFG:
 		thread_add_timer_tv(mgmt_trxn_tm,
 			mgmt_trxn_process_get_cfg, trxn,
-			&tv, &trxn->proc_comm_cfg);
-		assert(trxn->proc_comm_cfg);
+			&tv, &trxn->proc_get_cfg);
+		assert(trxn->proc_get_cfg);
 		break;
 	case MGMTD_TRXN_PROC_GETDATA:
 		thread_add_timer_tv(mgmt_trxn_tm,
 			mgmt_trxn_process_get_data, trxn,
-			&tv, &trxn->proc_comm_cfg);
-		assert(trxn->proc_comm_cfg);
+			&tv, &trxn->proc_get_data);
+		assert(trxn->proc_get_data);
 		break;
 	case MGMTD_TRXN_COMMITCFG_TIMEOUT:
 		thread_add_timer_msec(mgmt_trxn_tm,

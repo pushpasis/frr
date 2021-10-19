@@ -411,7 +411,7 @@ DEFPY(show_mgmt_get_config,
 	}
 
 	xpath_list[0] = path;
-	vty_mgmt_send_get_data(vty, database, xpath_list, 1);
+	vty_mgmt_send_get_config(vty, database, xpath_list, 1);
 	return CMD_SUCCESS;
 }
 
