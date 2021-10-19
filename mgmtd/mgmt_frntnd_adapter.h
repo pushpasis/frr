@@ -27,7 +27,7 @@
 #include "lib/mgmt_pb.h"
 #include "lib/mgmt_frntnd_client.h"
 
-struct mgmt_frntnd_client_adapter_;
+struct mgmt_frntnd_client_adapter;
 struct mgmt_master;
 
 struct mgmt_commit_stats {

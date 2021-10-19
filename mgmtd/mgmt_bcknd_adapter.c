@@ -68,6 +68,7 @@
 struct mgmt_bcknd_xpath_map_reg {
 	const char *xpath_regexp; /* Longest matching regular expression */
 	uint8_t num_clients;      /* Number of clients */
+
 	const char *bcknd_clients
 		[MGMTD_BCKND_MAX_CLIENTS_PER_XPATH_REG]; /* List of clients */
 };
@@ -828,7 +829,7 @@ static int mgmt_bcknd_adapter_resume_writes(struct thread *thread)
 	return 0;
 }
 
-static void mgmt_bcknd_iter_and_get_cfg(mgmt_db_hndl_t db_hndl, char *xpath,
+static void mgmt_bcknd_iter_and_get_cfg(uint64_t db_hndl, char *xpath,
 					struct lyd_node *node,
 					struct nb_node *nb_node, void *ctxt)
 {
@@ -1027,7 +1028,7 @@ mgmt_bcknd_get_adapter_by_name(const char *name)
 }
 
 int mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
-				  mgmt_db_hndl_t db_hndl,
+				  uint64_t db_hndl,
 				  struct nb_config_cbs **cfg_chgs)
 {
 	char base_xpath[] = "/";

@@ -58,7 +58,7 @@ enum mgmt_sessn_event {
 };
 
 struct mgmt_frntnd_sessn_ctxt {
-	struct mgmt_frntnd_client_adapter_ *adptr;
+	struct mgmt_frntnd_client_adapter *adptr;
 	mgmt_client_id_t client_id;
 	mgmt_trxn_id_t trxn_id;
 	mgmt_trxn_id_t cfg_trxn_id;
@@ -98,8 +98,7 @@ mgmt_frntnd_session_register_event(struct mgmt_frntnd_sessn_ctxt *sessn,
 				   enum mgmt_sessn_event event);
 
 static int
-mgmt_frntnd_session_write_lock_db(mgmt_database_id_t db_id,
-				  mgmt_db_hndl_t db_hndl,
+mgmt_frntnd_session_write_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
 				  struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	if (!sessn->db_write_locked[db_id]) {
@@ -120,8 +119,7 @@ mgmt_frntnd_session_write_lock_db(mgmt_database_id_t db_id,
 }
 
 static int
-mgmt_frntnd_session_read_lock_db(mgmt_database_id_t db_id,
-				 mgmt_db_hndl_t db_hndl,
+mgmt_frntnd_session_read_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
 				 struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	if (!sessn->db_read_locked[db_id]) {
@@ -142,7 +140,7 @@ mgmt_frntnd_session_read_lock_db(mgmt_database_id_t db_id,
 }
 
 static int mgmt_frntnd_session_unlock_db(mgmt_database_id_t db_id,
-					 mgmt_db_hndl_t db_hndl,
+					 uint64_t db_hndl,
 					 struct mgmt_frntnd_sessn_ctxt *sessn,
 					 bool unlock_write, bool unlock_read)
 {
@@ -181,7 +179,7 @@ static void
 mgmt_frntnd_sessn_cfg_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	mgmt_database_id_t db_id;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	/*
 	 * Ensure any uncommitted changes in Candidate DB
@@ -206,7 +204,7 @@ static void
 mgmt_frntnd_sessn_show_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	mgmt_database_id_t db_id;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	for (db_id = 0; db_id < MGMTD_DB_MAX_ID; db_id++) {
 		db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, db_id);
@@ -734,7 +732,7 @@ static int
 mgmt_frntnd_session_handle_lockdb_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__FrntndLockDbReq *lockdb_req)
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	/*
 	 * Next check first if the SET_CONFIG_REQ is for Candidate DB
@@ -801,7 +799,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__FrntndSetConfigReq *setcfg_req)
 {
 	mgmt_session_id_t cfg_sessn_id;
-	mgmt_db_hndl_t db_hndl, dst_db_hndl;
+	uint64_t db_hndl, dst_db_hndl;
 
 	if (mm->perf_stats_en)
 		mgmt_get_realtime(&sessn->adptr->setcfg_stats.last_start);
@@ -945,7 +943,7 @@ static int
 mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__FrntndGetConfigReq *getcfg_req)
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	/*
 	 * Get the DB handle.
@@ -1044,7 +1042,7 @@ static int
 mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					   Mgmtd__FrntndGetDataReq *getdata_req)
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	/*
 	 * Get the DB handle.
@@ -1129,7 +1127,7 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 	struct mgmt_frntnd_sessn_ctxt *sessn,
 	Mgmtd__FrntndCommitConfigReq *commcfg_req)
 {
-	mgmt_db_hndl_t src_db_hndl, dst_db_hndl;
+	uint64_t src_db_hndl, dst_db_hndl;
 
 	if (mm->perf_stats_en)
 		mgmt_get_realtime(&sessn->adptr->cmt_stats.last_start);

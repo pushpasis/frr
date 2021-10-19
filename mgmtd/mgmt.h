@@ -84,9 +84,9 @@ struct mgmt_master {
 	mgmt_trxn_ctxt_t *cfg_trxn;
 
 	/* Databases */
-	mgmt_db_hndl_t running_db;
-	mgmt_db_hndl_t candidate_db;
-	mgmt_db_hndl_t oper_db;
+	uint64_t running_db;
+	uint64_t candidate_db;
+	uint64_t oper_db;
 
 	bool terminating;   /* global flag that sigint terminate seen */
 	bool perf_stats_en; /* to enable performance stats measurement */

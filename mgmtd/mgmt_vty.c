@@ -212,7 +212,7 @@ DEFPY(show_mgmt_db_all, show_mgmt_db_all_cmd, "show mgmt database all",
 DEFPY(show_mgmt_db_runn, show_mgmt_db_runn_cmd, "show mgmt database running",
       SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display Running Database\n")
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_RUNNING);
 	if (!db_hndl) {
@@ -228,7 +228,7 @@ DEFPY(show_mgmt_db_runn, show_mgmt_db_runn_cmd, "show mgmt database running",
 DEFPY(show_mgmt_db_cand, show_mgmt_db_cand_cmd, "show mgmt database candidate",
       SHOW_STR MGMTD_STR MGMTD_DB_STR "Display Candidate Database\n")
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_CANDIDATE);
 	if (!db_hndl) {
@@ -245,7 +245,7 @@ DEFPY(show_mgmt_db_oper, show_mgmt_db_oper_cmd,
       "show mgmt database operational",
       SHOW_STR MGMTD_STR MGMTD_DB_STR "Display Operational Database\n")
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_OPERATIONAL);
 	if (!db_hndl) {
@@ -392,7 +392,7 @@ DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
       "JSON|XML")
 {
 	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	LYD_FORMAT format = LYD_UNKNOWN;
 	FILE *f = NULL;
 
@@ -458,7 +458,7 @@ DEFPY(mgmt_load_config, mgmt_load_config_cmd,
 	bool merge = false;
 	int idx_merge = 4;
 	int ret;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_CANDIDATE);
 	if (!db_hndl) {
@@ -493,7 +493,7 @@ DEFPY(mgmt_save_config, mgmt_save_config_cmd,
       "Write the configuration to a file\n"
       "Full path of the file")
 {
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	mgmt_database_id_t database;
 	FILE *f;
 

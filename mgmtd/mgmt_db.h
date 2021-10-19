@@ -54,9 +54,7 @@
 
 extern struct nb_config *running_config;
 
-typedef uintptr_t mgmt_db_hndl_t;
-
-typedef void (*mgmt_db_node_iter_fn)(mgmt_db_hndl_t db_hndl, char *xpath,
+typedef void (*mgmt_db_node_iter_fn)(uint64_t db_hndl, char *xpath,
 				     struct lyd_node *node,
 				     struct nb_node *nb_node, void *ctxt);
 
@@ -141,57 +139,57 @@ extern int mgmt_db_init(struct mgmt_master *cm);
 
 extern void mgmt_db_destroy(void);
 
-extern mgmt_db_hndl_t mgmt_db_get_hndl_by_id(struct mgmt_master *cm,
-					     mgmt_database_id_t db_id);
+extern uint64_t mgmt_db_get_hndl_by_id(struct mgmt_master *cm,
+				       mgmt_database_id_t db_id);
 
-extern bool mgmt_db_is_config(mgmt_db_hndl_t db_hndl);
+extern bool mgmt_db_is_config(uint64_t db_hndl);
 
-extern int mgmt_db_read_lock(mgmt_db_hndl_t db_hndl);
+extern int mgmt_db_read_lock(uint64_t db_hndl);
 
-extern int mgmt_db_write_lock(mgmt_db_hndl_t db_hndl);
+extern int mgmt_db_write_lock(uint64_t db_hndl);
 
-extern int mgmt_db_unlock(mgmt_db_hndl_t db_hndl);
+extern int mgmt_db_unlock(uint64_t db_hndl);
 
-extern int mgmt_db_merge_dbs(mgmt_db_hndl_t src_db, mgmt_db_hndl_t dst_db,
+extern int mgmt_db_merge_dbs(uint64_t src_db, uint64_t dst_db,
 			     bool update_cmt_rec);
 
-extern int mgmt_db_copy_dbs(mgmt_db_hndl_t src_db, mgmt_db_hndl_t dst_db,
+extern int mgmt_db_copy_dbs(uint64_t src_db, uint64_t dst_db,
 			    bool update_cmt_rec);
 
-extern struct nb_config *mgmt_db_get_nb_config(mgmt_db_hndl_t db_hndl);
+extern struct nb_config *mgmt_db_get_nb_config(uint64_t db_hndl);
 
-extern int mgmt_db_lookup_data_nodes(mgmt_db_hndl_t db_hndl, const char *xpath,
+extern int mgmt_db_lookup_data_nodes(uint64_t db_hndl, const char *xpath,
 				     char *dxpaths[], int *num_nodes,
 				     bool get_childs_as_well,
 				     bool alloc_xp_copy);
 
-extern struct lyd_node *mgmt_db_find_data_node_by_xpath(mgmt_db_hndl_t db_hndl,
+extern struct lyd_node *mgmt_db_find_data_node_by_xpath(uint64_t db_hndl,
 							const char *xpath);
 
-extern int mgmt_db_delete_data_nodes(mgmt_db_hndl_t db_hndl, const char *xpath);
+extern int mgmt_db_delete_data_nodes(uint64_t db_hndl, const char *xpath);
 
-extern int mgmt_db_iter_data(mgmt_db_hndl_t db_hndl, char *base_xpath,
+extern int mgmt_db_iter_data(uint64_t db_hndl, char *base_xpath,
 			     mgmt_db_node_iter_fn iter_fn, void *ctxt,
 			     bool alloc_xp_copy);
 
-extern int mgmt_db_load_config_from_file(mgmt_db_hndl_t db_hndl,
+extern int mgmt_db_load_config_from_file(uint64_t db_hndl,
 					 const char *file_path, bool merge);
 
-extern int mgmt_db_hndl_send_get_data_req(mgmt_db_hndl_t db_hndl,
+extern int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl,
 					  mgmt_database_id_t db_id,
 					  mgmt_yang_getdata_req_t *data_req,
 					  int num_reqs);
 
-extern void mgmt_db_dump_tree(struct vty *vty, mgmt_db_hndl_t db_hndl,
+extern void mgmt_db_dump_tree(struct vty *vty, uint64_t db_hndl,
 			      const char *xpath, FILE *f, LYD_FORMAT format);
 
-extern int mgmt_db_dump_db_to_file(char *file_name, mgmt_db_hndl_t db);
+extern int mgmt_db_dump_db_to_file(char *file_name, uint64_t db);
 
 extern int mgmt_db_rollback_by_cmtid(struct vty *vty, const char *cmtid_str);
 
 extern int mgmt_db_rollback_commits(struct vty *vty, int num_cmts);
 
-extern void mgmt_db_status_write_one(struct vty *vty, mgmt_db_hndl_t db_hndl);
+extern void mgmt_db_status_write_one(struct vty *vty, uint64_t db_hndl);
 
 extern void mgmt_db_status_write(struct vty *vty);
 

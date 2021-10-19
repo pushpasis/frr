@@ -96,17 +96,17 @@ extern mgmt_trxn_type_t mgmt_get_trxn_type(mgmt_trxn_id_t trxn_id);
 extern int mgmt_trxn_send_set_config_req(mgmt_trxn_id_t trxn_id,
 					 mgmt_client_req_id_t req_id,
 					 mgmt_database_id_t db_id,
-					 mgmt_db_hndl_t db_hndl,
+					 uint64_t db_hndl,
 					 mgmt_yang_cfgdata_req_t *cfg_req[],
 					 size_t num_req, bool implicit_commit,
 					 mgmt_database_id_t dst_db_id,
-					 mgmt_db_hndl_t dst_db_hndl);
+					 uint64_t dst_db_hndl);
 
 extern int mgmt_trxn_send_commit_config_req(
 	mgmt_trxn_id_t trxn_id, mgmt_client_req_id_t req_id,
-	mgmt_database_id_t src_db_id, mgmt_db_hndl_t dst_db_hndl,
-	mgmt_database_id_t dst_db_id, mgmt_db_hndl_t src_db_hndl,
-	bool validate_only, bool abort, bool implicit);
+	mgmt_database_id_t src_db_id, uint64_t dst_db_hndl,
+	mgmt_database_id_t dst_db_id, uint64_t src_db_hndl, bool validate_only,
+	bool abort, bool implicit);
 
 extern int mgmt_trxn_send_commit_config_reply(mgmt_trxn_id_t trxn_id,
 					      bool success,
@@ -115,14 +115,14 @@ extern int mgmt_trxn_send_commit_config_reply(mgmt_trxn_id_t trxn_id,
 extern int mgmt_trxn_send_get_config_req(mgmt_trxn_id_t trxn_id,
 					 mgmt_client_req_id_t req_id,
 					 mgmt_database_id_t db_id,
-					 mgmt_db_hndl_t db_hndl,
+					 uint64_t db_hndl,
 					 mgmt_yang_getdata_req_t **data_req,
 					 size_t num_reqs);
 
 extern int mgmt_trxn_send_get_data_req(mgmt_trxn_id_t trxn_id,
 				       mgmt_client_req_id_t req_id,
 				       mgmt_database_id_t db_id,
-				       mgmt_db_hndl_t db_hndl,
+				       uint64_t db_hndl,
 				       mgmt_yang_getdata_req_t **data_req,
 				       size_t num_reqs);
 
@@ -152,6 +152,6 @@ mgmt_trxn_notify_bcknd_cfg_apply_reply(mgmt_trxn_id_t trxn_id, bool success,
 
 extern void mgmt_trxn_status_write(struct vty *vty);
 
-extern int mgmt_trxn_rollback_trigger_cfg_apply(mgmt_db_hndl_t src_db_hndl,
-						mgmt_db_hndl_t dst_db_hndl);
+extern int mgmt_trxn_rollback_trigger_cfg_apply(uint64_t src_db_hndl,
+						uint64_t dst_db_hndl);
 #endif /* _FRR_MGMTD_TRXN_H_ */

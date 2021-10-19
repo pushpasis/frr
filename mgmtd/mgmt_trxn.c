@@ -61,12 +61,12 @@ PREDECL_LIST(mgmt_trxn_req_list);
 
 struct mgmt_set_cfg_req {
 	mgmt_database_id_t db_id;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	struct nb_cfg_change cfg_changes[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	uint16_t num_cfg_changes;
 	bool implicit_commit;
 	mgmt_database_id_t dst_db_id;
-	mgmt_db_hndl_t dst_db_hndl;
+	uint64_t dst_db_hndl;
 	struct mgmt_setcfg_stats *setcfg_stats;
 };
 
@@ -125,16 +125,17 @@ struct mgmt_trxn_bcknd_cfg_batch {
 	struct mgmt_trxn_batch_list_item list_linkage;
 };
 
-DECLARE_LIST(mgmt_trxn_batch_list, struct mgmt_trxn_bcknd_cfg_batch, list_linkage);
+DECLARE_LIST(mgmt_trxn_batch_list, struct mgmt_trxn_bcknd_cfg_batch,
+	     list_linkage);
 
 #define FOREACH_TRXN_CFG_BATCH_IN_LIST(list, batch)                            \
-	frr_each_safe(mgmt_trxn_batch_list, list, batch)
+	frr_each_safe (mgmt_trxn_batch_list, list, batch)
 
 struct mgmt_commit_cfg_req {
 	mgmt_database_id_t src_db_id;
-	mgmt_db_hndl_t src_db_hndl;
+	uint64_t src_db_hndl;
 	mgmt_database_id_t dst_db_id;
-	mgmt_db_hndl_t dst_db_hndl;
+	uint64_t dst_db_hndl;
 	uint32_t nb_trxn_id;
 	uint8_t validate_only : 1;
 	uint8_t abort : 1;
@@ -197,7 +198,7 @@ struct mgmt_get_data_reply {
 
 struct mgmt_get_data_req {
 	mgmt_database_id_t db_id;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	char *xpaths[MGMTD_MAX_NUM_DATA_REQ_IN_BATCH];
 	int num_xpaths;
 
@@ -614,7 +615,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	struct nb_config *nb_config;
 	char err_buf[1024];
 	bool error;
@@ -1809,8 +1810,7 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 	mgmt_reset_get_data_reply_buf(get_req);
 }
 
-static void mgmt_trxn_iter_and_send_get_cfg_reply(mgmt_db_hndl_t db_hndl,
-						  char *xpath,
+static void mgmt_trxn_iter_and_send_get_cfg_reply(uint64_t db_hndl, char *xpath,
 						  struct lyd_node *node,
 						  struct nb_node *nb_node,
 						  void *ctxt)
@@ -1861,7 +1861,7 @@ mgmtd_ignore_get_cfg_reply_data:
 
 static int mgmt_trxn_get_config(mgmt_trxn_ctxt_t *trxn,
 				struct mgmt_trxn_req *trxn_req,
-				mgmt_db_hndl_t db_hndl)
+				uint64_t db_hndl)
 {
 	struct mgmt_trxn_req_list_head *req_list = NULL;
 	struct mgmt_trxn_req_list_head *pending_list = NULL;
@@ -1942,7 +1942,7 @@ static int mgmt_trxn_process_get_cfg(struct thread *thread)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	int num_processed = 0;
 	bool error;
 
@@ -2011,7 +2011,7 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
-	mgmt_db_hndl_t db_hndl;
+	uint64_t db_hndl;
 	int num_processed = 0;
 	bool error;
 
@@ -2312,12 +2312,11 @@ mgmt_trxn_type_t mgmt_get_trxn_type(mgmt_trxn_id_t trxn_id)
 
 int mgmt_trxn_send_set_config_req(mgmt_trxn_id_t trxn_id,
 				  mgmt_client_req_id_t req_id,
-				  mgmt_database_id_t db_id,
-				  mgmt_db_hndl_t db_hndl,
+				  mgmt_database_id_t db_id, uint64_t db_hndl,
 				  mgmt_yang_cfgdata_req_t *cfg_req[],
 				  size_t num_req, bool implicit_commit,
 				  mgmt_database_id_t dst_db_id,
-				  mgmt_db_hndl_t dst_db_hndl)
+				  uint64_t dst_db_hndl)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
@@ -2391,11 +2390,13 @@ int mgmt_trxn_send_set_config_req(mgmt_trxn_id_t trxn_id,
 	return 0;
 }
 
-int mgmt_trxn_send_commit_config_req(
-	mgmt_trxn_id_t trxn_id, mgmt_client_req_id_t req_id,
-	mgmt_database_id_t src_db_id, mgmt_db_hndl_t src_db_hndl,
-	mgmt_database_id_t dst_db_id, mgmt_db_hndl_t dst_db_hndl,
-	bool validate_only, bool abort, bool implicit)
+int mgmt_trxn_send_commit_config_req(mgmt_trxn_id_t trxn_id,
+				     mgmt_client_req_id_t req_id,
+				     mgmt_database_id_t src_db_id,
+				     uint64_t src_db_hndl,
+				     mgmt_database_id_t dst_db_id,
+				     uint64_t dst_db_hndl, bool validate_only,
+				     bool abort, bool implicit)
 {
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
@@ -2730,8 +2731,7 @@ int mgmt_trxn_send_commit_config_reply(mgmt_trxn_id_t trxn_id, bool success,
 
 int mgmt_trxn_send_get_config_req(mgmt_trxn_id_t trxn_id,
 				  mgmt_client_req_id_t req_id,
-				  mgmt_database_id_t db_id,
-				  mgmt_db_hndl_t db_hndl,
+				  mgmt_database_id_t db_id, uint64_t db_hndl,
 				  mgmt_yang_getdata_req_t **data_req,
 				  size_t num_reqs)
 {
@@ -2762,8 +2762,7 @@ int mgmt_trxn_send_get_config_req(mgmt_trxn_id_t trxn_id,
 
 int mgmt_trxn_send_get_data_req(mgmt_trxn_id_t trxn_id,
 				mgmt_client_req_id_t req_id,
-				mgmt_database_id_t db_id,
-				mgmt_db_hndl_t db_hndl,
+				mgmt_database_id_t db_id, uint64_t db_hndl,
 				mgmt_yang_getdata_req_t **data_req,
 				size_t num_reqs)
 {
@@ -2810,8 +2809,8 @@ void mgmt_trxn_status_write(struct vty *vty)
 		(int)mgmt_trxn_list_count(&mgmt_trxn_mm->mgmt_trxns));
 }
 
-int mgmt_trxn_rollback_trigger_cfg_apply(mgmt_db_hndl_t src_db_hndl,
-					 mgmt_db_hndl_t dst_db_hndl)
+int mgmt_trxn_rollback_trigger_cfg_apply(uint64_t src_db_hndl,
+					 uint64_t dst_db_hndl)
 {
 	static struct nb_config_cbs changes = {0};
 	struct nb_config_cbs *cfg_chgs = NULL;

@@ -139,7 +139,7 @@ mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id);
 
 extern int
 mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,
-			      mgmt_db_hndl_t db_hndl,
+			      uint64_t db_hndl,
 			      struct nb_config_cbs **cfg_chgs);
 
 extern int mgmt_bcknd_create_trxn(struct mgmt_bcknd_client_adapter *adptr,
