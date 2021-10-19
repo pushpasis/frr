@@ -3374,6 +3374,7 @@ static mgmt_result_t vty_mgmt_get_data_result_notified(
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: GET_DATA request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
+		vty_mgmt_resume_response(vty, success);
 		return MGMTD_INTERNAL_ERROR;
 	}
 
@@ -3605,13 +3606,13 @@ int vty_mgmt_send_get_data(struct vty *vty, mgmt_database_id_t database,
 		getreq[i] = &get_req[i];
 
 	}
-	ret = mgmt_frntnd_get_config_data(mgmt_lib_hndl, vty->mgmt_session_id,
+	ret = mgmt_frntnd_get_data(mgmt_lib_hndl, vty->mgmt_session_id,
 		vty->mgmt_req_id, database, getreq, num_req);
 
 	if (ret != MGMTD_SUCCESS) {
-		zlog_err("Failed to send GET-CONFIG to MGMTD for req-id %lu.",
+		zlog_err("Failed to send GET-DATA to MGMTD for req-id %lu.",
 			vty->mgmt_req_id);
-		vty_out(vty, "Failed to send GET-CONFIG to MGMTD!");
+		vty_out(vty, "Failed to send GET-DATA to MGMTD!");
 		return -1;
 	}
 

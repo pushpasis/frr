@@ -455,7 +455,7 @@ static int mgmt_frntnd_send_getdata_req(mgmt_frntnd_client_ctxt_t *clnt_ctxt,
 	frntnd_msg.message_case = MGMTD__FRNTND_MESSAGE__MESSAGE_GETDATA_REQ;
 	frntnd_msg.getdata_req = &getdata_req;
 
-	MGMTD_FRNTND_CLNT_DBG("Sending GET_CONFIG_REQ message for Db:%d session %lu (#xpaths:%d) to MGMTD Frontend server",
+	MGMTD_FRNTND_CLNT_DBG("Sending GET_DATA_REQ message for Db:%d session %lu (#xpaths:%d) to MGMTD Frontend server",
 		db_id, sessn->client_id, num_data_reqs);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);

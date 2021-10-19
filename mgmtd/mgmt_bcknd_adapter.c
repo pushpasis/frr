@@ -1129,7 +1129,7 @@ void mgmt_bcknd_adapter_status_write(struct vty *vty)
 {
 	mgmt_bcknd_client_adapter_t *adptr;
 
-	vty_out(vty, "MGMTD Backend Adpaters\n");
+	vty_out(vty, "MGMTD Backend Adapters\n");
 
 	FOREACH_ADPTR_IN_LIST(adptr) {
 		vty_out(vty, "  Client: \t\t\t%s\n", adptr->name);
@@ -1198,7 +1198,7 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 				subscr.xpath_subscr[id].own_oper_data ? "T" : "F");
 			adptr = mgmt_bcknd_get_adapter_by_id(id);
 			if (adptr) {
-				vty_out(vty, "    -- Adapter: 0x%p\n", adptr);
+				vty_out(vty, "    -- Adapter: %p\n", adptr);
 			}
 		}
 	}

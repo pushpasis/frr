@@ -527,7 +527,8 @@ static int mgmt_frntnd_send_getcfg_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	/*
 	 * Cleanup the SHOW transaction associated with this session.
 	 */
-	if (data->next_indx < 0 && sessn->trxn_id)
+	if (sessn->trxn_id &&
+		(!success || (data && data->next_indx < 0)))
 		mgmt_frntnd_session_register_event(
 			sessn, MGMTD_FRNTND_SESSN_SHOW_TRXN_CLNUP);
 
@@ -555,7 +556,7 @@ static int mgmt_frntnd_send_getdata_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 
 	mgmtd__frntnd_message__init(&frntnd_msg);
 	frntnd_msg.type = MGMTD__FRNTND_MESSAGE__TYPE__GET_DATA_REPLY;
-	frntnd_msg.message_case = MGMTD__FRNTND_MESSAGE__MESSAGE_GETCFG_REPLY;
+	frntnd_msg.message_case = MGMTD__FRNTND_MESSAGE__MESSAGE_GETDATA_REPLY;
 	frntnd_msg.getdata_reply = &getdata_reply;
 
 	MGMTD_FRNTND_ADPTR_DBG("Sending GET_DATA_REPLY message to MGMTD Frontend client '%s'",
@@ -564,7 +565,8 @@ static int mgmt_frntnd_send_getdata_reply(mgmt_frntnd_sessn_ctxt_t *sessn,
 	/*
 	 * Cleanup the SHOW transaction associated with this session.
 	 */
-	if (data->next_indx < 0 && sessn->trxn_id)
+	if (sessn->trxn_id &&
+		(!success || (data && data->next_indx < 0)))
 		mgmt_frntnd_session_register_event(
 			sessn, MGMTD_FRNTND_SESSN_SHOW_TRXN_CLNUP);
 
@@ -1032,7 +1034,7 @@ static int mgmt_frntnd_session_handle_getdata_req_msg(
 	{
 		mgmt_frntnd_send_getdata_reply(sessn,
 				getdata_req->db_id, getdata_req->req_id, false,
-				NULL, "Request processing for GET-CONFIG failed!");
+				NULL, "Request processing for GET-DATA failed!");
 		goto mgmt_frntnd_session_handle_getdata_req_failed;
 	}
 
@@ -1699,9 +1701,7 @@ int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
 	if (!sessn || sessn->trxn_id != trxn_id)
 		return -1;
 
-	return 0;
-
-	return mgmt_frntnd_send_getcfg_reply(sessn, db_id, req_id,
+	return mgmt_frntnd_send_getdata_reply(sessn, db_id, req_id,
 			result == MGMTD_SUCCESS, data_resp, error_if_any);
 }
 
