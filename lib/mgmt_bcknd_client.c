@@ -232,7 +232,7 @@ mgmt_bcknd_batch_create(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
 		batch->batch_id = batch_id;
 		mgmt_bcknd_batch_list_add_tail(&trxn->cfg_batches, batch);
 
-		MGMTD_BCKND_CLNT_DBG("Added new batch 0x%lx to transaction",
+		MGMTD_BCKND_CLNT_DBG("Added new batch 0x%llx to transaction",
 				     batch_id);
 	}
 
@@ -315,7 +315,7 @@ mgmt_bcknd_trxn_create(mgmt_bcknd_client_ctxt_t *clnt_ctxt, uint64_t trxn_id)
 		mgmt_bcknd_batch_list_init(&trxn->apply_cfgs);
 		mgmt_bcknd_trxn_list_add_tail(&clnt_ctxt->trxn_head, trxn);
 
-		MGMTD_BCKND_CLNT_DBG("Added new transaction 0x%lx", trxn_id);
+		MGMTD_BCKND_CLNT_DBG("Added new transaction 0x%llx", trxn_id);
 	}
 
 	return trxn;
@@ -391,7 +391,7 @@ static int mgmt_bcknd_send_trxn_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	bcknd_msg.trxn_reply = &trxn_reply;
 
 	MGMTD_BCKND_CLNT_DBG(
-		"Sending TRXN_REPLY message to MGMTD for trxn 0x%lx", trxn_id);
+		"Sending TRXN_REPLY message to MGMTD for trxn 0x%llx", trxn_id);
 
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
@@ -409,12 +409,13 @@ static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 			 * Should not happen under any circumstances.
 			 */
 			MGMTD_BCKND_CLNT_ERR(
-				"Transaction 0x%lx already exists!!!", trxn_id);
+				"Transaction 0x%llx already exists!!!",
+				trxn_id);
 			mgmt_bcknd_send_trxn_reply(clnt_ctxt, trxn_id, create,
 						   false);
 		}
 
-		MGMTD_BCKND_CLNT_DBG("Created new transaction 0x%lx", trxn_id);
+		MGMTD_BCKND_CLNT_DBG("Created new transaction 0x%llx", trxn_id);
 		trxn = mgmt_bcknd_trxn_create(clnt_ctxt, trxn_id);
 
 		if (clnt_ctxt->client_params.trxn_notify_cb)
@@ -429,10 +430,10 @@ static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 			 * Return sucess anyways.
 			 */
 			MGMTD_BCKND_CLNT_DBG(
-				"Transaction to delete 0x%lx does NOT exists!!!",
+				"Transaction to delete 0x%llx does NOT exists!!!",
 				trxn_id);
 		} else {
-			MGMTD_BCKND_CLNT_DBG("Delete transaction 0x%lx",
+			MGMTD_BCKND_CLNT_DBG("Delete transaction 0x%llx",
 					     trxn_id);
 			mgmt_bcknd_trxn_delete(clnt_ctxt, &trxn);
 		}
@@ -464,7 +465,7 @@ mgmt_bcknd_send_cfgdata_create_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	bcknd_msg.cfg_data_reply = &cfgdata_reply;
 
 	MGMTD_BCKND_CLNT_DBG(
-		"Sending CFGDATA_CREATE_REPLY message to MGMTD for trxn 0x%lx batch 0x%lx",
+		"Sending CFGDATA_CREATE_REPLY message to MGMTD for trxn 0x%llx batch 0x%llx",
 		trxn_id, batch_id);
 
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
@@ -479,7 +480,7 @@ static int mgmt_bcknd_trxn_cfg_abort(mgmt_bcknd_trxn_ctxt_t *trxn)
 	    || !CHECK_FLAG(trxn->flags, MGMTD_BCKND_TRXN_FLAGS_CFGPREP_FAILED))
 		return -1;
 
-	MGMTD_BCKND_CLNT_ERR("Aborting configurations for Trxn 0x%lx",
+	MGMTD_BCKND_CLNT_ERR("Aborting configurations for Trxn 0x%llx",
 			     trxn->trxn_id);
 	nb_candidate_commit_abort(trxn->nb_trxn, errmsg, sizeof(errmsg));
 	trxn->nb_trxn = 0;
@@ -534,7 +535,7 @@ static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
 			if (error) {
 				err_buf[sizeof(err_buf) - 1] = 0;
 				MGMTD_BCKND_CLNT_ERR(
-					"Failed to update configs for Trxn %lx Batch %lx to Candidate! Err: '%s'",
+					"Failed to update configs for Trxn %llx Batch %llx to Candidate! Err: '%s'",
 					trxn->trxn_id, batch->batch_id,
 					err_buf);
 				return -1;
@@ -571,14 +572,14 @@ static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
 	    != NB_OK) {
 		err_buf[sizeof(err_buf) - 1] = 0;
 		MGMTD_BCKND_CLNT_ERR(
-			"Failed to prepare configs for Trxn %lx, %u Batches! Err: '%s'",
+			"Failed to prepare configs for Trxn %llx, %u Batches! Err: '%s'",
 			trxn->trxn_id, (uint32_t)num_processed, err_buf);
 		error = true;
 		SET_FLAG(trxn->flags, MGMTD_BCKND_TRXN_FLAGS_CFGPREP_FAILED);
 	}
 
 	MGMTD_BCKND_CLNT_DBG(
-		"Prepared configs for Trxn %lx, %u Batches! successfully!",
+		"Prepared configs for Trxn %llx, %u Batches! successfully!",
 		trxn->trxn_id, (uint32_t)num_processed);
 	if (mgmt_debug_bcknd_clnt) {
 		mgmt_get_realtime(&prep_nb_cfg_end);
@@ -639,7 +640,7 @@ static int mgmt_bcknd_update_setcfg_in_batch(
 	trxn_req = &batch->trxn_req;
 	trxn_req->event = MGMTD_BCKND_TRXN_PROC_SETCFG;
 	MGMTD_BCKND_CLNT_DBG(
-		"Created Set-Config request for batch 0x%lx, trxn id 0x%lx, cfg-items:%d",
+		"Created Set-Config request for batch 0x%llx, trxn id 0x%llx, cfg-items:%d",
 		batch_id, trxn->trxn_id, num_req);
 
 	trxn_req->req.set_cfg.num_cfg_changes = num_req;
@@ -693,7 +694,7 @@ static int mgmt_bcknd_process_cfgdata_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
 	if (!trxn) {
 		MGMTD_BCKND_CLNT_ERR(
-			"Invalid trxn-id 0x%lx provided from MGMTD server",
+			"Invalid trxn-id 0x%llx provided from MGMTD server",
 			trxn_id);
 		mgmt_bcknd_send_cfgdata_create_reply(
 			clnt_ctxt, trxn_id, batch_id, false,
@@ -736,7 +737,7 @@ static int mgmt_bcknd_send_validate_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	bcknd_msg.cfg_validate_reply = &validate_reply;
 
 	MGMTD_BCKND_CLNT_DBG(
-		"Sending CFG_VALIDATE_REPLY message to MGMTD for trxn 0x%lx %d  batches [0x%lx - 0x%lx]",
+		"Sending CFG_VALIDATE_REPLY message to MGMTD for trxn 0x%llx %d  batches [0x%llx - 0x%llx]",
 		trxn_id, (int)num_batch_ids, batch_ids[0],
 		batch_ids[num_batch_ids - 1]);
 
@@ -776,7 +777,7 @@ static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 
 		if (batch->trxn_req.event != MGMTD_BCKND_TRXN_PROC_SETCFG) {
 			snprintf(err_buf, sizeof(err_buf),
-				 "Batch-id 0x%lx not a Config Data Batch!",
+				 "Batch-id 0x%llx not a Config Data Batch!",
 				 batch_ids[indx]);
 			mgmt_bcknd_send_validate_reply(clnt_ctxt, trxn_id,
 						       batch_ids, num_batch_ids,
@@ -794,7 +795,7 @@ static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		if (error) {
 			err_buf[sizeof(err_buf) - 1] = 0;
 			MGMTD_BCKND_CLNT_ERR(
-				"Failed to apply configs for Trxn %lx Batch %lx to Candidate! Err: '%s'",
+				"Failed to apply configs for Trxn %llx Batch %llx to Candidate! Err: '%s'",
 				trxn_id, batch_ids[indx], err_buf);
 			mgmt_bcknd_send_validate_reply(
 				clnt_ctxt, trxn_id, batch_ids, num_batch_ids,
@@ -812,7 +813,7 @@ static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	    != NB_OK) {
 		err_buf[sizeof(err_buf) - 1] = 0;
 		MGMTD_BCKND_CLNT_ERR(
-			"Failed to validate configs for Trxn %lx Batch %lx! Err: '%s'",
+			"Failed to validate configs for Trxn %llx Batch %llx! Err: '%s'",
 			trxn_id, batch_ids[indx], err_buf);
 		mgmt_bcknd_send_validate_reply(
 			clnt_ctxt, trxn_id, batch_ids, num_batch_ids, false,
@@ -851,7 +852,7 @@ static int mgmt_bcknd_send_apply_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	bcknd_msg.cfg_apply_reply = &apply_reply;
 
 	MGMTD_BCKND_CLNT_DBG(
-		"Sending CFG_APPLY_REPLY message to MGMTD for trxn 0x%lx %d  batches [0x%lx - 0x%lx]",
+		"Sending CFG_APPLY_REPLY message to MGMTD for trxn 0x%llx %d  batches [0x%llx - 0x%llx]",
 		trxn_id, (int)num_batch_ids, batch_ids[0],
 		batch_ids[num_batch_ids - 1]);
 

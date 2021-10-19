@@ -61,6 +61,8 @@ extern bool mgmt_debug_frntnd;
 extern bool mgmt_debug_db;
 extern bool mgmt_debug_trxn;
 
+struct mgmt_trxn_ctxt;
+
 /* MGMTD master for system wide configurations and variables.  */
 struct mgmt_master {
 	struct thread_master *master;
@@ -81,7 +83,7 @@ struct mgmt_master {
 	struct mgmt_trxn_list_head mgmt_trxns;
 
 	/* The single instance of config transaction allowed at any time */
-	mgmt_trxn_ctxt_t *cfg_trxn;
+	struct mgmt_trxn_ctxt *cfg_trxn;
 
 	/* Databases */
 	uint64_t running_db;

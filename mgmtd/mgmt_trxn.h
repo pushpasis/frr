@@ -55,16 +55,14 @@ PREDECL_LIST(mgmt_trxn_list);
 
 struct mgmt_master;
 
-struct mgmt_trxn_ctx_;
-typedef struct mgmt_trxn_ctxt_ mgmt_trxn_ctxt_t;
 
-typedef enum mgmt_trxn_type_ {
+enum mgmt_trxn_type {
 	MGMTD_TRXN_TYPE_NONE = 0,
 	MGMTD_TRXN_TYPE_CONFIG,
 	MGMTD_TRXN_TYPE_SHOW
-} mgmt_trxn_type_t;
+};
 
-static inline const char *mgmt_trxn_type2str(mgmt_trxn_type_t type)
+static inline const char *mgmt_trxn_type2str(enum mgmt_trxn_type type)
 {
 	switch (type) {
 	case MGMTD_TRXN_TYPE_NONE:
@@ -85,13 +83,13 @@ extern int mgmt_trxn_init(struct mgmt_master *cm, struct thread_master *tm);
 extern mgmt_session_id_t mgmt_config_trxn_in_progress(void);
 
 extern uint64_t mgmt_create_trxn(mgmt_session_id_t session_id,
-				 mgmt_trxn_type_t type);
+				 enum mgmt_trxn_type type);
 
 extern void mgmt_destroy_trxn(uint64_t *trxn_id);
 
 extern bool mgmt_trxn_id_is_valid(uint64_t trxn_id);
 
-extern mgmt_trxn_type_t mgmt_get_trxn_type(uint64_t trxn_id);
+extern enum mgmt_trxn_type mgmt_get_trxn_type(uint64_t trxn_id);
 
 extern int mgmt_trxn_send_set_config_req(
 	uint64_t trxn_id, mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
