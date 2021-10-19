@@ -111,7 +111,7 @@ PREDECL_LIST(mgmt_trxn_batch_list);
 
 struct mgmt_trxn_bcknd_cfg_batch {
 	struct mgmt_trxn_ctxt *trxn;
-	mgmt_bcknd_client_id_t bcknd_id;
+	enum mgmt_bcknd_client_id bcknd_id;
 	struct mgmt_bcknd_client_adapter *bcknd_adptr;
 	union mgmt_bcknd_xpath_subscr_info
 		xp_subscr[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
@@ -336,7 +336,7 @@ static struct mgmt_trxn_ctxt *mgmt_trxn_id2ctxt(uint64_t trxn_id)
 
 static struct mgmt_trxn_bcknd_cfg_batch *
 mgmt_trxn_cfg_batch_alloc(struct mgmt_trxn_ctxt *trxn,
-			  mgmt_bcknd_client_id_t id,
+			  enum mgmt_bcknd_client_id id,
 			  struct mgmt_bcknd_client_adapter *bcknd_adptr)
 {
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -365,7 +365,7 @@ mgmt_trxn_cfg_batch_alloc(struct mgmt_trxn_ctxt *trxn,
 
 static void
 mgmt_trxn_adjust_last_cfg_batch(struct mgmt_commit_cfg_req *cmtcfg_req,
-				mgmt_bcknd_client_id_t id)
+				enum mgmt_bcknd_client_id id)
 {
 }
 
@@ -410,7 +410,7 @@ mgmt_trxn_cfg_batch_free(struct mgmt_trxn_bcknd_cfg_batch **cfg_btch)
 }
 
 static void mgmt_trxn_cleanup_bcknd_cfg_batches(struct mgmt_trxn_ctxt *trxn,
-						mgmt_bcknd_client_id_t id)
+						enum mgmt_bcknd_client_id id)
 {
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
 	struct mgmt_trxn_batch_list_head *list;
@@ -437,7 +437,7 @@ static struct mgmt_trxn_req *mgmt_trxn_req_alloc(struct mgmt_trxn_ctxt *trxn,
 						 enum mgmt_trxn_event req_event)
 {
 	struct mgmt_trxn_req *trxn_req;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 
 	trxn_req = XCALLOC(MTYPE_MGMTD_TRXN_REQ, sizeof(struct mgmt_trxn_req));
 	assert(trxn_req);
@@ -505,7 +505,7 @@ static void mgmt_trxn_req_free(struct mgmt_trxn_req **trxn_req)
 	int indx;
 	struct mgmt_trxn_req_list_head *req_list = NULL;
 	struct mgmt_trxn_req_list_head *pending_list = NULL;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 
 	switch ((*trxn_req)->req_event) {
@@ -905,7 +905,7 @@ mgmt_try_move_commit_to_next_phase(struct mgmt_trxn_ctxt *trxn,
 				   struct mgmt_commit_cfg_req *cmtcfg_req)
 {
 	struct mgmt_trxn_batch_list_head *curr_list, *next_list;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 
 	MGMTD_TRXN_DBG("Trxn-Id %p, Phase(current:'%s' next:'%s')", trxn,
 		       mgmt_trxn_commit_phase_str(trxn, true),
@@ -1003,7 +1003,7 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 	struct mgmt_bcknd_client_subscr_info subscr_info;
 	char *xpath = NULL, *value = NULL;
 	char err_buf[1024];
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	bool found_validator;
@@ -1334,7 +1334,7 @@ mgmt_trxn_prepare_config_done:
 
 static int mgmt_trxn_send_bcknd_trxn_create(struct mgmt_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_bcknd_cfg_batch *cfg_btch;
@@ -1500,7 +1500,7 @@ static int mgmt_trxn_cfg_commit_timedout(struct thread *thread)
  */
 static int mgmt_trxn_send_bcknd_cfg_apply(struct mgmt_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	struct mgmt_trxn_batch_list_head *btch_list;
@@ -1562,7 +1562,7 @@ static int mgmt_trxn_send_bcknd_cfg_apply(struct mgmt_trxn_ctxt *trxn)
  */
 static int mgmt_trxn_send_bcknd_cfg_validate(struct mgmt_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
 	uint64_t *batch_ids;

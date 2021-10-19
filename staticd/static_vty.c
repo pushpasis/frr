@@ -1352,9 +1352,10 @@ static void static_mgmt_bcknd_client_connect(uint64_t lib_hndl,
 		(void)mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl, NULL, 0);
 }
 
-static void static_mgmt_trxn_notify(uint64_t lib_hndl, uint64_t usr_data,
-				    mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
-				    bool destroyed)
+static void
+static_mgmt_trxn_notify(uint64_t lib_hndl, uint64_t usr_data,
+			struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+			bool destroyed)
 {
 	zlog_debug("Got Trxn %s Notify from MGMTD server",
 		   destroyed ? "DESTROY" : "CREATE");
@@ -1372,10 +1373,12 @@ static void static_mgmt_trxn_notify(uint64_t lib_hndl, uint64_t usr_data,
 	}
 }
 
-static enum mgmt_result static_mgmt_data_validate(
-	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_value *data, bool delete, char *error_if_any)
+static enum mgmt_result
+static_mgmt_data_validate(uint64_t lib_hndl, uint64_t usr_data,
+			  struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+			  struct nb_yang_xpath *xpath,
+			  struct nb_yang_value *data, bool delete,
+			  char *error_if_any)
 {
 	/*
 	 * Get the private scratchpad for this transaction (if installed).
@@ -1387,7 +1390,7 @@ static enum mgmt_result static_mgmt_data_validate(
 
 static enum mgmt_result
 static_mgmt_data_apply(uint64_t lib_hndl, uint64_t usr_data,
-		       mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+		       struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
 		       struct nb_yang_xpath *xpath, struct nb_yang_value *data,
 		       bool delete)
 {
@@ -1401,7 +1404,7 @@ static_mgmt_data_apply(uint64_t lib_hndl, uint64_t usr_data,
 
 static enum mgmt_result
 static_mgmt_get_data_elem(uint64_t lib_hndl, uint64_t usr_data,
-			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+			  struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
 			  struct nb_yang_xpath *xpath,
 			  struct nb_yang_xpath_elem *elem)
 {
@@ -1415,7 +1418,7 @@ static_mgmt_get_data_elem(uint64_t lib_hndl, uint64_t usr_data,
 
 static enum mgmt_result
 static_mgmt_get_data(uint64_t lib_hndl, uint64_t usr_data,
-		     mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+		     struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
 		     struct nb_yang_xpath *xpath, bool keys_only,
 		     struct nb_yang_xpath_elem **elems, int *num_elems,
 		     int *next_key)
@@ -1430,7 +1433,7 @@ static_mgmt_get_data(uint64_t lib_hndl, uint64_t usr_data,
 
 static enum mgmt_result
 static_mgmt_get_next_data(uint64_t lib_hndl, uint64_t usr_data,
-			  mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt,
+			  struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
 			  struct nb_yang_xpath *xpath, bool keys_only,
 			  struct nb_yang_xpath_elem **elems, int *num_elems)
 {
@@ -1442,7 +1445,7 @@ static_mgmt_get_next_data(uint64_t lib_hndl, uint64_t usr_data,
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_bcknd_client_params_t mgmt_params = {
+static struct mgmt_bcknd_client_params mgmt_params = {
 	.name = MGMTD_BCKND_CLIENT_STATICD,
 	.conn_retry_intvl_sec = 3,
 	.conn_notify_cb = static_mgmt_bcknd_client_connect,

@@ -57,7 +57,7 @@ PREDECL_LIST(mgmt_bcknd_adptr_list);
 PREDECL_LIST(mgmt_trxn_badptr_list);
 
 struct mgmt_bcknd_client_adapter {
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	int conn_fd;
 	union sockunion conn_su;
 	struct thread *conn_init_ev;
@@ -135,7 +135,7 @@ extern struct mgmt_bcknd_client_adapter *
 mgmt_bcknd_get_adapter_by_name(const char *name);
 
 extern struct mgmt_bcknd_client_adapter *
-mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id);
+mgmt_bcknd_get_adapter_by_id(enum mgmt_bcknd_client_id id);
 
 extern int
 mgmt_bcknd_get_adapter_config(struct mgmt_bcknd_client_adapter *adptr,

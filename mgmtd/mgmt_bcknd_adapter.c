@@ -160,7 +160,7 @@ static void mgmt_bcknd_xpath_map_init(void)
 {
 	int indx, num_xpath_maps;
 	uint16_t indx1;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 
 	MGMTD_BCKND_ADPTR_DBG("Init XPath Maps");
 
@@ -443,7 +443,7 @@ static int mgmt_bcknd_adapter_send_msg(struct mgmt_bcknd_client_adapter *adptr,
 {
 	size_t msg_size;
 	uint8_t *msg_buf = adptr->msg_buf;
-	mgmt_bcknd_msg_t *msg;
+	struct mgmt_bcknd_msg *msg;
 
 	if (adptr->conn_fd == 0)
 		return -1;
@@ -457,7 +457,7 @@ static int mgmt_bcknd_adapter_send_msg(struct mgmt_bcknd_client_adapter *adptr,
 		return -1;
 	}
 
-	msg = (mgmt_bcknd_msg_t *)msg_buf;
+	msg = (struct mgmt_bcknd_msg *)msg_buf;
 	msg->hdr.marker = MGMTD_BCKND_MSG_MARKER;
 	msg->hdr.len = (uint16_t)msg_size;
 	mgmtd__bcknd_message__pack(bcknd_msg, msg->payload);
@@ -583,14 +583,14 @@ mgmt_bcknd_adapter_process_msg(struct mgmt_bcknd_client_adapter *adptr,
 			       uint8_t *msg_buf, uint16_t bytes_read)
 {
 	Mgmtd__BckndMessage *bcknd_msg;
-	mgmt_bcknd_msg_t *msg;
+	struct mgmt_bcknd_msg *msg;
 	uint16_t bytes_left;
 	uint16_t processed = 0;
 
 	bytes_left = bytes_read;
 	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;
 	     bytes_left -= msg->hdr.len, msg_buf += msg->hdr.len) {
-		msg = (mgmt_bcknd_msg_t *)msg_buf;
+		msg = (struct mgmt_bcknd_msg *)msg_buf;
 		if (msg->hdr.marker != MGMTD_BCKND_MSG_MARKER) {
 			MGMTD_BCKND_ADPTR_DBG(
 				"Marker not found in message from MGMTD Backend adapter '%s'",
@@ -667,7 +667,7 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 	struct mgmt_bcknd_client_adapter *adptr;
 	int bytes_read, msg_cnt;
 	size_t total_bytes, bytes_left;
-	mgmt_bcknd_msg_hdr_t *msg_hdr;
+	struct mgmt_bcknd_msg_hdr *msg_hdr;
 	bool incomplete = false;
 
 	adptr = (struct mgmt_bcknd_client_adapter *)THREAD_ARG(thread);
@@ -714,8 +714,10 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 	msg_cnt = 0;
 	bytes_left = stream_get_endp(adptr->ibuf_work);
 	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;) {
-		msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
-						   + total_bytes);
+		msg_hdr =
+			(struct mgmt_bcknd_msg_hdr *)(STREAM_DATA(
+							      adptr->ibuf_work)
+						      + total_bytes);
 		if (msg_hdr->marker != MGMTD_BCKND_MSG_MARKER) {
 			/* Corrupted buffer. Force disconnect?? */
 			MGMTD_BCKND_ADPTR_ERR(
@@ -738,8 +740,8 @@ static int mgmt_bcknd_adapter_read(struct thread *thread)
 	 * We would have read one or several messages.
 	 * Schedule processing them now.
 	 */
-	msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
-					   + total_bytes);
+	msg_hdr = (struct mgmt_bcknd_msg_hdr *)(STREAM_DATA(adptr->ibuf_work)
+						+ total_bytes);
 	stream_set_endp(adptr->ibuf_work, total_bytes);
 	stream_fifo_push(adptr->ibuf_fifo, adptr->ibuf_work);
 	adptr->ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
@@ -1015,7 +1017,7 @@ mgmt_bcknd_create_adapter(int conn_fd, union sockunion *from)
 }
 
 struct mgmt_bcknd_client_adapter *
-mgmt_bcknd_get_adapter_by_id(mgmt_bcknd_client_id_t id)
+mgmt_bcknd_get_adapter_by_id(enum mgmt_bcknd_client_id id)
 {
 	return (id < MGMTD_BCKND_CLIENT_ID_MAX ? mgmt_bcknd_adptrs_by_id[id]
 					       : NULL);
@@ -1110,7 +1112,7 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info)
 {
 	int indx, match, max_match = 0, num_reg;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_subscr_info
 		*reg_maps[array_size(mgmt_xpath_map)] = {0};
 
@@ -1176,7 +1178,7 @@ void mgmt_bcknd_adapter_status_write(struct vty *vty)
 void mgmt_bcknd_xpath_register_write(struct vty *vty)
 {
 	int indx;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 
 	vty_out(vty, "MGMTD Backend XPath Registry\n");
@@ -1225,7 +1227,7 @@ void mgmt_bcknd_xpath_register_write(struct vty *vty)
 void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 {
 	struct mgmt_bcknd_client_subscr_info subscr;
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr) != 0) {
