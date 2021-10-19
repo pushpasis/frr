@@ -3378,7 +3378,7 @@ static mgmt_result_t vty_mgmt_get_data_result_notified(
 		return MGMTD_INTERNAL_ERROR;
 	}
 
-	zlog_err("GET_DATA request for client 0x%lx req-id %lu was successfull!",
+	zlog_debug("GET_DATA request for client 0x%lx req-id %lu was successfull!",
 		client_id, req_id);
 
 	if (req_id != last_req_id) {
