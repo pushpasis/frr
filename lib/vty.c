@@ -563,12 +563,13 @@ static int vty_command(struct vty *vty, char *buf)
 	    && cputime > cputime_threshold)
 		/* Warn about CPU hog that must be fixed. */
 		flog_warn(EC_LIB_SLOW_THREAD_CPU,
-			  "CPU HOG: command took %lums (cpu time %lums): %s",
+			  "CPU HOG: command took %llums (cpu time %llums): %s",
 			  walltime / 1000, cputime / 1000, buf);
 	else if (walltime_threshold && walltime > walltime_threshold)
-		flog_warn(EC_LIB_SLOW_THREAD_WALL,
-			  "STARVATION: command took %lums (cpu time %lums): %s",
-			  walltime / 1000, cputime / 1000, buf);
+		flog_warn(
+			EC_LIB_SLOW_THREAD_WALL,
+			"STARVATION: command took %llums (cpu time %llums): %s",
+			walltime / 1000, cputime / 1000, buf);
 
 	/* Get the name of the protocol if any */
 	protocolname = frr_protoname;
@@ -1272,13 +1273,13 @@ static int vty_telnet_option(struct vty *vty, unsigned char *buf, int nbytes)
 			if (vty->sb_len != TELNET_NAWS_SB_LEN)
 				flog_err(
 					EC_LIB_SYSTEM_CALL,
-					"RFC 1073 violation detected: telnet NAWS option should send %d characters, but we received %lu",
+					"RFC 1073 violation detected: telnet NAWS option should send %d characters, but we received %llu",
 					TELNET_NAWS_SB_LEN,
 					(unsigned long)vty->sb_len);
 			else if (sizeof(vty->sb_buf) < TELNET_NAWS_SB_LEN)
 				flog_err(
 					EC_LIB_DEVELOPMENT,
-					"Bug detected: sizeof(vty->sb_buf) %lu < %d, too small to handle the telnet NAWS option",
+					"Bug detected: sizeof(vty->sb_buf) %llu < %d, too small to handle the telnet NAWS option",
 					(unsigned long)sizeof(vty->sb_buf),
 					TELNET_NAWS_SB_LEN);
 			else {
@@ -1639,10 +1640,11 @@ struct vty *vty_new(void)
 	new->max = VTY_BUFSIZ;
 
 	if (mgmt_lib_hndl) {
-		if (mgmt_frntnd_create_client_session(
-			mgmt_lib_hndl, (mgmt_client_id_t)new, 0)
-			!= MGMTD_SUCCESS)
-			zlog_err("Failed to open a MGMTD Frontend session for VTY session %p!!",
+		if (mgmt_frntnd_create_client_session(mgmt_lib_hndl,
+						      (uint64_t) new, 0)
+		    != MGMTD_SUCCESS)
+			zlog_err(
+				"Failed to open a MGMTD Frontend session for VTY session %p!!",
 				new);
 	}
 
@@ -3260,8 +3262,8 @@ static void vty_mgmt_server_connected(uint64_t lib_hndl, uint64_t usr_data,
 }
 
 static void vty_mgmt_session_created(uint64_t lib_hndl, uint64_t usr_data,
-				     mgmt_client_id_t client_id, bool create,
-				     bool success, mgmt_session_id_t session_id,
+				     uint64_t client_id, bool create,
+				     bool success, uint64_t session_id,
 				     uintptr_t user_ctxt)
 {
 	struct vty *vty;
@@ -3269,24 +3271,23 @@ static void vty_mgmt_session_created(uint64_t lib_hndl, uint64_t usr_data,
 	vty = (struct vty *)client_id;
 
 	if (!success) {
-		zlog_err("%s session for client %lu failed!", 
-			create ? "Creating" : "Destroying", client_id);
+		zlog_err("%s session for client %llu failed!",
+			 create ? "Creating" : "Destroying", client_id);
 		// assert(!"MGMTD session creation for VTY failed!");
 		return;
 	}
 
-	zlog_err("%s session for client %lu successfully!", 
-		create ? "Created" : "Destroyed", client_id);
+	zlog_err("%s session for client %llu successfully!",
+		 create ? "Created" : "Destroyed", client_id);
 	if (create)
 		vty->mgmt_session_id = session_id;
 }
 
 static void vty_mgmt_db_lock_notified(uint64_t lib_hndl, uint64_t usr_data,
-				      mgmt_client_id_t client_id,
-				      mgmt_session_id_t session_id,
-				      uintptr_t user_ctxt,
-				      mgmt_client_req_id_t req_id, bool lock_db,
-				      bool success, mgmt_database_id_t db_id,
+				      uint64_t client_id, uint64_t session_id,
+				      uintptr_t user_ctxt, uint64_t req_id,
+				      bool lock_db, bool success,
+				      Mgmtd__DatabaseId db_id,
 				      char *errmsg_if_any)
 {
 	struct vty *vty;
@@ -3307,23 +3308,24 @@ static void vty_mgmt_db_lock_notified(uint64_t lib_hndl, uint64_t usr_data,
 }
 
 static void vty_mgmt_set_config_result_notified(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
-	char *errmsg_if_any)
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId db_id, char *errmsg_if_any)
 {
 	struct vty *vty;
 
 	vty = (struct vty *)client_id;
 
 	if (!success) {
-		zlog_err("SET_CONFIG request for client 0x%lx failed! Error: '%s'", 
+		zlog_err(
+			"SET_CONFIG request for client 0x%llx failed! Error: '%s'",
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: SET_CONFIG request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
 		// assert(!"MGMTD SET_CONFIG request for VTY failed!");
 	} else {
-		zlog_err("SET_CONFIG request for client 0x%lx req-id %lu was successfull!",
+		zlog_err(
+			"SET_CONFIG request for client 0x%llx req-id %llu was successfull!",
 			client_id, req_id);
 	}
 
@@ -3331,22 +3333,24 @@ static void vty_mgmt_set_config_result_notified(
 }
 
 static void vty_mgmt_commit_config_result_notified(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t src_db_id,
-	mgmt_database_id_t dst_db_id, bool validate_only, char *errmsg_if_any)
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId src_db_id, Mgmtd__DatabaseId dst_db_id,
+	bool validate_only, char *errmsg_if_any)
 {
 	struct vty *vty;
 
 	vty = (struct vty *)client_id;
 
 	if (!success) {
-		zlog_err("COMMIT_CONFIG request for client 0x%lx failed! Error: '%s'", 
+		zlog_err(
+			"COMMIT_CONFIG request for client 0x%llx failed! Error: '%s'",
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: COMMIT_CONFIG request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
 	} else {
-		zlog_err("COMMIT_CONFIG request for client 0x%lx req-id %lu was successfull!",
+		zlog_err(
+			"COMMIT_CONFIG request for client 0x%llx req-id %llu was successfull!",
 			client_id, req_id);
 		if (errmsg_if_any)
 			vty_out(vty, "MGMTD: %s\n", errmsg_if_any);
@@ -3355,14 +3359,13 @@ static void vty_mgmt_commit_config_result_notified(
 	vty_mgmt_resume_response(vty, success);
 }
 
-static mgmt_client_req_id_t last_req_id = 0xFFFFFFFFFFFFFFFF;
+static uint64_t last_req_id = 0xFFFFFFFFFFFFFFFF;
 
 static enum mgmt_result vty_mgmt_get_data_result_notified(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
-	mgmt_yang_data_t *yang_data[], size_t num_data, int next_key,
-	char *errmsg_if_any)
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[], size_t num_data,
+	int next_key, char *errmsg_if_any)
 {
 	struct vty *vty;
 	size_t indx;
@@ -3370,7 +3373,8 @@ static enum mgmt_result vty_mgmt_get_data_result_notified(
 	vty = (struct vty *)client_id;
 
 	if (!success) {
-		zlog_err("GET_DATA request for client 0x%lx failed! Error: '%s'",
+		zlog_err(
+			"GET_DATA request for client 0x%llx failed! Error: '%s'",
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: GET_DATA request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
@@ -3378,7 +3382,8 @@ static enum mgmt_result vty_mgmt_get_data_result_notified(
 		return MGMTD_INTERNAL_ERROR;
 	}
 
-	zlog_debug("GET_DATA request for client 0x%lx req-id %lu was successfull!",
+	zlog_debug(
+		"GET_DATA request for client 0x%llx req-id %llu was successfull!",
 		client_id, req_id);
 
 	if (req_id != last_req_id) {
@@ -3399,7 +3404,7 @@ static enum mgmt_result vty_mgmt_get_data_result_notified(
 	return MGMTD_SUCCESS;
 }
 
-static mgmt_frntnd_client_params_t client_params = {
+static struct mgmt_frntnd_client_params client_params = {
 	.conn_notify_cb = vty_mgmt_server_connected,
 	.lock_db_result_cb = vty_mgmt_db_lock_notified,
 	.sess_req_result_cb = vty_mgmt_session_created,
@@ -3427,26 +3432,27 @@ bool vty_mgmt_frntnd_enabled(void)
 	return mgmt_lib_hndl && mgmt_frntnd_connected ? true : false;
 }
 
-int vty_mgmt_send_lockdb_req(struct vty *vty, mgmt_database_id_t db_id,
+int vty_mgmt_send_lockdb_req(struct vty *vty, Mgmtd__DatabaseId db_id,
 			     bool lock)
 {
 	enum mgmt_result ret;
 
 	if (mgmt_lib_hndl && vty->mgmt_session_id) {
 		vty->mgmt_req_id++;
-		ret = mgmt_frntnd_lock_db(
-			mgmt_lib_hndl, vty->mgmt_session_id, vty->mgmt_req_id,
-			db_id, lock);
+		ret = mgmt_frntnd_lock_db(mgmt_lib_hndl, vty->mgmt_session_id,
+					  vty->mgmt_req_id, db_id, lock);
 		if (ret != MGMTD_SUCCESS) {
-			zlog_err("Failed to send %sLOCK-DB-REQ to MGMTD for req-id %lu.",
+			zlog_err(
+				"Failed to send %sLOCK-DB-REQ to MGMTD for req-id %llu.",
 				lock ? "" : "UN", vty->mgmt_req_id);
 			vty_out(vty, "Failed to send %sLOCK-DB-REQ to MGMTD!",
 				lock ? "" : "UN");
 			return -1;
 		}
 
-		// zlog_err("Sent %sLOCK-DB-REQ request for session 0x%lx, req-id: %lu!",
-		// 	lock ? "" : "UN", vty->mgmt_session_id, vty->mgmt_req_id);
+		// zlog_err("Sent %sLOCK-DB-REQ request for session 0x%llx,
+		// req-id: %llu!", 	lock ? "" : "UN", vty->mgmt_session_id,
+		// vty->mgmt_req_id);
 
 		vty->mgmt_req_pending = true;
 	}
@@ -3510,8 +3516,9 @@ int vty_mgmt_send_config_data(struct vty *vty)
 			return -1;
 		}
 
-		// zlog_err("Sent SET_CONFIG request for session 0x%lx, req-id: %lu, num_xpaths: %d!",
-		// 	vty->mgmt_session_id, vty->mgmt_req_id, cnt);
+		// zlog_err("Sent SET_CONFIG request for session 0x%llx, req-id:
+		// %llu, num_xpaths: %d!", 	vty->mgmt_session_id,
+		// vty->mgmt_req_id, cnt);
 
 		vty->mgmt_req_pending = true;
 	}
@@ -3530,14 +3537,15 @@ int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only, bool abort)
 			MGMTD_DB_CANDIDATE, MGMTD_DB_RUNNING, validate_only,
 			abort);
 		if (ret != MGMTD_SUCCESS) {
-			zlog_err("Failed to send COMMIT-REQ to MGMTD for req-id %lu.",
+			zlog_err(
+				"Failed to send COMMIT-REQ to MGMTD for req-id %llu.",
 				vty->mgmt_req_id);
 			vty_out(vty, "Failed to send COMMIT-REQ to MGMTD!");
 			return -1;
 		}
 
-		// zlog_err("Sent COMMIT_CONFIG request for session 0x%lx, req-id: %lu!",
-		// 	vty->mgmt_session_id, vty->mgmt_req_id);
+		// zlog_err("Sent COMMIT_CONFIG request for session 0x%llx,
+		// req-id: %llu!", 	vty->mgmt_session_id, vty->mgmt_req_id);
 
 		vty->mgmt_req_pending = true;
 	}
@@ -3545,7 +3553,7 @@ int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only, bool abort)
 	return 0;
 }
 
-int vty_mgmt_send_get_config(struct vty *vty, mgmt_database_id_t database,
+int vty_mgmt_send_get_config(struct vty *vty, Mgmtd__DatabaseId database,
 			     const char **xpath_list, int num_req)
 {
 	enum mgmt_result ret;
@@ -3564,19 +3572,19 @@ int vty_mgmt_send_get_config(struct vty *vty, mgmt_database_id_t database,
 
 		get_req[i].data = &yang_data[i];
 		getreq[i] = &get_req[i];
-
 	}
 	ret = mgmt_frntnd_get_config_data(mgmt_lib_hndl, vty->mgmt_session_id,
-		vty->mgmt_req_id, database, getreq, num_req);
+					  vty->mgmt_req_id, database, getreq,
+					  num_req);
 
 	if (ret != MGMTD_SUCCESS) {
-		zlog_err("Failed to send GET-CONFIG to MGMTD for req-id %lu.",
-			vty->mgmt_req_id);
+		zlog_err("Failed to send GET-CONFIG to MGMTD for req-id %llu.",
+			 vty->mgmt_req_id);
 		vty_out(vty, "Failed to send GET-CONFIG to MGMTD!");
 		return -1;
 	}
 
-	// zlog_err("Sent GET_CONFIG request for session 0x%lx, req-id: %lu!",
+	// zlog_err("Sent GET_CONFIG request for session 0x%llx, req-id: %llu!",
 	// 	vty->mgmt_session_id, vty->mgmt_req_id);
 
 	vty->mgmt_req_pending = true;
@@ -3584,7 +3592,7 @@ int vty_mgmt_send_get_config(struct vty *vty, mgmt_database_id_t database,
 	return 0;
 }
 
-int vty_mgmt_send_get_data(struct vty *vty, mgmt_database_id_t database,
+int vty_mgmt_send_get_data(struct vty *vty, Mgmtd__DatabaseId database,
 			   const char **xpath_list, int num_req)
 {
 	enum mgmt_result ret;
@@ -3603,19 +3611,18 @@ int vty_mgmt_send_get_data(struct vty *vty, mgmt_database_id_t database,
 
 		get_req[i].data = &yang_data[i];
 		getreq[i] = &get_req[i];
-
 	}
 	ret = mgmt_frntnd_get_data(mgmt_lib_hndl, vty->mgmt_session_id,
-		vty->mgmt_req_id, database, getreq, num_req);
+				   vty->mgmt_req_id, database, getreq, num_req);
 
 	if (ret != MGMTD_SUCCESS) {
-		zlog_err("Failed to send GET-DATA to MGMTD for req-id %lu.",
-			vty->mgmt_req_id);
+		zlog_err("Failed to send GET-DATA to MGMTD for req-id %llu.",
+			 vty->mgmt_req_id);
 		vty_out(vty, "Failed to send GET-DATA to MGMTD!");
 		return -1;
 	}
 
-	// zlog_err("Sent GET_DATA request for session 0x%lx, req-id: %lu!",
+	// zlog_err("Sent GET_DATA request for session 0x%llx, req-id: %llu!",
 	// 	vty->mgmt_session_id, vty->mgmt_req_id);
 
 	vty->mgmt_req_pending = true;

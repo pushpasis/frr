@@ -59,7 +59,7 @@ enum mgmt_sessn_event {
 
 struct mgmt_frntnd_sessn_ctxt {
 	struct mgmt_frntnd_client_adapter *adptr;
-	mgmt_client_id_t client_id;
+	uint64_t client_id;
 	uint64_t trxn_id;
 	uint64_t cfg_trxn_id;
 	uint8_t db_write_locked[MGMTD_DB_MAX_ID];
@@ -98,7 +98,7 @@ mgmt_frntnd_session_register_event(struct mgmt_frntnd_sessn_ctxt *sessn,
 				   enum mgmt_sessn_event event);
 
 static int
-mgmt_frntnd_session_write_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
+mgmt_frntnd_session_write_lock_db(Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				  struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	if (!sessn->db_write_locked[db_id]) {
@@ -119,7 +119,7 @@ mgmt_frntnd_session_write_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
 }
 
 static int
-mgmt_frntnd_session_read_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
+mgmt_frntnd_session_read_lock_db(Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				 struct mgmt_frntnd_sessn_ctxt *sessn)
 {
 	if (!sessn->db_read_locked[db_id]) {
@@ -139,7 +139,7 @@ mgmt_frntnd_session_read_lock_db(mgmt_database_id_t db_id, uint64_t db_hndl,
 	return 0;
 }
 
-static int mgmt_frntnd_session_unlock_db(mgmt_database_id_t db_id,
+static int mgmt_frntnd_session_unlock_db(Mgmtd__DatabaseId db_id,
 					 uint64_t db_hndl,
 					 struct mgmt_frntnd_sessn_ctxt *sessn,
 					 bool unlock_write, bool unlock_read)
@@ -178,7 +178,7 @@ static int mgmt_frntnd_session_unlock_db(mgmt_database_id_t db_id,
 static void
 mgmt_frntnd_sessn_cfg_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 {
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	uint64_t db_hndl;
 
 	/*
@@ -203,7 +203,7 @@ mgmt_frntnd_sessn_cfg_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 static void
 mgmt_frntnd_sessn_show_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 {
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	uint64_t db_hndl;
 
 	for (db_id = 0; db_id < MGMTD_DB_MAX_ID; db_id++) {
@@ -268,7 +268,7 @@ static void mgmt_frntnd_cleanup_session(struct mgmt_frntnd_sessn_ctxt **sessn)
 
 static struct mgmt_frntnd_sessn_ctxt *
 mgmt_frntnd_find_session_by_id(struct mgmt_frntnd_client_adapter *adptr,
-			       mgmt_client_id_t client_id)
+			       uint64_t client_id)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -283,7 +283,7 @@ mgmt_frntnd_find_session_by_id(struct mgmt_frntnd_client_adapter *adptr,
 
 static struct mgmt_frntnd_sessn_ctxt *
 mgmt_frntnd_create_session(struct mgmt_frntnd_client_adapter *adptr,
-			   mgmt_client_id_t client_id)
+			   uint64_t client_id)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -345,7 +345,7 @@ mgmt_frntnd_adapter_send_msg(struct mgmt_frntnd_client_adapter *adptr,
 {
 	size_t msg_size;
 	uint8_t msg_buf[MGMTD_FRNTND_MSG_MAX_LEN];
-	mgmt_frntnd_msg_t *msg;
+	struct mgmt_frntnd_msg *msg;
 
 	if (adptr->conn_fd == 0) {
 		MGMTD_FRNTND_ADPTR_ERR("Connection already reset");
@@ -361,7 +361,7 @@ mgmt_frntnd_adapter_send_msg(struct mgmt_frntnd_client_adapter *adptr,
 		return -1;
 	}
 
-	msg = (mgmt_frntnd_msg_t *)msg_buf;
+	msg = (struct mgmt_frntnd_msg *)msg_buf;
 	msg->hdr.marker = MGMTD_FRNTND_MSG_MARKER;
 	msg->hdr.len = (uint16_t)msg_size;
 	mgmtd__frntnd_message__pack(frntnd_msg, msg->payload);
@@ -415,10 +415,9 @@ mgmt_frntnd_send_session_reply(struct mgmt_frntnd_client_adapter *adptr,
 }
 
 static int mgmt_frntnd_send_lockdb_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
-					 mgmt_database_id_t db_id,
-					 mgmt_client_req_id_t req_id,
-					 bool lock_db, bool success,
-					 const char *error_if_any)
+					 Mgmtd__DatabaseId db_id,
+					 uint64_t req_id, bool lock_db,
+					 bool success, const char *error_if_any)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
 	Mgmtd__FrntndLockDbReply lockdb_reply;
@@ -447,9 +446,9 @@ static int mgmt_frntnd_send_lockdb_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 }
 
 static int mgmt_frntnd_send_setcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
-					 mgmt_database_id_t db_id,
-					 mgmt_client_req_id_t req_id,
-					 bool success, const char *error_if_any,
+					 Mgmtd__DatabaseId db_id,
+					 uint64_t req_id, bool success,
+					 const char *error_if_any,
 					 bool implicit_commit)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -493,8 +492,8 @@ static int mgmt_frntnd_send_setcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 }
 
 static int mgmt_frntnd_send_commitcfg_reply(
-	struct mgmt_frntnd_sessn_ctxt *sessn, mgmt_database_id_t src_db_id,
-	mgmt_database_id_t dst_db_id, mgmt_client_req_id_t req_id, bool success,
+	struct mgmt_frntnd_sessn_ctxt *sessn, Mgmtd__DatabaseId src_db_id,
+	Mgmtd__DatabaseId dst_db_id, uint64_t req_id, bool success,
 	bool validate_only, const char *error_if_any)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -535,9 +534,8 @@ static int mgmt_frntnd_send_commitcfg_reply(
 }
 
 static int mgmt_frntnd_send_getcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
-					 mgmt_database_id_t db_id,
-					 mgmt_client_req_id_t req_id,
-					 bool success,
+					 Mgmtd__DatabaseId db_id,
+					 uint64_t req_id, bool success,
 					 mgmt_yang_data_reply_t *data,
 					 const char *error_if_any)
 {
@@ -576,9 +574,8 @@ static int mgmt_frntnd_send_getcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 }
 
 static int mgmt_frntnd_send_getdata_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
-					  mgmt_database_id_t db_id,
-					  mgmt_client_req_id_t req_id,
-					  bool success,
+					  Mgmtd__DatabaseId db_id,
+					  uint64_t req_id, bool success,
 					  mgmt_yang_data_reply_t *data,
 					  const char *error_if_any)
 {
@@ -798,7 +795,7 @@ static int
 mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__FrntndSetConfigReq *setcfg_req)
 {
-	mgmt_session_id_t cfg_sessn_id;
+	uint64_t cfg_sessn_id;
 	uint64_t db_hndl, dst_db_hndl;
 
 	if (mm->perf_stats_en)
@@ -837,7 +834,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		 */
 		cfg_sessn_id = mgmt_config_trxn_in_progress();
 		if (cfg_sessn_id != MGMTD_SESSION_ID_NONE
-		    && cfg_sessn_id != (mgmt_session_id_t)sessn) {
+		    && cfg_sessn_id != (uint64_t)sessn) {
 			mgmt_frntnd_send_setcfg_reply(
 				sessn, setcfg_req->db_id, setcfg_req->req_id,
 				false,
@@ -867,7 +864,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		/*
 		 * Start a CONFIG Transaction (if not started already)
 		 */
-		sessn->cfg_trxn_id = mgmt_create_trxn((mgmt_session_id_t)sessn,
+		sessn->cfg_trxn_id = mgmt_create_trxn((uint64_t)sessn,
 						      MGMTD_TRXN_TYPE_CONFIG);
 		if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
 			mgmt_frntnd_send_setcfg_reply(
@@ -996,8 +993,8 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		/*
 		 * Start a SHOW Transaction (if not started already)
 		 */
-		sessn->trxn_id = mgmt_create_trxn((mgmt_session_id_t)sessn,
-						  MGMTD_TRXN_TYPE_SHOW);
+		sessn->trxn_id =
+			mgmt_create_trxn((uint64_t)sessn, MGMTD_TRXN_TYPE_SHOW);
 		if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
 			mgmt_frntnd_send_getcfg_reply(
 				sessn, getcfg_req->db_id, getcfg_req->req_id,
@@ -1081,8 +1078,8 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		/*
 		 * Start a SHOW Transaction (if not started already)
 		 */
-		sessn->trxn_id = mgmt_create_trxn((mgmt_session_id_t)sessn,
-						  MGMTD_TRXN_TYPE_SHOW);
+		sessn->trxn_id =
+			mgmt_create_trxn((uint64_t)sessn, MGMTD_TRXN_TYPE_SHOW);
 		if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
 			mgmt_frntnd_send_getdata_reply(
 				sessn, getdata_req->db_id, getdata_req->req_id,
@@ -1175,7 +1172,7 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 		/*
 		 * Start a CONFIG Transaction (if not started already)
 		 */
-		sessn->cfg_trxn_id = mgmt_create_trxn((mgmt_session_id_t)sessn,
+		sessn->cfg_trxn_id = mgmt_create_trxn((uint64_t)sessn,
 						      MGMTD_TRXN_TYPE_CONFIG);
 		if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
 			mgmt_frntnd_send_commitcfg_reply(
@@ -1350,7 +1347,7 @@ mgmt_frntnd_adapter_process_msg(struct mgmt_frntnd_client_adapter *adptr,
 				uint8_t *msg_buf, uint16_t bytes_read)
 {
 	Mgmtd__FrntndMessage *frntnd_msg;
-	mgmt_frntnd_msg_t *msg;
+	struct mgmt_frntnd_msg *msg;
 	uint16_t bytes_left;
 	uint16_t processed = 0;
 
@@ -1361,7 +1358,7 @@ mgmt_frntnd_adapter_process_msg(struct mgmt_frntnd_client_adapter *adptr,
 	bytes_left = bytes_read;
 	for (; bytes_left > MGMTD_FRNTND_MSG_HDR_LEN;
 	     bytes_left -= msg->hdr.len, msg_buf += msg->hdr.len) {
-		msg = (mgmt_frntnd_msg_t *)msg_buf;
+		msg = (struct mgmt_frntnd_msg *)msg_buf;
 		if (msg->hdr.marker != MGMTD_FRNTND_MSG_MARKER) {
 			MGMTD_FRNTND_ADPTR_DBG(
 				"Marker not found in message from MGMTD Frontend adapter '%s'",
@@ -1445,7 +1442,7 @@ static int mgmt_frntnd_adapter_read(struct thread *thread)
 	struct mgmt_frntnd_client_adapter *adptr;
 	int bytes_read, msg_cnt;
 	size_t total_bytes, bytes_left;
-	mgmt_frntnd_msg_hdr_t *msg_hdr;
+	struct mgmt_frntnd_msg_hdr *msg_hdr;
 	bool incomplete = false;
 
 	adptr = (struct mgmt_frntnd_client_adapter *)THREAD_ARG(thread);
@@ -1493,8 +1490,9 @@ static int mgmt_frntnd_adapter_read(struct thread *thread)
 	bytes_left = stream_get_endp(adptr->ibuf_work);
 	for (; bytes_left > MGMTD_FRNTND_MSG_HDR_LEN;) {
 		msg_hdr =
-			(mgmt_frntnd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
-						  + total_bytes);
+			(struct mgmt_frntnd_msg_hdr *)(STREAM_DATA(
+							       adptr->ibuf_work)
+						       + total_bytes);
 		if (msg_hdr->marker != MGMTD_FRNTND_MSG_MARKER) {
 			/* Corrupted buffer. Force disconnect?? */
 			MGMTD_FRNTND_ADPTR_ERR(
@@ -1519,8 +1517,8 @@ static int mgmt_frntnd_adapter_read(struct thread *thread)
 	 * We would have read one or several messages.
 	 * Schedule processing them now.
 	 */
-	msg_hdr = (mgmt_frntnd_msg_hdr_t *)(STREAM_DATA(adptr->ibuf_work)
-					    + total_bytes);
+	msg_hdr = (struct mgmt_frntnd_msg_hdr *)(STREAM_DATA(adptr->ibuf_work)
+						 + total_bytes);
 	stream_set_endp(adptr->ibuf_work, total_bytes);
 	stream_fifo_push(adptr->ibuf_fifo, adptr->ibuf_work);
 	adptr->ibuf_work = stream_new(MGMTD_FRNTND_MSG_MAX_LEN);
@@ -1734,9 +1732,8 @@ struct mgmt_frntnd_client_adapter *mgmt_frntnd_get_adapter(const char *name)
 	return mgmt_frntnd_find_adapter_by_name(name);
 }
 
-int mgmt_frntnd_send_set_cfg_reply(mgmt_session_id_t session_id,
-				   uint64_t trxn_id, mgmt_database_id_t db_id,
-				   mgmt_client_req_id_t req_id,
+int mgmt_frntnd_send_set_cfg_reply(uint64_t session_id, uint64_t trxn_id,
+				   Mgmtd__DatabaseId db_id, uint64_t req_id,
 				   enum mgmt_result result,
 				   const char *error_if_any,
 				   bool implicit_commit)
@@ -1757,11 +1754,12 @@ int mgmt_frntnd_send_set_cfg_reply(mgmt_session_id_t session_id,
 		error_if_any, implicit_commit);
 }
 
-int mgmt_frntnd_send_commit_cfg_reply(
-	mgmt_session_id_t session_id, uint64_t trxn_id,
-	mgmt_database_id_t src_db_id, mgmt_database_id_t dst_db_id,
-	mgmt_client_req_id_t req_id, bool validate_only,
-	enum mgmt_result result, const char *error_if_any)
+int mgmt_frntnd_send_commit_cfg_reply(uint64_t session_id, uint64_t trxn_id,
+				      Mgmtd__DatabaseId src_db_id,
+				      Mgmtd__DatabaseId dst_db_id,
+				      uint64_t req_id, bool validate_only,
+				      enum mgmt_result result,
+				      const char *error_if_any)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -1774,9 +1772,8 @@ int mgmt_frntnd_send_commit_cfg_reply(
 						validate_only, error_if_any);
 }
 
-int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
-				   uint64_t trxn_id, mgmt_database_id_t db_id,
-				   mgmt_client_req_id_t req_id,
+int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,
+				   Mgmtd__DatabaseId db_id, uint64_t req_id,
 				   enum mgmt_result result,
 				   mgmt_yang_data_reply_t *data_resp,
 				   const char *error_if_any)
@@ -1792,9 +1789,8 @@ int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
 					     error_if_any);
 }
 
-int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
-				    uint64_t trxn_id, mgmt_database_id_t db_id,
-				    mgmt_client_req_id_t req_id,
+int mgmt_frntnd_send_get_data_reply(uint64_t session_id, uint64_t trxn_id,
+				    Mgmtd__DatabaseId db_id, uint64_t req_id,
 				    enum mgmt_result result,
 				    mgmt_yang_data_reply_t *data_resp,
 				    const char *error_if_any)
@@ -1810,7 +1806,7 @@ int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
 					     error_if_any);
 }
 
-int mgmt_frntnd_send_data_notify(mgmt_database_id_t db_id,
+int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
 				 mgmt_yang_data_t *data_resp[], int num_data)
 {
 	/* struct mgmt_frntnd_sessn_ctxt *sessn; */
@@ -1819,7 +1815,7 @@ int mgmt_frntnd_send_data_notify(mgmt_database_id_t db_id,
 }
 
 struct mgmt_setcfg_stats *
-mgmt_frntnd_get_sessn_setcfg_stats(mgmt_session_id_t session_id)
+mgmt_frntnd_get_sessn_setcfg_stats(uint64_t session_id)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -1831,7 +1827,7 @@ mgmt_frntnd_get_sessn_setcfg_stats(mgmt_session_id_t session_id)
 }
 
 struct mgmt_commit_stats *
-mgmt_frntnd_get_sessn_commit_stats(mgmt_session_id_t session_id)
+mgmt_frntnd_get_sessn_commit_stats(uint64_t session_id)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
 
@@ -1948,7 +1944,7 @@ void mgmt_frntnd_adapter_status_write(struct vty *vty, bool detail)
 {
 	struct mgmt_frntnd_client_adapter *adptr;
 	struct mgmt_frntnd_sessn_ctxt *sessn;
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	bool locked = false;
 
 	vty_out(vty, "MGMTD Frontend Adpaters\n");

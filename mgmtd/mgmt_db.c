@@ -52,7 +52,7 @@
 #endif /* REDIRECT_DEBUG_TO_STDERR */
 
 struct mgmt_db_ctxt {
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	pthread_rwlock_t rw_lock;
 
 	bool config_db;
@@ -521,8 +521,7 @@ void mgmt_db_destroy(void)
 	mgmt_cmt_info_dlist_fini(&mgmt_db_mm->cmt_dlist);
 }
 
-uint64_t mgmt_db_get_hndl_by_id(struct mgmt_master *cm,
-				mgmt_database_id_t db_id)
+uint64_t mgmt_db_get_hndl_by_id(struct mgmt_master *cm, Mgmtd__DatabaseId db_id)
 {
 	switch (db_id) {
 	case MGMTD_DB_CANDIDATE:
@@ -925,7 +924,7 @@ int mgmt_db_iter_data(uint64_t db_hndl, char *base_xpath,
 	return ret;
 }
 
-int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl, mgmt_database_id_t db_id,
+int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl, Mgmtd__DatabaseId db_id,
 				   mgmt_yang_getdata_req_t *data_req,
 				   int num_reqs)
 {

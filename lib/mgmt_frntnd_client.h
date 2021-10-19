@@ -60,32 +60,27 @@ extern "C" {
  * Data-structures
  ***************************************************************/
 
-typedef uint64_t mgmt_session_id_t;
 #define MGMTD_SESSION_ID_NONE 0
 
-typedef uint64_t mgmt_client_id_t;
 #define MGMTD_CLIENT_ID_NONE 0
 
-typedef uint64_t mgmt_client_req_id_t;
-
-typedef Mgmtd__DatabaseId mgmt_database_id_t;
 #define MGMTD_DB_NONE MGMTD__DATABASE_ID__DB_NONE
 #define MGMTD_DB_RUNNING MGMTD__DATABASE_ID__RUNNING_DB
 #define MGMTD_DB_CANDIDATE MGMTD__DATABASE_ID__CANDIDATE_DB
 #define MGMTD_DB_OPERATIONAL MGMTD__DATABASE_ID__OPERATIONAL_DB
 #define MGMTD_DB_MAX_ID MGMTD_DB_OPERATIONAL + 1
 
-typedef struct mgmt_frntnd_msg_hdr_ {
+struct mgmt_frntnd_msg_hdr {
 	uint16_t marker;
 	uint16_t len; /* Includes header */
-} mgmt_frntnd_msg_hdr_t;
-#define MGMTD_FRNTND_MSG_HDR_LEN sizeof(mgmt_frntnd_msg_hdr_t)
+};
+#define MGMTD_FRNTND_MSG_HDR_LEN sizeof(struct mgmt_frntnd_msg_hdr)
 #define MGMTD_FRNTND_MSG_MARKER 0xdeaf
 
-typedef struct mgmt_frntnd_msg_ {
-	mgmt_frntnd_msg_hdr_t hdr;
+struct mgmt_frntnd_msg {
+	struct mgmt_frntnd_msg_hdr hdr;
 	uint8_t payload[];
-} mgmt_frntnd_msg_t;
+};
 
 /*
  * Single handler to notify connection/disconnoect to/from
@@ -99,59 +94,54 @@ typedef void (*mgmt_frntnd_client_connect_notify_t)(uint64_t lib_hndl,
  * Single handler to notify results of SESSION_REQ sent earlier to MGMTD.
  */
 typedef void (*mgmt_frntnd_client_session_notify_t)(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	bool create, bool success, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt);
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id, bool create,
+	bool success, uint64_t session_id, uintptr_t user_ctxt);
 
 /*
  * Single handler to notify results of UN/LOCK_DB_REQ sent earlier to MGMTD.
  */
 typedef void (*mgmt_frntnd_client_lock_db_notify_t)(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool lock_db, bool success,
-	mgmt_database_id_t db_id, char *errmsg_if_any);
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool lock_db,
+	bool success, Mgmtd__DatabaseId db_id, char *errmsg_if_any);
 
 /*
  * Single handler to notify results of SET_CONFIG_REQ sent earlier to MGMTD.
  */
 typedef void (*mgmt_frntnd_client_set_config_notify_t)(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
-	char *errmsg_if_any);
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId db_id, char *errmsg_if_any);
 
 /*
  * Single handler to notify results of COMMIT_CONFIG_REQ sent earlier to MGMTD.
  */
 typedef void (*mgmt_frntnd_client_commit_config_notify_t)(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t src_db_id,
-	mgmt_database_id_t dst_db_id, bool validate_only, char *errmsg_if_any);
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId src_db_id, Mgmtd__DatabaseId dst_db_id,
+	bool validate_only, char *errmsg_if_any);
 
 /*
  * Single hanlder to notify all or part of the results of a GET_CONFIG_REQ,
  * or GET_OPERDATA_REQ sent earlier to MGMTD.
  */
 typedef enum mgmt_result (*mgmt_frntnd_client_get_data_notify_t)(
-	uint64_t lib_hndl, uint64_t usr_data, mgmt_client_id_t client_id,
-	mgmt_session_id_t session_id, uintptr_t user_ctxt,
-	mgmt_client_req_id_t req_id, bool success, mgmt_database_id_t db_id,
-	mgmt_yang_data_t *yang_data[], size_t num_data, int next_key,
-	char *errmsg_if_any);
+	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
+	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[], size_t num_data,
+	int next_key, char *errmsg_if_any);
 
 /*
  * Handler to get YANG Notifications for one or more 'notification' type
  * leaf items in YANG datastore.
  */
 typedef enum mgmt_result (*mgmt_frntnd_client_data_notify_t)(
-	mgmt_client_id_t client_id, mgmt_session_id_t session_id,
-	uintptr_t user_ctxt, mgmt_client_req_id_t req_id,
-	mgmt_database_id_t db_id, mgmt_yang_data_t *yang_data[],
+	uint64_t client_id, uint64_t session_id, uintptr_t user_ctxt,
+	uint64_t req_id, Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[],
 	size_t num_data);
 
-typedef struct mgmt_frntnd_client_params_ {
+struct mgmt_frntnd_client_params {
 	char name[MGMTD_CLIENT_NAME_MAX_LEN];
 	uint64_t user_data;
 	unsigned long conn_retry_intvl_sec;
@@ -162,7 +152,7 @@ typedef struct mgmt_frntnd_client_params_ {
 	mgmt_frntnd_client_commit_config_notify_t commit_cfg_result_cb;
 	mgmt_frntnd_client_get_data_notify_t get_data_result_cb;
 	mgmt_frntnd_client_data_notify_t notify_data_cb;
-} mgmt_frntnd_client_params_t;
+};
 
 /***************************************************************
  * API prototypes
@@ -172,74 +162,71 @@ typedef struct mgmt_frntnd_client_params_ {
  * Initialize library and try connecting with MGMTD.
  */
 extern uint64_t
-mgmt_frntnd_client_lib_init(mgmt_frntnd_client_params_t *params,
+mgmt_frntnd_client_lib_init(struct mgmt_frntnd_client_params *params,
 			    struct thread_master *master_thread);
 
 /*
  * Create a new Session for a Frontend Client connection.
  */
-extern enum mgmt_result
-mgmt_frntnd_create_client_session(uint64_t lib_hndl, mgmt_client_id_t client_id,
-				  uintptr_t user_ctxt);
+extern enum mgmt_result mgmt_frntnd_create_client_session(uint64_t lib_hndl,
+							  uint64_t client_id,
+							  uintptr_t user_ctxt);
 
 /*
  * Delete an existing Session for a Frontend Client connection.
  */
-extern enum mgmt_result
-mgmt_frntnd_destroy_client_session(uint64_t lib_hndl,
-				   mgmt_session_id_t session_id);
+extern enum mgmt_result mgmt_frntnd_destroy_client_session(uint64_t lib_hndl,
+							   uint64_t session_id);
 
 /*
  * Send UN/LOCK_DB_REQ to MGMTD for a specific Datastore DB.
  */
-extern enum mgmt_result mgmt_frntnd_lock_db(uint64_t lib_hndl,
-					    mgmt_session_id_t session_id,
-					    mgmt_client_req_id_t req_id,
-					    mgmt_database_id_t db_id,
-					    bool lock_db);
+extern enum mgmt_result
+mgmt_frntnd_lock_db(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
+		    Mgmtd__DatabaseId db_id, bool lock_db);
 
 /*
  * Send SET_CONFIG_REQ to MGMTD for one or more config data(s).
  */
 extern enum mgmt_result
-mgmt_frntnd_set_config_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
-			    mgmt_client_req_id_t req_id,
-			    mgmt_database_id_t db_id,
+mgmt_frntnd_set_config_data(uint64_t lib_hndl, uint64_t session_id,
+			    uint64_t req_id, Mgmtd__DatabaseId db_id,
 			    mgmt_yang_cfgdata_req_t **config_req, int num_req,
-			    bool implicit_commit, mgmt_database_id_t dst_db_id);
+			    bool implicit_commit, Mgmtd__DatabaseId dst_db_id);
 
 /*
  * Send SET_CONFIG_REQ to MGMTD for one or more config data(s).
  */
-extern enum mgmt_result mgmt_frntnd_commit_config_data(
-	uint64_t lib_hndl, mgmt_session_id_t session_id,
-	mgmt_client_req_id_t req_id, mgmt_database_id_t src_db_id,
-	mgmt_database_id_t dst_db_id, bool validate_only, bool abort);
+extern enum mgmt_result
+mgmt_frntnd_commit_config_data(uint64_t lib_hndl, uint64_t session_id,
+			       uint64_t req_id, Mgmtd__DatabaseId src_db_id,
+			       Mgmtd__DatabaseId dst_db_id, bool validate_only,
+			       bool abort);
 
 /*
  * Send GET_CONFIG_REQ to MGMTD for one or more config data item(s).
  */
 extern enum mgmt_result
-mgmt_frntnd_get_config_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
-			    mgmt_client_req_id_t req_id,
-			    mgmt_database_id_t db_id,
+mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
+			    uint64_t req_id, Mgmtd__DatabaseId db_id,
 			    mgmt_yang_getdata_req_t *data_req[], int num_reqs);
 
 /*
  * Send GET_DATA_REQ to MGMTD for one or more data item(s).
  */
 extern enum mgmt_result
-mgmt_frntnd_get_data(uint64_t lib_hndl, mgmt_session_id_t session_id,
-		     mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
+mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
+		     Mgmtd__DatabaseId db_id,
 		     mgmt_yang_getdata_req_t *data_req[], int num_reqs);
 
 /*
  * Send NOTIFY_REGISTER_REQ to MGMTD daemon.
  */
-extern enum mgmt_result mgmt_frntnd_register_yang_notify(
-	uint64_t lib_hndl, mgmt_session_id_t session_id,
-	mgmt_client_req_id_t req_id, mgmt_database_id_t db_id,
-	bool register_req, mgmt_yang_xpath_t *data_req[], int num_reqs);
+extern enum mgmt_result
+mgmt_frntnd_register_yang_notify(uint64_t lib_hndl, uint64_t session_id,
+				 uint64_t req_id, Mgmtd__DatabaseId db_id,
+				 bool register_req,
+				 mgmt_yang_xpath_t *data_req[], int num_reqs);
 
 /*
  * Destroy library and cleanup everything.

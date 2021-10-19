@@ -66,16 +66,16 @@ PREDECL_DLIST(mgmt_cmt_info_dlist);
 
 extern const char *mgmt_db_names[MGMTD_DB_MAX_ID + 1];
 
-static inline const char *mgmt_db_id2name(mgmt_database_id_t id)
+static inline const char *mgmt_db_id2name(Mgmtd__DatabaseId id)
 {
 	if (id > MGMTD_DB_MAX_ID)
 		id = MGMTD_DB_MAX_ID;
 	return mgmt_db_names[id];
 }
 
-static inline mgmt_database_id_t mgmt_db_name2id(const char *name)
+static inline Mgmtd__DatabaseId mgmt_db_name2id(const char *name)
 {
-	mgmt_database_id_t id;
+	Mgmtd__DatabaseId id;
 
 	FOREACH_MGMTD_DB_ID(id)
 	{
@@ -86,7 +86,7 @@ static inline mgmt_database_id_t mgmt_db_name2id(const char *name)
 	return MGMTD_DB_NONE;
 }
 
-static inline mgmt_database_id_t mgmt_get_db_id_by_name(const char *db_name)
+static inline Mgmtd__DatabaseId mgmt_get_db_id_by_name(const char *db_name)
 {
 	if (!strncmp(db_name, "candidate", sizeof("candidate")))
 		return MGMTD_DB_CANDIDATE;
@@ -140,7 +140,7 @@ extern int mgmt_db_init(struct mgmt_master *cm);
 extern void mgmt_db_destroy(void);
 
 extern uint64_t mgmt_db_get_hndl_by_id(struct mgmt_master *cm,
-				       mgmt_database_id_t db_id);
+				       Mgmtd__DatabaseId db_id);
 
 extern bool mgmt_db_is_config(uint64_t db_hndl);
 
@@ -176,7 +176,7 @@ extern int mgmt_db_load_config_from_file(uint64_t db_hndl,
 					 const char *file_path, bool merge);
 
 extern int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl,
-					  mgmt_database_id_t db_id,
+					  Mgmtd__DatabaseId db_id,
 					  mgmt_yang_getdata_req_t *data_req,
 					  int num_reqs);
 

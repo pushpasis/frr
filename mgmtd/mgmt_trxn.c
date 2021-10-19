@@ -60,12 +60,12 @@ enum mgmt_trxn_event {
 PREDECL_LIST(mgmt_trxn_req_list);
 
 struct mgmt_set_cfg_req {
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	uint64_t db_hndl;
 	struct nb_cfg_change cfg_changes[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	uint16_t num_cfg_changes;
 	bool implicit_commit;
-	mgmt_database_id_t dst_db_id;
+	Mgmtd__DatabaseId dst_db_id;
 	uint64_t dst_db_hndl;
 	struct mgmt_setcfg_stats *setcfg_stats;
 };
@@ -132,9 +132,9 @@ DECLARE_LIST(mgmt_trxn_batch_list, struct mgmt_trxn_bcknd_cfg_batch,
 	frr_each_safe (mgmt_trxn_batch_list, list, batch)
 
 struct mgmt_commit_cfg_req {
-	mgmt_database_id_t src_db_id;
+	Mgmtd__DatabaseId src_db_id;
 	uint64_t src_db_hndl;
-	mgmt_database_id_t dst_db_id;
+	Mgmtd__DatabaseId dst_db_id;
 	uint64_t dst_db_hndl;
 	uint32_t nb_trxn_id;
 	uint8_t validate_only : 1;
@@ -197,7 +197,7 @@ struct mgmt_get_data_reply {
 };
 
 struct mgmt_get_data_req {
-	mgmt_database_id_t db_id;
+	Mgmtd__DatabaseId db_id;
 	uint64_t db_hndl;
 	char *xpaths[MGMTD_MAX_NUM_DATA_REQ_IN_BATCH];
 	int num_xpaths;
@@ -215,7 +215,7 @@ struct mgmt_get_data_req {
 struct mgmt_trxn_req {
 	struct mgmt_trxn_ctxt *trxn;
 	enum mgmt_trxn_event req_event;
-	mgmt_client_req_id_t req_id;
+	uint64_t req_id;
 	union {
 		struct mgmt_set_cfg_req *set_cfg;
 		struct mgmt_get_data_req *get_data;
@@ -229,10 +229,10 @@ struct mgmt_trxn_req {
 DECLARE_LIST(mgmt_trxn_req_list, struct mgmt_trxn_req, list_linkage);
 
 #define FOREACH_TRXN_REQ_IN_LIST(list, req)                                    \
-	frr_each_safe(mgmt_trxn_req_list, list, req)
+	frr_each_safe (mgmt_trxn_req_list, list, req)
 
 struct mgmt_trxn_ctxt {
-	mgmt_session_id_t session_id; /* One transaction per client session */
+	uint64_t session_id; /* One transaction per client session */
 	enum mgmt_trxn_type type;
 
 	/* struct mgmt_master *mm; */
@@ -433,7 +433,7 @@ static void mgmt_trxn_cleanup_bcknd_cfg_batches(struct mgmt_trxn_ctxt *trxn,
 }
 
 static struct mgmt_trxn_req *mgmt_trxn_req_alloc(struct mgmt_trxn_ctxt *trxn,
-						 mgmt_client_req_id_t req_id,
+						 uint64_t req_id,
 						 enum mgmt_trxn_event req_event)
 {
 	struct mgmt_trxn_req *trxn_req;
@@ -1373,10 +1373,10 @@ static int mgmt_trxn_send_bcknd_trxn_create(struct mgmt_trxn_ctxt *trxn)
 	 * come back.
 	 */
 
-	MGMTD_TRXN_DBG("Trxn:%p Session:0x%llx, Phase(Current:'%s', Next: '%s')",
-		       trxn, trxn->session_id,
-		       mgmt_trxn_commit_phase_str(trxn, true),
-		       mgmt_trxn_commit_phase_str(trxn, false));
+	MGMTD_TRXN_DBG(
+		"Trxn:%p Session:0x%llx, Phase(Current:'%s', Next: '%s')", trxn,
+		trxn->session_id, mgmt_trxn_commit_phase_str(trxn, true),
+		mgmt_trxn_commit_phase_str(trxn, false));
 
 	return 0;
 }
@@ -1786,22 +1786,24 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 	switch (trxn_req->req_event) {
 	case MGMTD_TRXN_PROC_GETCFG:
 		if (mgmt_frntnd_send_get_cfg_reply(
-			trxn_req->trxn->session_id,
-			(uint64_t) trxn_req->trxn,
-			get_req->db_id, trxn_req->req_id,
-			MGMTD_SUCCESS, data_reply, NULL) != 0) {
-			MGMTD_TRXN_ERR("Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
+			    trxn_req->trxn->session_id,
+			    (uint64_t)trxn_req->trxn, get_req->db_id,
+			    trxn_req->req_id, MGMTD_SUCCESS, data_reply, NULL)
+		    != 0) {
+			MGMTD_TRXN_ERR(
+				"Failed to send GET-CONFIG-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
 				trxn_req->trxn, trxn_req->trxn->session_id,
 				trxn_req->req_id);
 		}
 		break;
 	case MGMTD_TRXN_PROC_GETDATA:
 		if (mgmt_frntnd_send_get_data_reply(
-			trxn_req->trxn->session_id,
-			(uint64_t) trxn_req->trxn,
-			get_req->db_id, trxn_req->req_id,
-			MGMTD_SUCCESS, data_reply, NULL) != 0) {
-			MGMTD_TRXN_ERR("Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
+			    trxn_req->trxn->session_id,
+			    (uint64_t)trxn_req->trxn, get_req->db_id,
+			    trxn_req->req_id, MGMTD_SUCCESS, data_reply, NULL)
+		    != 0) {
+			MGMTD_TRXN_ERR(
+				"Failed to send GET-DATA-REPLY for Trxn %p, Sessn: 0x%llx, Req: %lld",
 				trxn_req->trxn, trxn_req->trxn->session_id,
 				trxn_req->req_id);
 		}
@@ -2046,14 +2048,14 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 			goto mgmt_trxn_process_get_data_done;
 		}
 
-		if (mgmt_db_is_config(db_hndl)) {
-			if (mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
-				MGMTD_TRXN_ERR(
-					"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
-					trxn_req->req.get_data->db_id, trxn,
-					trxn->session_id, trxn_req->req_id);
-				error = true;
-			}
+		if (mgmt_db_is_config(db_hndl)
+		    && mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
+			MGMTD_TRXN_ERR(
+				"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
+				trxn_req->req.get_data->db_id, trxn,
+				trxn->session_id, trxn_req->req_id);
+			error = true;
+			goto mgmt_trxn_process_get_data_done;
 		} else {
 			/*
 			 * TODO: Trigger GET procedures for Backend
@@ -2098,8 +2100,7 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 }
 
 static struct mgmt_trxn_ctxt *
-mgmt_frntnd_find_trxn_by_session_id(struct mgmt_master *cm,
-				    mgmt_session_id_t session_id,
+mgmt_frntnd_find_trxn_by_session_id(struct mgmt_master *cm, uint64_t session_id,
 				    enum mgmt_trxn_type type)
 {
 	struct mgmt_trxn_ctxt *trxn;
@@ -2113,7 +2114,7 @@ mgmt_frntnd_find_trxn_by_session_id(struct mgmt_master *cm,
 	return NULL;
 }
 
-static struct mgmt_trxn_ctxt *mgmt_trxn_create_new(mgmt_session_id_t session_id,
+static struct mgmt_trxn_ctxt *mgmt_trxn_create_new(uint64_t session_id,
 						   enum mgmt_trxn_type type)
 {
 	struct mgmt_trxn_ctxt *trxn = NULL;
@@ -2274,7 +2275,7 @@ int mgmt_trxn_init(struct mgmt_master *mm, struct thread_master *tm)
 	return 0;
 }
 
-mgmt_session_id_t mgmt_config_trxn_in_progress(void)
+uint64_t mgmt_config_trxn_in_progress(void)
 {
 	if (mgmt_trxn_mm && mgmt_trxn_mm->cfg_trxn)
 		return mgmt_trxn_mm->cfg_trxn->session_id;
@@ -2282,8 +2283,7 @@ mgmt_session_id_t mgmt_config_trxn_in_progress(void)
 	return MGMTD_SESSION_ID_NONE;
 }
 
-uint64_t mgmt_create_trxn(mgmt_session_id_t session_id,
-			  enum mgmt_trxn_type type)
+uint64_t mgmt_create_trxn(uint64_t session_id, enum mgmt_trxn_type type)
 {
 	struct mgmt_trxn_ctxt *trxn;
 
@@ -2319,11 +2319,11 @@ enum mgmt_trxn_type mgmt_get_trxn_type(uint64_t trxn_id)
 	return trxn->type;
 }
 
-int mgmt_trxn_send_set_config_req(uint64_t trxn_id, mgmt_client_req_id_t req_id,
-				  mgmt_database_id_t db_id, uint64_t db_hndl,
+int mgmt_trxn_send_set_config_req(uint64_t trxn_id, uint64_t req_id,
+				  Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				  mgmt_yang_cfgdata_req_t *cfg_req[],
 				  size_t num_req, bool implicit_commit,
-				  mgmt_database_id_t dst_db_id,
+				  Mgmtd__DatabaseId dst_db_id,
 				  uint64_t dst_db_hndl)
 {
 	struct mgmt_trxn_ctxt *trxn;
@@ -2398,11 +2398,10 @@ int mgmt_trxn_send_set_config_req(uint64_t trxn_id, mgmt_client_req_id_t req_id,
 	return 0;
 }
 
-int mgmt_trxn_send_commit_config_req(uint64_t trxn_id,
-				     mgmt_client_req_id_t req_id,
-				     mgmt_database_id_t src_db_id,
+int mgmt_trxn_send_commit_config_req(uint64_t trxn_id, uint64_t req_id,
+				     Mgmtd__DatabaseId src_db_id,
 				     uint64_t src_db_hndl,
-				     mgmt_database_id_t dst_db_id,
+				     Mgmtd__DatabaseId dst_db_id,
 				     uint64_t dst_db_hndl, bool validate_only,
 				     bool abort, bool implicit)
 {
@@ -2737,8 +2736,8 @@ int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
 	return mgmt_trxn_send_commit_cfg_reply(trxn, success, error_if_any);
 }
 
-int mgmt_trxn_send_get_config_req(uint64_t trxn_id, mgmt_client_req_id_t req_id,
-				  mgmt_database_id_t db_id, uint64_t db_hndl,
+int mgmt_trxn_send_get_config_req(uint64_t trxn_id, uint64_t req_id,
+				  Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				  mgmt_yang_getdata_req_t **data_req,
 				  size_t num_reqs)
 {
@@ -2767,8 +2766,8 @@ int mgmt_trxn_send_get_config_req(uint64_t trxn_id, mgmt_client_req_id_t req_id,
 	return 0;
 }
 
-int mgmt_trxn_send_get_data_req(uint64_t trxn_id, mgmt_client_req_id_t req_id,
-				mgmt_database_id_t db_id, uint64_t db_hndl,
+int mgmt_trxn_send_get_data_req(uint64_t trxn_id, uint64_t req_id,
+				Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				mgmt_yang_getdata_req_t **data_req,
 				size_t num_reqs)
 {
