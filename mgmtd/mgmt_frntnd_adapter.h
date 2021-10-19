@@ -30,7 +30,7 @@
 struct mgmt_frntnd_client_adapter_;
 struct mgmt_master;
 
-typedef struct mgmt_commit_stats_ {
+struct mgmt_commit_stats {
 	struct timeval last_start;
 	struct timeval validate_start;
 	struct timeval prep_cfg_start;
@@ -49,9 +49,9 @@ typedef struct mgmt_commit_stats_ {
 	unsigned long max_batch_cnt;
 	unsigned long min_batch_cnt;
 	unsigned long commit_cnt;
-} mgmt_commit_stats_t;
+};
 
-typedef struct mgmt_setcfg_stats_ {
+struct mgmt_setcfg_stats {
 	struct timeval last_start;
 	struct timeval last_end;
 	unsigned long last_exec_tm;
@@ -59,13 +59,13 @@ typedef struct mgmt_setcfg_stats_ {
 	unsigned long min_tm;
 	unsigned long avg_tm;
 	unsigned long set_cfg_count;
-} mgmt_setcfg_stats_t;
+};
 
 PREDECL_LIST(mgmt_frntnd_sessn_list);
 
 PREDECL_LIST(mgmt_frntnd_adptr_list);
 
-typedef struct mgmt_frntnd_client_adapter_ {
+struct mgmt_frntnd_client_adapter {
 	int conn_fd;
 	union sockunion conn_su;
 	struct thread *conn_read_ev;
@@ -95,28 +95,30 @@ typedef struct mgmt_frntnd_client_adapter_ {
 	int refcount;
 	uint32_t num_msg_tx;
 	uint32_t num_msg_rx;
-	mgmt_commit_stats_t cmt_stats;
-	mgmt_setcfg_stats_t setcfg_stats;
+	struct mgmt_commit_stats cmt_stats;
+	struct mgmt_setcfg_stats setcfg_stats;
 
 	struct mgmt_frntnd_adptr_list_item list_linkage;
-} mgmt_frntnd_client_adapter_t;
+};
 
 #define MGMTD_FRNTND_ADPTR_FLAGS_WRITES_OFF (1U << 0)
 
-DECLARE_LIST(mgmt_frntnd_adptr_list, mgmt_frntnd_client_adapter_t,
+DECLARE_LIST(mgmt_frntnd_adptr_list, struct mgmt_frntnd_client_adapter,
 	     list_linkage);
 
 extern int mgmt_frntnd_adapter_init(struct thread_master *tm,
 				    struct mgmt_master *cm);
 
-extern void mgmt_frntnd_adapter_lock(mgmt_frntnd_client_adapter_t *adptr);
+extern void mgmt_frntnd_adapter_lock(struct mgmt_frntnd_client_adapter *adptr);
 
-extern void mgmt_frntnd_adapter_unlock(mgmt_frntnd_client_adapter_t **adptr);
+extern void
+mgmt_frntnd_adapter_unlock(struct mgmt_frntnd_client_adapter **adptr);
 
-extern mgmt_frntnd_client_adapter_t *
+extern struct mgmt_frntnd_client_adapter *
 mgmt_frntnd_create_adapter(int conn_fd, union sockunion *su);
 
-extern mgmt_frntnd_client_adapter_t *mgmt_frntnd_get_adapter(const char *name);
+extern struct mgmt_frntnd_client_adapter *
+mgmt_frntnd_get_adapter(const char *name);
 
 extern int mgmt_frntnd_send_set_cfg_reply(
 	mgmt_session_id_t session_id, mgmt_trxn_id_t trxn_id,
@@ -149,10 +151,10 @@ extern int mgmt_frntnd_send_data_notify(mgmt_database_id_t db_id,
 					mgmt_yang_data_t *data_resp[],
 					int num_data);
 
-extern mgmt_setcfg_stats_t *
+extern struct mgmt_setcfg_stats *
 mgmt_frntnd_get_sessn_setcfg_stats(mgmt_session_id_t session_id);
 
-extern mgmt_commit_stats_t *
+extern struct mgmt_commit_stats *
 mgmt_frntnd_get_sessn_commit_stats(mgmt_session_id_t session_id);
 
 extern void mgmt_frntnd_adapter_status_write(struct vty *vty, bool detail);

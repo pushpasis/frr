@@ -67,7 +67,7 @@ struct mgmt_set_cfg_req {
 	bool implicit_commit;
 	mgmt_database_id_t dst_db_id;
 	mgmt_db_hndl_t dst_db_hndl;
-	mgmt_setcfg_stats_t *setcfg_stats;
+	struct mgmt_setcfg_stats *setcfg_stats;
 };
 
 enum mgmt_commit_phase {
@@ -181,7 +181,7 @@ struct mgmt_commit_cfg_req {
 	struct mgmt_trxn_bcknd_cfg_batch
 		*last_bcknd_cfg_batch[MGMTD_BCKND_CLIENT_ID_MAX];
 
-	mgmt_commit_stats_t *cmt_stats;
+	struct mgmt_commit_stats *cmt_stats;
 };
 
 struct mgmt_get_data_reply {
@@ -620,7 +620,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 	bool error;
 	int num_processed = 0;
 	size_t left;
-	mgmt_commit_stats_t *cmt_stats;
+	struct mgmt_commit_stats *cmt_stats;
 	int ret = 0;
 
 	trxn = (mgmt_trxn_ctxt_t *)THREAD_ARG(thread);
@@ -2435,7 +2435,7 @@ int mgmt_trxn_notify_bcknd_adapter_conn(struct mgmt_bcknd_client_adapter *adptr,
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
 	struct mgmt_commit_cfg_req *cmtcfg_req;
-	static mgmt_commit_stats_t dummy_stats = {0};
+	static struct mgmt_commit_stats dummy_stats = {0};
 	struct nb_config_cbs *adptr_cfgs = NULL;
 
 	if (connect) {
@@ -2817,7 +2817,7 @@ int mgmt_trxn_rollback_trigger_cfg_apply(mgmt_db_hndl_t src_db_hndl,
 	struct nb_config_cbs *cfg_chgs = NULL;
 	mgmt_trxn_ctxt_t *trxn;
 	struct mgmt_trxn_req *trxn_req;
-	static mgmt_commit_stats_t dummy_stats = {0};
+	static struct mgmt_commit_stats dummy_stats = {0};
 
 	/*
 	 * This could be the case when the config is directly
