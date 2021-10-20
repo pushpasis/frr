@@ -129,7 +129,7 @@ typedef void (*mgmt_frntnd_client_commit_config_notify_t)(
 typedef enum mgmt_result (*mgmt_frntnd_client_get_data_notify_t)(
 	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
 	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
-	Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[], size_t num_data,
+	Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[], size_t num_data,
 	int next_key, char *errmsg_if_any);
 
 /*
@@ -138,7 +138,7 @@ typedef enum mgmt_result (*mgmt_frntnd_client_get_data_notify_t)(
  */
 typedef enum mgmt_result (*mgmt_frntnd_client_data_notify_t)(
 	uint64_t client_id, uint64_t session_id, uintptr_t user_ctxt,
-	uint64_t req_id, Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[],
+	uint64_t req_id, Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[],
 	size_t num_data);
 
 struct mgmt_frntnd_client_params {
@@ -191,7 +191,7 @@ mgmt_frntnd_lock_db(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
 extern enum mgmt_result
 mgmt_frntnd_set_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    mgmt_yang_cfgdata_req_t **config_req, int num_req,
+			    Mgmtd__YangCfgDataReq **config_req, int num_req,
 			    bool implicit_commit, Mgmtd__DatabaseId dst_db_id);
 
 /*
@@ -209,24 +209,23 @@ mgmt_frntnd_commit_config_data(uint64_t lib_hndl, uint64_t session_id,
 extern enum mgmt_result
 mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    mgmt_yang_getdata_req_t *data_req[], int num_reqs);
+			    Mgmtd__YangGetDataReq *data_req[], int num_reqs);
 
 /*
  * Send GET_DATA_REQ to MGMTD for one or more data item(s).
  */
 extern enum mgmt_result
 mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
-		     Mgmtd__DatabaseId db_id,
-		     mgmt_yang_getdata_req_t *data_req[], int num_reqs);
+		     Mgmtd__DatabaseId db_id, Mgmtd__YangGetDataReq *data_req[],
+		     int num_reqs);
 
 /*
  * Send NOTIFY_REGISTER_REQ to MGMTD daemon.
  */
-extern enum mgmt_result
-mgmt_frntnd_register_yang_notify(uint64_t lib_hndl, uint64_t session_id,
-				 uint64_t req_id, Mgmtd__DatabaseId db_id,
-				 bool register_req,
-				 mgmt_yang_xpath_t *data_req[], int num_reqs);
+extern enum mgmt_result mgmt_frntnd_register_yang_notify(
+	uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
+	Mgmtd__DatabaseId db_id, bool register_req,
+	Mgmtd__YangDataXPath *data_req[], int num_reqs);
 
 /*
  * Destroy library and cleanup everything.

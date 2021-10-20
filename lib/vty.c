@@ -3364,7 +3364,7 @@ static uint64_t last_req_id = 0xFFFFFFFFFFFFFFFF;
 static enum mgmt_result vty_mgmt_get_data_result_notified(
 	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
 	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
-	Mgmtd__DatabaseId db_id, mgmt_yang_data_t *yang_data[], size_t num_data,
+	Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[], size_t num_data,
 	int next_key, char *errmsg_if_any)
 {
 	struct vty *vty;
@@ -3462,10 +3462,10 @@ int vty_mgmt_send_lockdb_req(struct vty *vty, Mgmtd__DatabaseId db_id,
 
 int vty_mgmt_send_config_data(struct vty *vty)
 {
-	mgmt_yang_data_value_t value[VTY_MAXCFGCHANGES];
-	mgmt_yang_data_t cfg_data[VTY_MAXCFGCHANGES];
-	mgmt_yang_cfgdata_req_t cfg_req[VTY_MAXCFGCHANGES];
-	mgmt_yang_cfgdata_req_t *cfgreq[VTY_MAXCFGCHANGES] = {0};
+	Mgmtd__YangDataValue value[VTY_MAXCFGCHANGES];
+	Mgmtd__YangData cfg_data[VTY_MAXCFGCHANGES];
+	Mgmtd__YangCfgDataReq cfg_req[VTY_MAXCFGCHANGES];
+	Mgmtd__YangCfgDataReq *cfgreq[VTY_MAXCFGCHANGES] = {0};
 	size_t indx;
 	int cnt;
 
@@ -3557,9 +3557,9 @@ int vty_mgmt_send_get_config(struct vty *vty, Mgmtd__DatabaseId database,
 			     const char **xpath_list, int num_req)
 {
 	enum mgmt_result ret;
-	mgmt_yang_data_t yang_data[VTY_MAXCFGCHANGES];
-	mgmt_yang_getdata_req_t get_req[VTY_MAXCFGCHANGES];
-	mgmt_yang_getdata_req_t *getreq[VTY_MAXCFGCHANGES];
+	Mgmtd__YangData yang_data[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq get_req[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq *getreq[VTY_MAXCFGCHANGES];
 	int i;
 
 	vty->mgmt_req_id++;
@@ -3596,9 +3596,9 @@ int vty_mgmt_send_get_data(struct vty *vty, Mgmtd__DatabaseId database,
 			   const char **xpath_list, int num_req)
 {
 	enum mgmt_result ret;
-	mgmt_yang_data_t yang_data[VTY_MAXCFGCHANGES];
-	mgmt_yang_getdata_req_t get_req[VTY_MAXCFGCHANGES];
-	mgmt_yang_getdata_req_t *getreq[VTY_MAXCFGCHANGES];
+	Mgmtd__YangData yang_data[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq get_req[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq *getreq[VTY_MAXCFGCHANGES];
 	int i;
 
 	vty->mgmt_req_id++;

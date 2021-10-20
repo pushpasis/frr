@@ -177,7 +177,7 @@ extern int mgmt_db_load_config_from_file(uint64_t db_hndl,
 
 extern int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl,
 					  Mgmtd__DatabaseId db_id,
-					  mgmt_yang_getdata_req_t *data_req,
+					  Mgmtd__YangGetDataReq *data_req,
 					  int num_reqs);
 
 extern void mgmt_db_dump_tree(struct vty *vty, uint64_t db_hndl,

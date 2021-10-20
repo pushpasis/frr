@@ -536,7 +536,7 @@ static int mgmt_frntnd_send_commitcfg_reply(
 static int mgmt_frntnd_send_getcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 					 Mgmtd__DatabaseId db_id,
 					 uint64_t req_id, bool success,
-					 mgmt_yang_data_reply_t *data,
+					 Mgmtd__YangDataReply *data,
 					 const char *error_if_any)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -576,7 +576,7 @@ static int mgmt_frntnd_send_getcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 static int mgmt_frntnd_send_getdata_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__DatabaseId db_id,
 					  uint64_t req_id, bool success,
-					  mgmt_yang_data_reply_t *data,
+					  Mgmtd__YangDataReply *data,
 					  const char *error_if_any)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -1775,7 +1775,7 @@ int mgmt_frntnd_send_commit_cfg_reply(uint64_t session_id, uint64_t trxn_id,
 int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,
 				   Mgmtd__DatabaseId db_id, uint64_t req_id,
 				   enum mgmt_result result,
-				   mgmt_yang_data_reply_t *data_resp,
+				   Mgmtd__YangDataReply *data_resp,
 				   const char *error_if_any)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
@@ -1792,7 +1792,7 @@ int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,
 int mgmt_frntnd_send_get_data_reply(uint64_t session_id, uint64_t trxn_id,
 				    Mgmtd__DatabaseId db_id, uint64_t req_id,
 				    enum mgmt_result result,
-				    mgmt_yang_data_reply_t *data_resp,
+				    Mgmtd__YangDataReply *data_resp,
 				    const char *error_if_any)
 {
 	struct mgmt_frntnd_sessn_ctxt *sessn;
@@ -1807,7 +1807,7 @@ int mgmt_frntnd_send_get_data_reply(uint64_t session_id, uint64_t trxn_id,
 }
 
 int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
-				 mgmt_yang_data_t *data_resp[], int num_data)
+				 Mgmtd__YangData *data_resp[], int num_data)
 {
 	/* struct mgmt_frntnd_sessn_ctxt *sessn; */
 

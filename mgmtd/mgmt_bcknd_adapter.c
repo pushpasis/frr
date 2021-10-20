@@ -506,7 +506,7 @@ static int mgmt_bcknd_send_trxn_req(struct mgmt_bcknd_client_adapter *adptr,
 static int
 mgmt_bcknd_send_cfgdata_create_req(struct mgmt_bcknd_client_adapter *adptr,
 				   uint64_t trxn_id, uint64_t batch_id,
-				   mgmt_yang_cfgdata_req_t **cfgdata_reqs,
+				   Mgmtd__YangCfgDataReq **cfgdata_reqs,
 				   size_t num_reqs, bool end_of_data)
 {
 	Mgmtd__BckndMessage bcknd_msg;

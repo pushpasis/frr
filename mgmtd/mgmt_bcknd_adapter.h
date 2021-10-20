@@ -44,12 +44,12 @@ enum mgmt_bcknd_req_type {
 };
 
 struct mgmt_bcknd_cfgreq {
-	mgmt_yang_cfgdata_req_t **cfgdata_reqs;
+	Mgmtd__YangCfgDataReq **cfgdata_reqs;
 	size_t num_reqs;
 };
 
 struct mgmt_bcknd_datareq {
-	mgmt_yang_getdata_req_t **getdata_reqs;
+	Mgmtd__YangGetDataReq **getdata_reqs;
 	size_t num_reqs;
 };
 

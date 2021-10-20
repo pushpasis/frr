@@ -110,7 +110,7 @@ mgmt_frntnd_find_session_by_client_id(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	{
 		if (sessn->client_id == client_id) {
 			MGMTD_FRNTND_CLNT_DBG(
-				"Found session %p for client-id %lu.", sessn,
+				"Found session %p for client-id %llu.", sessn,
 				client_id);
 			return sessn;
 		}
@@ -129,7 +129,7 @@ mgmt_frntnd_find_session_by_sessn_id(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	{
 		if (sessn->session_id == sessn_id) {
 			MGMTD_FRNTND_CLNT_DBG(
-				"Found session %p for session-id %lu.", sessn,
+				"Found session %p for session-id %llu.", sessn,
 				sessn_id);
 			return sessn;
 		}
@@ -339,7 +339,7 @@ mgmt_frntnd_send_session_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	frntnd_msg.sessn_req = &sess_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending SESSION_REQ message for %s session %lu to MGMTD Frontend server",
+		"Sending SESSION_REQ message for %s session %llu to MGMTD Frontend server",
 		create ? "creating" : "destroying", sessn->client_id);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
@@ -366,17 +366,18 @@ mgmt_frntnd_send_lockdb_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	frntnd_msg.lockdb_req = &lockdb_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending %sLOCK_REQ message for Db:%d session %lu to MGMTD Frontend server",
+		"Sending %sLOCK_REQ message for Db:%d session %llu to MGMTD Frontend server",
 		lock ? "" : "UN", db_id, sessn->client_id);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
 }
 
-static int mgmt_frntnd_send_setcfg_req(
-	struct mgmt_frntnd_client_ctxt *clnt_ctxt,
-	struct mgmt_frntnd_client_session *sessn, uint64_t req_id,
-	Mgmtd__DatabaseId db_id, mgmt_yang_cfgdata_req_t **data_req,
-	int num_data_reqs, bool implicit_commit, Mgmtd__DatabaseId dst_db_id)
+static int
+mgmt_frntnd_send_setcfg_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
+			    struct mgmt_frntnd_client_session *sessn,
+			    uint64_t req_id, Mgmtd__DatabaseId db_id,
+			    Mgmtd__YangCfgDataReq **data_req, int num_data_reqs,
+			    bool implicit_commit, Mgmtd__DatabaseId dst_db_id)
 {
 	(void)req_id;
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -397,7 +398,7 @@ static int mgmt_frntnd_send_setcfg_req(
 	frntnd_msg.setcfg_req = &setcfg_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending SET_CONFIG_REQ message for Db:%d session %lu (#xpaths:%d) to MGMTD Frontend server",
+		"Sending SET_CONFIG_REQ message for Db:%d session %llu (#xpaths:%d) to MGMTD Frontend server",
 		db_id, sessn->client_id, num_data_reqs);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
@@ -428,7 +429,7 @@ mgmt_frntnd_send_commitcfg_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	frntnd_msg.commcfg_req = &commitcfg_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending COMMIT_CONFIG_REQ message for Src-Db:%d, Dst-Db:%d session %lu to MGMTD Frontend server",
+		"Sending COMMIT_CONFIG_REQ message for Src-Db:%d, Dst-Db:%d session %llu to MGMTD Frontend server",
 		src_db_id, dest_db_id, sessn->client_id);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
@@ -438,7 +439,7 @@ static int
 mgmt_frntnd_send_getcfg_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 			    struct mgmt_frntnd_client_session *sessn,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    mgmt_yang_getdata_req_t *data_req[],
+			    Mgmtd__YangGetDataReq *data_req[],
 			    int num_data_reqs)
 {
 	(void)req_id;
@@ -458,7 +459,7 @@ mgmt_frntnd_send_getcfg_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	frntnd_msg.getcfg_req = &getcfg_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending GET_CONFIG_REQ message for Db:%d session %lu (#xpaths:%d) to MGMTD Frontend server",
+		"Sending GET_CONFIG_REQ message for Db:%d session %llu (#xpaths:%d) to MGMTD Frontend server",
 		db_id, sessn->client_id, num_data_reqs);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
@@ -468,7 +469,7 @@ static int
 mgmt_frntnd_send_getdata_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 			     struct mgmt_frntnd_client_session *sessn,
 			     uint64_t req_id, Mgmtd__DatabaseId db_id,
-			     mgmt_yang_getdata_req_t *data_req[],
+			     Mgmtd__YangGetDataReq *data_req[],
 			     int num_data_reqs)
 {
 	(void)req_id;
@@ -488,18 +489,17 @@ mgmt_frntnd_send_getdata_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	frntnd_msg.getdata_req = &getdata_req;
 
 	MGMTD_FRNTND_CLNT_DBG(
-		"Sending GET_CONFIG_REQ message for Db:%d session %lu (#xpaths:%d) to MGMTD Frontend server",
+		"Sending GET_CONFIG_REQ message for Db:%d session %llu (#xpaths:%d) to MGMTD Frontend server",
 		db_id, sessn->client_id, num_data_reqs);
 
 	return mgmt_frntnd_client_send_msg(clnt_ctxt, &frntnd_msg);
 }
 
-static int
-mgmt_frntnd_send_regnotify_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
-			       struct mgmt_frntnd_client_session *sessn,
-			       uint64_t req_id, Mgmtd__DatabaseId db_id,
-			       bool register_req, mgmt_yang_xpath_t *data_req[],
-			       int num_data_reqs)
+static int mgmt_frntnd_send_regnotify_req(
+	struct mgmt_frntnd_client_ctxt *clnt_ctxt,
+	struct mgmt_frntnd_client_session *sessn, uint64_t req_id,
+	Mgmtd__DatabaseId db_id, bool register_req,
+	Mgmtd__YangDataXPath *data_req[], int num_data_reqs)
 {
 	(void)req_id;
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -1031,7 +1031,7 @@ static void mgmt_frntnd_client_schedule_conn_retry(
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt, unsigned long intvl_secs)
 {
 	MGMTD_FRNTND_CLNT_DBG(
-		"Scheduling MGMTD Frontend server connection retry after %lu seconds",
+		"Scheduling MGMTD Frontend server connection retry after %llu seconds",
 		intvl_secs);
 	thread_add_timer(clnt_ctxt->tm, mgmt_frntnd_client_conn_timeout,
 			 (void *)clnt_ctxt, intvl_secs,
@@ -1162,7 +1162,7 @@ enum mgmt_result mgmt_frntnd_lock_db(uint64_t lib_hndl, uint64_t session_id,
 enum mgmt_result
 mgmt_frntnd_set_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    mgmt_yang_cfgdata_req_t **config_req, int num_reqs,
+			    Mgmtd__YangCfgDataReq **config_req, int num_reqs,
 			    bool implicit_commit, Mgmtd__DatabaseId dst_db_id)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
@@ -1220,7 +1220,7 @@ enum mgmt_result mgmt_frntnd_commit_config_data(uint64_t lib_hndl,
 enum mgmt_result
 mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    mgmt_yang_getdata_req_t *data_req[], int num_reqs)
+			    Mgmtd__YangGetDataReq *data_req[], int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
 	struct mgmt_frntnd_client_session *sessn;
@@ -1246,7 +1246,7 @@ mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
  */
 enum mgmt_result mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id,
 				      uint64_t req_id, Mgmtd__DatabaseId db_id,
-				      mgmt_yang_getdata_req_t *data_req[],
+				      Mgmtd__YangGetDataReq *data_req[],
 				      int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
@@ -1275,7 +1275,7 @@ enum mgmt_result
 mgmt_frntnd_register_yang_notify(uint64_t lib_hndl, uint64_t session_id,
 				 uint64_t req_id, Mgmtd__DatabaseId db_id,
 				 bool register_req,
-				 mgmt_yang_xpath_t *data_req[], int num_reqs)
+				 Mgmtd__YangDataXPath *data_req[], int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
 	struct mgmt_frntnd_client_session *sessn;

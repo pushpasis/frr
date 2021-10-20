@@ -115,10 +115,10 @@ struct mgmt_trxn_bcknd_cfg_batch {
 	struct mgmt_bcknd_client_adapter *bcknd_adptr;
 	union mgmt_bcknd_xpath_subscr_info
 		xp_subscr[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
-	mgmt_yang_cfgdata_req_t cfg_data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
-	mgmt_yang_cfgdata_req_t *cfg_datap[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
-	mgmt_yang_data_t data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
-	mgmt_yang_data_value_t value[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
+	Mgmtd__YangCfgDataReq cfg_data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
+	Mgmtd__YangCfgDataReq *cfg_datap[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
+	Mgmtd__YangData data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
+	Mgmtd__YangDataValue value[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	size_t num_cfg_data;
 	int buf_space_left;
 	enum mgmt_commit_phase comm_phase;
@@ -189,10 +189,10 @@ struct mgmt_get_data_reply {
 	/* Buffer space for preparing data reply */
 	int num_reply;
 	int last_batch;
-	mgmt_yang_data_reply_t data_reply;
-	mgmt_yang_data_t reply_data[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
-	mgmt_yang_data_t *reply_datap[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
-	mgmt_yang_data_value_t reply_value[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangDataReply data_reply;
+	Mgmtd__YangData reply_data[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangData *reply_datap[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangDataValue reply_value[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
 	char *reply_xpathp[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
 };
 
@@ -1767,7 +1767,7 @@ static void mgmt_trxn_send_getcfg_reply_data(struct mgmt_trxn_req *trxn_req,
 					     struct mgmt_get_data_req *get_req)
 {
 	struct mgmt_get_data_reply *get_reply;
-	mgmt_yang_data_reply_t *data_reply;
+	Mgmtd__YangDataReply *data_reply;
 
 	get_reply = get_req->reply;
 	if (!get_reply)
@@ -1828,8 +1828,8 @@ static void mgmt_trxn_iter_and_send_get_cfg_reply(uint64_t db_hndl, char *xpath,
 	struct mgmt_trxn_req *trxn_req;
 	struct mgmt_get_data_req *get_req;
 	struct mgmt_get_data_reply *get_reply;
-	mgmt_yang_data_t *data;
-	mgmt_yang_data_value_t *data_value;
+	Mgmtd__YangData *data;
+	Mgmtd__YangDataValue *data_value;
 
 	trxn_req = (struct mgmt_trxn_req *)ctxt;
 	if (!trxn_req)
@@ -2321,7 +2321,7 @@ enum mgmt_trxn_type mgmt_get_trxn_type(uint64_t trxn_id)
 
 int mgmt_trxn_send_set_config_req(uint64_t trxn_id, uint64_t req_id,
 				  Mgmtd__DatabaseId db_id, uint64_t db_hndl,
-				  mgmt_yang_cfgdata_req_t *cfg_req[],
+				  Mgmtd__YangCfgDataReq *cfg_req[],
 				  size_t num_req, bool implicit_commit,
 				  Mgmtd__DatabaseId dst_db_id,
 				  uint64_t dst_db_hndl)
@@ -2738,7 +2738,7 @@ int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
 
 int mgmt_trxn_send_get_config_req(uint64_t trxn_id, uint64_t req_id,
 				  Mgmtd__DatabaseId db_id, uint64_t db_hndl,
-				  mgmt_yang_getdata_req_t **data_req,
+				  Mgmtd__YangGetDataReq **data_req,
 				  size_t num_reqs)
 {
 	struct mgmt_trxn_ctxt *trxn;
@@ -2768,7 +2768,7 @@ int mgmt_trxn_send_get_config_req(uint64_t trxn_id, uint64_t req_id,
 
 int mgmt_trxn_send_get_data_req(uint64_t trxn_id, uint64_t req_id,
 				Mgmtd__DatabaseId db_id, uint64_t db_hndl,
-				mgmt_yang_getdata_req_t **data_req,
+				Mgmtd__YangGetDataReq **data_req,
 				size_t num_reqs)
 {
 	struct mgmt_trxn_ctxt *trxn;

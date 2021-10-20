@@ -136,16 +136,16 @@ extern int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,
 					  Mgmtd__DatabaseId db_id,
 					  uint64_t req_id,
 					  enum mgmt_result result,
-					  mgmt_yang_data_reply_t *data_resp,
+					  Mgmtd__YangDataReply *data_resp,
 					  const char *error_if_any);
 
 extern int mgmt_frntnd_send_get_data_reply(
 	uint64_t session_id, uint64_t trxn_id, Mgmtd__DatabaseId db_id,
 	uint64_t req_id, enum mgmt_result result,
-	mgmt_yang_data_reply_t *data_resp, const char *error_if_any);
+	Mgmtd__YangDataReply *data_resp, const char *error_if_any);
 
 extern int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
-					mgmt_yang_data_t *data_resp[],
+					Mgmtd__YangData *data_resp[],
 					int num_data);
 
 extern struct mgmt_setcfg_stats *

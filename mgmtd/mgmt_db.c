@@ -925,7 +925,7 @@ int mgmt_db_iter_data(uint64_t db_hndl, char *base_xpath,
 }
 
 int mgmt_db_hndl_send_get_data_req(uint64_t db_hndl, Mgmtd__DatabaseId db_id,
-				   mgmt_yang_getdata_req_t *data_req,
+				   Mgmtd__YangGetDataReq *data_req,
 				   int num_reqs)
 {
 	struct mgmt_db_ctxt *db_ctxt;
