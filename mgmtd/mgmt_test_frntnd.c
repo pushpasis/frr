@@ -48,7 +48,7 @@ static void mgmt_test_frntnd_server_connected(uint64_t lib_hndl,
 			if (mgmt_frntnd_create_client_session(frntd_lib_hndl,
 							      indx, 0)
 			    != MGMTD_SUCCESS) {
-				printf("ERROR: Failed to creaet a new session!\n");
+				printf("ERROR: Failed to creat new session!\n");
 				exit(-1);
 			}
 		}

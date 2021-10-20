@@ -101,15 +101,12 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 			   MGMTD_BCKND_CLIENT_BGPD}
 	},
 	{.xpath_regexp =
-		 "/frr-routing:routing/control-plane-protocols/			 \
-		  control-plane-protocol[type='frr-staticd:staticd']	 \
-		  [name='staticd'][vrf='default']/frr-staticd:staticd/*",
+		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}
 	},
-	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	 \
-			  control-plane-protocol[type='frr-bgp:bgp']			 \
-			  [name='bgp'][vrf='default']/frr-bgp:bgp/*",
+	{.xpath_regexp =
+		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-bgp:bgp'][name='bgp'][vrf='default']/frr-bgp:bgp/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
 	}

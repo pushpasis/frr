@@ -626,7 +626,8 @@ static int
 mgmt_bcknd_update_setcfg_in_batch(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				  struct mgmt_bcknd_trxn_ctxt *trxn,
 				  uint64_t batch_id,
-				  Mgmtd__YangCfgDataReq * cfg_req[], int num_req)
+				  Mgmtd__YangCfgDataReq * cfg_req[],
+				  int num_req)
 {
 	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 	struct mgmt_bcknd_trxn_req *trxn_req = NULL;
