@@ -2048,14 +2048,14 @@ static int mgmt_trxn_process_get_data(struct thread *thread)
 			goto mgmt_trxn_process_get_data_done;
 		}
 
-		if (mgmt_db_is_config(db_hndl)
-		    && mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
-			MGMTD_TRXN_ERR(
-				"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
-				trxn_req->req.get_data->db_id, trxn,
-				trxn->session_id, trxn_req->req_id);
-			error = true;
-			goto mgmt_trxn_process_get_data_done;
+		if (mgmt_db_is_config(db_hndl)) {
+			if (mgmt_trxn_get_config(trxn, trxn_req, db_hndl) != 0) {
+				MGMTD_TRXN_ERR(
+					"Unable to retrieve Config from DB %d for Trxn %p, Sessn: 0x%llx, Req: %lld!",
+					trxn_req->req.get_data->db_id, trxn,
+					trxn->session_id, trxn_req->req_id);
+				error = true;
+			}
 		} else {
 			/*
 			 * TODO: Trigger GET procedures for Backend
