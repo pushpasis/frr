@@ -120,42 +120,39 @@ mgmt_frntnd_create_adapter(int conn_fd, union sockunion *su);
 extern struct mgmt_frntnd_client_adapter *
 mgmt_frntnd_get_adapter(const char *name);
 
-extern int mgmt_frntnd_send_set_cfg_reply(
-	mgmt_session_id_t session_id, uint64_t trxn_id,
-	mgmt_database_id_t db_id, mgmt_client_req_id_t req_id,
-	enum mgmt_result result, const char *error_if_any, bool implcit_commit);
+extern int mgmt_frntnd_send_set_cfg_reply(uint64_t session_id, uint64_t trxn_id,
+					  Mgmtd__DatabaseId db_id,
+					  uint64_t req_id,
+					  enum mgmt_result result,
+					  const char *error_if_any,
+					  bool implcit_commit);
 
 extern int mgmt_frntnd_send_commit_cfg_reply(
-	mgmt_session_id_t session_id, uint64_t trxn_id,
-	mgmt_database_id_t src_db_id, mgmt_database_id_t dst_db_id,
-	mgmt_client_req_id_t req_id, bool validate_only,
+	uint64_t session_id, uint64_t trxn_id, Mgmtd__DatabaseId src_db_id,
+	Mgmtd__DatabaseId dst_db_id, uint64_t req_id, bool validate_only,
 	enum mgmt_result result, const char *error_if_any);
 
-extern int mgmt_frntnd_send_get_cfg_reply(mgmt_session_id_t session_id,
-					  uint64_t trxn_id,
-					  mgmt_database_id_t db_id,
-					  mgmt_client_req_id_t req_id,
+extern int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,
+					  Mgmtd__DatabaseId db_id,
+					  uint64_t req_id,
 					  enum mgmt_result result,
-					  mgmt_yang_data_reply_t *data_resp,
+					  Mgmtd__YangDataReply *data_resp,
 					  const char *error_if_any);
 
-extern int mgmt_frntnd_send_get_data_reply(mgmt_session_id_t session_id,
-					   uint64_t trxn_id,
-					   mgmt_database_id_t db_id,
-					   mgmt_client_req_id_t req_id,
-					   enum mgmt_result result,
-					   mgmt_yang_data_reply_t *data_resp,
-					   const char *error_if_any);
+extern int mgmt_frntnd_send_get_data_reply(
+	uint64_t session_id, uint64_t trxn_id, Mgmtd__DatabaseId db_id,
+	uint64_t req_id, enum mgmt_result result,
+	Mgmtd__YangDataReply *data_resp, const char *error_if_any);
 
-extern int mgmt_frntnd_send_data_notify(mgmt_database_id_t db_id,
-					mgmt_yang_data_t *data_resp[],
+extern int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
+					Mgmtd__YangData * data_resp[],
 					int num_data);
 
 extern struct mgmt_setcfg_stats *
-mgmt_frntnd_get_sessn_setcfg_stats(mgmt_session_id_t session_id);
+mgmt_frntnd_get_sessn_setcfg_stats(uint64_t session_id);
 
 extern struct mgmt_commit_stats *
-mgmt_frntnd_get_sessn_commit_stats(mgmt_session_id_t session_id);
+mgmt_frntnd_get_sessn_commit_stats(uint64_t session_id);
 
 extern void mgmt_frntnd_adapter_status_write(struct vty *vty, bool detail);
 extern void mgmt_frntnd_adapter_perf_measurement(struct vty *vty, bool config);

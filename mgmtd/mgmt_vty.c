@@ -334,7 +334,7 @@ DEFPY(show_mgmt_get_config, show_mgmt_get_config_cmd,
       "XPath string\n")
 {
 	const char *xpath_list[VTY_MAXCFGCHANGES] = {0};
-	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
+	Mgmtd__DatabaseId database = MGMTD_DB_CANDIDATE;
 
 	if (dbname)
 		database = mgmt_db_name2id(dbname);
@@ -361,7 +361,7 @@ DEFPY(show_mgmt_get_data, show_mgmt_get_data_cmd,
       "XPath string\n")
 {
 	const char *xpath_list[VTY_MAXCFGCHANGES] = {0};
-	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
+	Mgmtd__DatabaseId database = MGMTD_DB_CANDIDATE;
 
 	if (dbname)
 		database = mgmt_db_name2id(dbname);
@@ -391,7 +391,7 @@ DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
       "Format of the output\n"
       "JSON|XML")
 {
-	mgmt_database_id_t database = MGMTD_DB_CANDIDATE;
+	Mgmtd__DatabaseId database = MGMTD_DB_CANDIDATE;
 	uint64_t db_hndl;
 	LYD_FORMAT format = LYD_UNKNOWN;
 	FILE *f = NULL;
@@ -494,7 +494,7 @@ DEFPY(mgmt_save_config, mgmt_save_config_cmd,
       "Full path of the file")
 {
 	uint64_t db_hndl;
-	mgmt_database_id_t database;
+	Mgmtd__DatabaseId database;
 	FILE *f;
 
 	database = mgmt_db_name2id(dbname);

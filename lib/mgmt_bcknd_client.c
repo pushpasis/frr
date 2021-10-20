@@ -36,8 +36,10 @@
 	fprintf(stderr, "%s: ERROR, " fmt "\n", __func__, ##__VA_ARGS__)
 #else /* REDIRECT_DEBUG_TO_STDERR */
 #define MGMTD_BCKND_CLNT_DBG(fmt, ...)                                         \
-	if (mgmt_debug_bcknd_clnt)                                             \
-	zlog_err("%s: " fmt, __func__, ##__VA_ARGS__)
+	do {                                                                   \
+		if (mgmt_debug_bcknd_clnt)                                     \
+			zlog_err("%s: " fmt, __func__, ##__VA_ARGS__);         \
+	} while (0)
 #define MGMTD_BCKND_CLNT_ERR(fmt, ...)                                         \
 	zlog_err("%s: ERROR: " fmt, __func__, ##__VA_ARGS__)
 #endif /* REDIRECT_DEBUG_TO_STDERR */
@@ -46,57 +48,55 @@ DEFINE_MTYPE_STATIC(LIB, MGMTD_BCKND_BATCH,
 		    "MGMTD backend transaction batch data");
 DEFINE_MTYPE_STATIC(LIB, MGMTD_BCKND_TRXN, "MGMTD backend transaction data");
 
-typedef enum mgmt_bcknd_trxn_event_ {
+enum mgmt_bcknd_trxn_event {
 	MGMTD_BCKND_TRXN_PROC_SETCFG = 1,
 	MGMTD_BCKND_TRXN_PROC_GETCFG,
 	MGMTD_BCKND_TRXN_PROC_GETDATA
-} mgmt_bcknd_trxn_event_t;
+};
 
-typedef struct mgmt_bcknd_set_cfg_req_ {
+struct mgmt_bcknd_set_cfg_req {
 	struct nb_cfg_change cfg_changes[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	uint16_t num_cfg_changes;
-} mgmt_bcknd_set_cfg_req_t;
+};
 
-typedef struct mgmt_bcknd_get_data_req_ {
+struct mgmt_bcknd_get_data_req {
 	char *xpaths[MGMTD_MAX_NUM_DATA_REQ_IN_BATCH];
 	uint16_t num_xpaths;
-} mgmt_bcknd_get_data_req_t;
+};
 
-typedef struct mgmt_bcknd_trxn_req_ {
-	mgmt_bcknd_trxn_event_t event;
+struct mgmt_bcknd_trxn_req {
+	enum mgmt_bcknd_trxn_event event;
 	union {
-		// mgmt_bcknd_set_cfg_req_t *set_cfg;
-		// mgmt_bcknd_get_data_req_t *get_data;
-		mgmt_bcknd_set_cfg_req_t set_cfg;
-		mgmt_bcknd_get_data_req_t get_data;
+		struct mgmt_bcknd_set_cfg_req set_cfg;
+		struct mgmt_bcknd_get_data_req get_data;
 	} req;
-} mgmt_bcknd_trxn_req_t;
+};
 
 PREDECL_LIST(mgmt_bcknd_batch_list);
-typedef struct mgmt_bcknd_batch_ctxt_ {
+struct mgmt_bcknd_batch_ctxt {
 	/* Batch-Id as assigned by MGMTD */
 	uint64_t batch_id;
 
-	mgmt_bcknd_trxn_req_t trxn_req;
+	struct mgmt_bcknd_trxn_req trxn_req;
 
 	uint32_t flags;
 
 	struct mgmt_bcknd_batch_list_item list_linkage;
-} mgmt_bcknd_batch_ctxt_t;
+};
 #define MGMTD_BCKND_BATCH_FLAGS_CFG_PREPARED (1U << 0)
 #define MGMTD_BCKND_TRXN_FLAGS_CFG_APPLIED (1U << 1)
-DECLARE_LIST(mgmt_bcknd_batch_list, mgmt_bcknd_batch_ctxt_t, list_linkage);
+DECLARE_LIST(mgmt_bcknd_batch_list, struct mgmt_bcknd_batch_ctxt, list_linkage);
 
-struct mgmt_bcknd_client_ctxt_;
+struct mgmt_bcknd_client_ctxt;
 
 PREDECL_LIST(mgmt_bcknd_trxn_list);
-typedef struct mgmt_bcknd_trxn_ctxt_ {
+struct mgmt_bcknd_trxn_ctxt {
 	/* Trxn-Id as assigned by MGMTD */
 	uint64_t trxn_id;
 	uint32_t flags;
 
-	mgmt_bcknd_client_trxn_ctxt_t client_data;
-	struct mgmt_bcknd_client_ctxt_ *clnt_ctxt;
+	struct mgmt_bcknd_client_trxn_ctxt client_data;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
 	/* List of batches belonging to this transaction */
 	struct mgmt_bcknd_batch_list_head cfg_batches;
@@ -106,21 +106,21 @@ typedef struct mgmt_bcknd_trxn_ctxt_ {
 
 	struct nb_transaction *nb_trxn;
 	uint32_t nb_trxn_id;
-} mgmt_bcknd_trxn_ctxt_t;
+};
 #define MGMTD_BCKND_TRXN_FLAGS_CFGPREP_OFF (1U << 0)
 #define MGMTD_BCKND_TRXN_FLAGS_CFGPREP_FAILED (1U << 1)
 #define MGMTD_BCKND_TRXN_FLAGS_CFGAPPLY_OFF (1U << 2)
 #define MGMTD_BCKND_TRXN_FLAGS_CLEANUP_PENDING (1U << 3)
 
-DECLARE_LIST(mgmt_bcknd_trxn_list, mgmt_bcknd_trxn_ctxt_t, list_linkage);
+DECLARE_LIST(mgmt_bcknd_trxn_list, struct mgmt_bcknd_trxn_ctxt, list_linkage);
 
 #define FOREACH_BCKND_TRXN_BATCH_IN_LIST(trxn, batch)                          \
-	frr_each_safe (mgmt_bcknd_batch_list, &(trxn)->cfg_batches, (batch))
+	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->cfg_batches, (batch))
 
 #define FOREACH_BCKND_APPLY_BATCH_IN_LIST(trxn, batch)                         \
-	frr_each_safe (mgmt_bcknd_batch_list, &(trxn)->apply_cfgs, (batch))
+	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->apply_cfgs, (batch))
 
-typedef struct mgmt_bcknd_client_ctxt_ {
+struct mgmt_bcknd_client_ctxt {
 	int conn_fd;
 	struct thread_master *tm;
 	struct thread *conn_retry_tmr;
@@ -151,18 +151,17 @@ typedef struct mgmt_bcknd_client_ctxt_ {
 	unsigned long avg_apply_nb_cfg_tm;
 
 	struct mgmt_bcknd_trxn_list_head trxn_head;
-	mgmt_bcknd_client_params_t client_params;
-} mgmt_bcknd_client_ctxt_t;
+	struct mgmt_bcknd_client_params client_params;
+};
 
 #define MGMTD_BCKND_CLNT_FLAGS_WRITES_OFF (1U << 0)
 
 #define FOREACH_BCKND_TRXN_IN_LIST(clntctxt, trxn)                             \
-	frr_each_safe (mgmt_bcknd_trxn_list, &(clntctxt)->trxn_head, (trxn))
+	frr_each_safe(mgmt_bcknd_trxn_list, &(clntctxt)->trxn_head, (trxn))
 
-static bool mgmt_debug_bcknd_clnt = false;
-// static bool mgmt_debug_bcknd_clnt = true;
+static bool mgmt_debug_bcknd_clnt;
 
-static mgmt_bcknd_client_ctxt_t mgmt_bcknd_clntctxt = {0};
+static struct mgmt_bcknd_client_ctxt mgmt_bcknd_clntctxt = {0};
 
 const char *mgmt_bcknd_client_names[MGMTD_CLIENT_NAME_MAX_LEN] = {
 	MGMTD_BCKND_CLIENT_STATICD, /* MGMTD_BCKND_CLIENT_ID_STATICD */
@@ -172,16 +171,17 @@ const char *mgmt_bcknd_client_names[MGMTD_CLIENT_NAME_MAX_LEN] = {
 
 /* Forward declarations */
 static void
-mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+mgmt_bcknd_client_register_event(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				 enum mgmt_event event);
 static void
-mgmt_bcknd_client_schedule_conn_retry(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+mgmt_bcknd_client_schedule_conn_retry(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      unsigned long intvl_secs);
-static int mgmt_bcknd_client_send_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_client_send_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      Mgmtd__BckndMessage *bcknd_msg);
 
-static void mgmt_bcknd_server_disconnect(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					 bool reconnect)
+static void
+mgmt_bcknd_server_disconnect(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			     bool reconnect)
 {
 	/* Notify client through registered callback (if any) */
 	if (clnt_ctxt->client_params.conn_notify_cb)
@@ -194,20 +194,17 @@ static void mgmt_bcknd_server_disconnect(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		clnt_ctxt->conn_fd = 0;
 	}
 
-	// THREAD_OFF(clnt_ctxt->conn_read_ev);
-	// THREAD_OFF(clnt_ctxt->conn_retry_tmr);
-	// THREAD_OFF(clnt_ctxt->msg_proc_ev);
-
 	if (reconnect)
 		mgmt_bcknd_client_schedule_conn_retry(
 			clnt_ctxt,
 			clnt_ctxt->client_params.conn_retry_intvl_sec);
 }
 
-static mgmt_bcknd_batch_ctxt_t *
-mgmt_bcknd_find_batch_by_id(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
+static struct mgmt_bcknd_batch_ctxt *
+mgmt_bcknd_find_batch_by_id(struct mgmt_bcknd_trxn_ctxt *trxn,
+			    uint64_t batch_id)
 {
-	mgmt_bcknd_batch_ctxt_t *batch = NULL;
+	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 
 	FOREACH_BCKND_TRXN_BATCH_IN_LIST(trxn, batch)
 	{
@@ -218,15 +215,15 @@ mgmt_bcknd_find_batch_by_id(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
 	return NULL;
 }
 
-static mgmt_bcknd_batch_ctxt_t *
-mgmt_bcknd_batch_create(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
+static struct mgmt_bcknd_batch_ctxt *
+mgmt_bcknd_batch_create(struct mgmt_bcknd_trxn_ctxt *trxn, uint64_t batch_id)
 {
-	mgmt_bcknd_batch_ctxt_t *batch = NULL;
+	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 
 	batch = mgmt_bcknd_find_batch_by_id(trxn, batch_id);
 	if (!batch) {
 		batch = XCALLOC(MTYPE_MGMTD_BCKND_BATCH,
-				sizeof(mgmt_bcknd_batch_ctxt_t));
+				sizeof(struct mgmt_bcknd_batch_ctxt));
 		assert(batch);
 
 		batch->batch_id = batch_id;
@@ -239,10 +236,11 @@ mgmt_bcknd_batch_create(mgmt_bcknd_trxn_ctxt_t *trxn, uint64_t batch_id)
 	return batch;
 }
 
-static void mgmt_bcknd_batch_delete(mgmt_bcknd_trxn_ctxt_t *trxn,
-				    mgmt_bcknd_batch_ctxt_t **batch)
+static void mgmt_bcknd_batch_delete(struct mgmt_bcknd_trxn_ctxt *trxn,
+				    struct mgmt_bcknd_batch_ctxt **batch)
 {
 	uint16_t indx;
+
 	if (!batch)
 		return;
 
@@ -273,9 +271,9 @@ static void mgmt_bcknd_batch_delete(mgmt_bcknd_trxn_ctxt_t *trxn,
 	*batch = NULL;
 }
 
-static void mgmt_bcknd_cleanup_all_batches(mgmt_bcknd_trxn_ctxt_t *trxn)
+static void mgmt_bcknd_cleanup_all_batches(struct mgmt_bcknd_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_batch_ctxt_t *batch = NULL;
+	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 
 	FOREACH_BCKND_TRXN_BATCH_IN_LIST(trxn, batch)
 	{
@@ -283,11 +281,11 @@ static void mgmt_bcknd_cleanup_all_batches(mgmt_bcknd_trxn_ctxt_t *trxn)
 	}
 }
 
-static mgmt_bcknd_trxn_ctxt_t *
-mgmt_bcknd_find_trxn_by_id(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static struct mgmt_bcknd_trxn_ctxt *
+mgmt_bcknd_find_trxn_by_id(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 			   uint64_t trxn_id)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn = NULL;
+	struct mgmt_bcknd_trxn_ctxt *trxn = NULL;
 
 	FOREACH_BCKND_TRXN_IN_LIST(clnt_ctxt, trxn)
 	{
@@ -298,15 +296,16 @@ mgmt_bcknd_find_trxn_by_id(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return NULL;
 }
 
-static mgmt_bcknd_trxn_ctxt_t *
-mgmt_bcknd_trxn_create(mgmt_bcknd_client_ctxt_t *clnt_ctxt, uint64_t trxn_id)
+static struct mgmt_bcknd_trxn_ctxt *
+mgmt_bcknd_trxn_create(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+		       uint64_t trxn_id)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn = NULL;
+	struct mgmt_bcknd_trxn_ctxt *trxn = NULL;
 
 	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
 	if (!trxn) {
 		trxn = XCALLOC(MTYPE_MGMTD_BCKND_TRXN,
-			       sizeof(mgmt_bcknd_trxn_ctxt_t));
+			       sizeof(struct mgmt_bcknd_trxn_ctxt));
 		assert(trxn);
 
 		trxn->trxn_id = trxn_id;
@@ -321,8 +320,8 @@ mgmt_bcknd_trxn_create(mgmt_bcknd_client_ctxt_t *clnt_ctxt, uint64_t trxn_id)
 	return trxn;
 }
 
-static void mgmt_bcknd_trxn_delete(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-				   mgmt_bcknd_trxn_ctxt_t **trxn)
+static void mgmt_bcknd_trxn_delete(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+				   struct mgmt_bcknd_trxn_ctxt **trxn)
 {
 	if (!trxn)
 		return;
@@ -363,9 +362,10 @@ static void mgmt_bcknd_trxn_delete(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	*trxn = NULL;
 }
 
-static void mgmt_bcknd_cleanup_all_trxns(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
+static void
+mgmt_bcknd_cleanup_all_trxns(struct mgmt_bcknd_client_ctxt *clnt_ctxt)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn = NULL;
+	struct mgmt_bcknd_trxn_ctxt *trxn = NULL;
 
 	FOREACH_BCKND_TRXN_IN_LIST(clnt_ctxt, trxn)
 	{
@@ -373,7 +373,7 @@ static void mgmt_bcknd_cleanup_all_trxns(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 	}
 }
 
-static int mgmt_bcknd_send_trxn_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_send_trxn_reply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      uint64_t trxn_id, bool create,
 				      bool success)
 {
@@ -396,10 +396,10 @@ static int mgmt_bcknd_send_trxn_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
 
-static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_process_trxn_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				       uint64_t trxn_id, bool create)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn;
+	struct mgmt_bcknd_trxn_ctxt *trxn;
 
 	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
 	if (create) {
@@ -445,7 +445,7 @@ static int mgmt_bcknd_process_trxn_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static int
-mgmt_bcknd_send_cfgdata_create_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+mgmt_bcknd_send_cfgdata_create_reply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				     uint64_t trxn_id, uint64_t batch_id,
 				     bool success, const char *error_if_any)
 {
@@ -471,7 +471,7 @@ mgmt_bcknd_send_cfgdata_create_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
 
-static int mgmt_bcknd_trxn_cfg_abort(mgmt_bcknd_trxn_ctxt_t *trxn)
+static int mgmt_bcknd_trxn_cfg_abort(struct mgmt_bcknd_trxn_ctxt *trxn)
 {
 	char errmsg[BUFSIZ] = {0};
 
@@ -488,10 +488,10 @@ static int mgmt_bcknd_trxn_cfg_abort(mgmt_bcknd_trxn_ctxt_t *trxn)
 	return 0;
 }
 
-static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
+static int mgmt_bcknd_trxn_cfg_prepare(struct mgmt_bcknd_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
-	mgmt_bcknd_trxn_req_t *trxn_req = NULL;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
+	struct mgmt_bcknd_trxn_req *trxn_req = NULL;
 	struct nb_context nb_ctxt = {0};
 	struct timeval edit_nb_cfg_start;
 	struct timeval edit_nb_cfg_end;
@@ -499,7 +499,7 @@ static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
 	struct timeval prep_nb_cfg_start;
 	struct timeval prep_nb_cfg_end;
 	unsigned long prep_nb_cfg_tm;
-	mgmt_bcknd_batch_ctxt_t *batch;
+	struct mgmt_bcknd_batch_ctxt *batch;
 	bool error;
 	char err_buf[BUFSIZ];
 	size_t num_processed;
@@ -622,12 +622,14 @@ static int mgmt_bcknd_trxn_cfg_prepare(mgmt_bcknd_trxn_ctxt_t *trxn)
 /*
  * Process all CFG_DATA_REQs received so far and prepare them all in one go.
  */
-static int mgmt_bcknd_update_setcfg_in_batch(
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt, mgmt_bcknd_trxn_ctxt_t *trxn,
-	uint64_t batch_id, mgmt_yang_cfgdata_req_t *cfg_req[], int num_req)
+static int
+mgmt_bcknd_update_setcfg_in_batch(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+				  struct mgmt_bcknd_trxn_ctxt *trxn,
+				  uint64_t batch_id,
+				  Mgmtd__YangCfgDataReq * cfg_req[], int num_req)
 {
-	mgmt_bcknd_batch_ctxt_t *batch = NULL;
-	mgmt_bcknd_trxn_req_t *trxn_req = NULL;
+	struct mgmt_bcknd_batch_ctxt *batch = NULL;
+	struct mgmt_bcknd_trxn_req *trxn_req = NULL;
 	int index;
 	struct nb_cfg_change *cfg_chg;
 
@@ -657,12 +659,6 @@ static int mgmt_bcknd_update_setcfg_in_batch(
 			break;
 		}
 
-		// MGMTD_BCKND_CLNT_DBG("XPath: '%s', Value: '%s'",
-		// 	cfg_req[index]->data->xpath,
-		// 	(cfg_req[index]->data->value &&
-		// 	 cfg_req[index]->data->value->encoded_str_val ?
-		// 	 cfg_req[index]->data->value->encoded_str_val :
-		// 	 "NULL"));
 		strlcpy(cfg_chg->xpath, cfg_req[index]->data->xpath,
 			sizeof(cfg_chg->xpath));
 		cfg_chg->value = (cfg_req[index]->data->value
@@ -684,12 +680,13 @@ static int mgmt_bcknd_update_setcfg_in_batch(
 	return 0;
 }
 
-static int mgmt_bcknd_process_cfgdata_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					  uint64_t trxn_id, uint64_t batch_id,
-					  mgmt_yang_cfgdata_req_t *cfg_req[],
-					  int num_req, bool end_of_data)
+static int
+mgmt_bcknd_process_cfgdata_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			       uint64_t trxn_id, uint64_t batch_id,
+			       Mgmtd__YangCfgDataReq * cfg_req[], int num_req,
+			       bool end_of_data)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn;
+	struct mgmt_bcknd_trxn_ctxt *trxn;
 
 	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
 	if (!trxn) {
@@ -712,11 +709,11 @@ static int mgmt_bcknd_process_cfgdata_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return 0;
 }
 
-static int mgmt_bcknd_send_validate_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					  uint64_t trxn_id,
-					  uint64_t batch_ids[],
-					  size_t num_batch_ids, bool success,
-					  const char *error_if_any)
+static int
+mgmt_bcknd_send_validate_reply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			       uint64_t trxn_id, uint64_t batch_ids[],
+			       size_t num_batch_ids, bool success,
+			       const char *error_if_any)
 {
 	Mgmtd__BckndMessage bcknd_msg;
 	Mgmtd__BckndCfgDataValidateReply validate_reply;
@@ -744,16 +741,16 @@ static int mgmt_bcknd_send_validate_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
 
-static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					   uint64_t trxn_id,
-					   uint64_t batch_ids[],
-					   size_t num_batch_ids)
+static int
+mgmt_bcknd_process_cfg_validate(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+				uint64_t trxn_id, uint64_t batch_ids[],
+				size_t num_batch_ids)
 {
 	int ret = 0;
 	size_t indx;
-	mgmt_bcknd_trxn_ctxt_t *trxn;
-	mgmt_bcknd_trxn_req_t *trxn_req = NULL;
-	mgmt_bcknd_batch_ctxt_t *batch;
+	struct mgmt_bcknd_trxn_ctxt *trxn;
+	struct mgmt_bcknd_trxn_req *trxn_req = NULL;
+	struct mgmt_bcknd_batch_ctxt *batch;
 	bool error;
 	char err_buf[1024];
 	struct nb_context nb_ctxt = {0};
@@ -829,7 +826,7 @@ static int mgmt_bcknd_process_cfg_validate(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return ret;
 }
 
-static int mgmt_bcknd_send_apply_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_send_apply_reply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				       uint64_t trxn_id, uint64_t batch_ids[],
 				       size_t num_batch_ids, bool success,
 				       const char *error_if_any)
@@ -859,13 +856,13 @@ static int mgmt_bcknd_send_apply_reply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
 
-static int mgmt_bcknd_trxn_proc_cfgapply(mgmt_bcknd_trxn_ctxt_t *trxn)
+static int mgmt_bcknd_trxn_proc_cfgapply(struct mgmt_bcknd_trxn_ctxt *trxn)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 	struct timeval apply_nb_cfg_start;
 	struct timeval apply_nb_cfg_end;
 	unsigned long apply_nb_cfg_tm;
-	mgmt_bcknd_batch_ctxt_t *batch;
+	struct mgmt_bcknd_batch_ctxt *batch;
 	char err_buf[BUFSIZ];
 	size_t num_processed;
 	static uint64_t batch_ids[MGMTD_BCKND_MAX_BATCH_IDS_IN_REQ];
@@ -930,10 +927,11 @@ static int mgmt_bcknd_trxn_proc_cfgapply(mgmt_bcknd_trxn_ctxt_t *trxn)
 	return 0;
 }
 
-static int mgmt_bcknd_process_cfg_apply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					uint64_t trxn_id)
+static int
+mgmt_bcknd_process_cfg_apply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			     uint64_t trxn_id)
 {
-	mgmt_bcknd_trxn_ctxt_t *trxn;
+	struct mgmt_bcknd_trxn_ctxt *trxn;
 
 	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
 	if (!trxn) {
@@ -948,8 +946,9 @@ static int mgmt_bcknd_process_cfg_apply(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return 0;
 }
 
-static int mgmt_bcknd_client_handle_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					Mgmtd__BckndMessage *bcknd_msg)
+static int
+mgmt_bcknd_client_handle_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			     Mgmtd__BckndMessage *bcknd_msg)
 {
 	switch (bcknd_msg->type) {
 	case MGMTD__BCKND_MESSAGE__TYPE__SUBSCRIBE_REPLY:
@@ -957,7 +956,6 @@ static int mgmt_bcknd_client_handle_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		       == MGMTD__BCKND_MESSAGE__MESSAGE_SUBSCR_REPLY);
 		MGMTD_BCKND_CLNT_DBG("Subscribe Reply Msg from mgmt, status %u",
 				     bcknd_msg->subscr_reply->success);
-		// Need to add handle code
 		break;
 	case MGMTD__BCKND_MESSAGE__TYPE__TRXN_REQ:
 		assert(bcknd_msg->message_case
@@ -998,11 +996,12 @@ static int mgmt_bcknd_client_handle_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return 0;
 }
 
-static int mgmt_bcknd_client_process_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
-					 uint8_t *msg_buf, int bytes_read)
+static int
+mgmt_bcknd_client_process_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+			      uint8_t *msg_buf, int bytes_read)
 {
 	Mgmtd__BckndMessage *bcknd_msg;
-	mgmt_bcknd_msg_t *msg;
+	struct mgmt_bcknd_msg *msg;
 	uint16_t bytes_left;
 	uint16_t processed = 0;
 
@@ -1013,7 +1012,7 @@ static int mgmt_bcknd_client_process_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	bytes_left = bytes_read;
 	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;
 	     bytes_left -= msg->hdr.len, msg_buf += msg->hdr.len) {
-		msg = (mgmt_bcknd_msg_t *)msg_buf;
+		msg = (struct mgmt_bcknd_msg *)msg_buf;
 		if (msg->hdr.marker != MGMTD_BCKND_MSG_MARKER) {
 			MGMTD_BCKND_CLNT_DBG(
 				"Marker not found in message from MGMTD '%s'",
@@ -1050,11 +1049,11 @@ static int mgmt_bcknd_client_process_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 
 static int mgmt_bcknd_client_proc_msgbufs(struct thread *thread)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 	struct stream *work;
 	int processed = 0;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)THREAD_ARG(thread);
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)THREAD_ARG(thread);
 	assert(clnt_ctxt);
 
 	if (clnt_ctxt->conn_fd == 0)
@@ -1062,9 +1061,8 @@ static int mgmt_bcknd_client_proc_msgbufs(struct thread *thread)
 
 	for (; processed < MGMTD_BCKND_MAX_NUM_MSG_PROC;) {
 		work = stream_fifo_pop_safe(clnt_ctxt->ibuf_fifo);
-		if (!work) {
+		if (!work)
 			break;
-		}
 
 		processed += mgmt_bcknd_client_process_msg(
 			clnt_ctxt, STREAM_DATA(work), stream_get_endp(work));
@@ -1090,13 +1088,13 @@ static int mgmt_bcknd_client_proc_msgbufs(struct thread *thread)
 
 static int mgmt_bcknd_client_read(struct thread *thread)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 	int bytes_read, msg_cnt;
 	size_t total_bytes, bytes_left;
-	mgmt_bcknd_msg_hdr_t *msg_hdr;
+	struct mgmt_bcknd_msg_hdr *msg_hdr;
 	bool incomplete = false;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)THREAD_ARG(thread);
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)THREAD_ARG(thread);
 	assert(clnt_ctxt && clnt_ctxt->conn_fd);
 
 	total_bytes = 0;
@@ -1139,9 +1137,9 @@ static int mgmt_bcknd_client_read(struct thread *thread)
 	msg_cnt = 0;
 	bytes_left = stream_get_endp(clnt_ctxt->ibuf_work);
 	for (; bytes_left > MGMTD_BCKND_MSG_HDR_LEN;) {
-		msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(
-							   clnt_ctxt->ibuf_work)
-						   + total_bytes);
+		msg_hdr = (struct mgmt_bcknd_msg_hdr
+				   *)(STREAM_DATA(clnt_ctxt->ibuf_work)
+				      + total_bytes);
 		if (msg_hdr->marker != MGMTD_BCKND_MSG_MARKER) {
 			/* Corrupted buffer. Force disconnect?? */
 			MGMTD_BCKND_CLNT_ERR(
@@ -1164,8 +1162,9 @@ static int mgmt_bcknd_client_read(struct thread *thread)
 	 * We would have read one or several messages.
 	 * Schedule processing them now.
 	 */
-	msg_hdr = (mgmt_bcknd_msg_hdr_t *)(STREAM_DATA(clnt_ctxt->ibuf_work)
-					   + total_bytes);
+	msg_hdr =
+		(struct mgmt_bcknd_msg_hdr *)(STREAM_DATA(clnt_ctxt->ibuf_work)
+					      + total_bytes);
 	stream_set_endp(clnt_ctxt->ibuf_work, total_bytes);
 	stream_fifo_push(clnt_ctxt->ibuf_fifo, clnt_ctxt->ibuf_work);
 	clnt_ctxt->ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
@@ -1184,7 +1183,7 @@ static int mgmt_bcknd_client_read(struct thread *thread)
 }
 
 static inline void
-mgmt_bcknd_client_sched_msg_write(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
+mgmt_bcknd_client_sched_msg_write(struct mgmt_bcknd_client_ctxt *clnt_ctxt)
 {
 	if (!CHECK_FLAG(clnt_ctxt->flags, MGMTD_BCKND_CLNT_FLAGS_WRITES_OFF))
 		mgmt_bcknd_client_register_event(clnt_ctxt,
@@ -1192,7 +1191,7 @@ mgmt_bcknd_client_sched_msg_write(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 }
 
 static inline void
-mgmt_bcknd_client_writes_on(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
+mgmt_bcknd_client_writes_on(struct mgmt_bcknd_client_ctxt *clnt_ctxt)
 {
 	MGMTD_BCKND_CLNT_DBG("Resume writing msgs");
 	UNSET_FLAG(clnt_ctxt->flags, MGMTD_BCKND_CLNT_FLAGS_WRITES_OFF);
@@ -1202,18 +1201,18 @@ mgmt_bcknd_client_writes_on(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 }
 
 static inline void
-mgmt_bcknd_client_writes_off(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
+mgmt_bcknd_client_writes_off(struct mgmt_bcknd_client_ctxt *clnt_ctxt)
 {
 	SET_FLAG(clnt_ctxt->flags, MGMTD_BCKND_CLNT_FLAGS_WRITES_OFF);
 	MGMTD_BCKND_CLNT_DBG("Paused writing msgs");
 }
 
-static int mgmt_bcknd_client_send_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_client_send_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      Mgmtd__BckndMessage *bcknd_msg)
 {
 	size_t msg_size;
 	uint8_t *msg_buf = clnt_ctxt->msg_buf;
-	mgmt_bcknd_msg_t *msg;
+	struct mgmt_bcknd_msg *msg;
 
 	if (clnt_ctxt->conn_fd == 0)
 		return -1;
@@ -1227,7 +1226,7 @@ static int mgmt_bcknd_client_send_msg(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 		return -1;
 	}
 
-	msg = (mgmt_bcknd_msg_t *)msg_buf;
+	msg = (struct mgmt_bcknd_msg *)msg_buf;
 	msg->hdr.marker = MGMTD_BCKND_MSG_MARKER;
 	msg->hdr.len = (uint16_t)msg_size;
 	mgmtd__bcknd_message__pack(bcknd_msg, msg->payload);
@@ -1258,9 +1257,9 @@ static int mgmt_bcknd_client_write(struct thread *thread)
 	int msg_size = 0;
 	struct stream *s = NULL;
 	struct stream *free = NULL;
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)THREAD_ARG(thread);
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)THREAD_ARG(thread);
 	assert(clnt_ctxt && clnt_ctxt->conn_fd);
 
 	/* Ensure pushing any pending write buffer to FIFO */
@@ -1272,7 +1271,7 @@ static int mgmt_bcknd_client_write(struct thread *thread)
 	for (s = stream_fifo_head(clnt_ctxt->obuf_fifo);
 	     s && processed < MGMTD_BCKND_MAX_NUM_MSG_WRITE;
 	     s = stream_fifo_head(clnt_ctxt->obuf_fifo)) {
-		// msg_size = (int)stream_get_size(s);
+		/* msg_size = (int)stream_get_size(s); */
 		msg_size = (int)STREAM_READABLE(s);
 		bytes_written = stream_flush(s, clnt_ctxt->conn_fd);
 		if (bytes_written == -1
@@ -1314,9 +1313,9 @@ static int mgmt_bcknd_client_write(struct thread *thread)
 
 static int mgmt_bcknd_client_resume_writes(struct thread *thread)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)THREAD_ARG(thread);
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)THREAD_ARG(thread);
 	assert(clnt_ctxt && clnt_ctxt->conn_fd);
 
 	mgmt_bcknd_client_writes_on(clnt_ctxt);
@@ -1324,7 +1323,7 @@ static int mgmt_bcknd_client_resume_writes(struct thread *thread)
 	return 0;
 }
 
-static int mgmt_bcknd_send_subscr_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+static int mgmt_bcknd_send_subscr_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      bool subscr_xpaths,
 				      uint16_t num_reg_xpaths,
 				      char **reg_xpaths)
@@ -1349,7 +1348,7 @@ static int mgmt_bcknd_send_subscr_req(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 	return mgmt_bcknd_client_send_msg(clnt_ctxt, &bcknd_msg);
 }
 
-static int mgmt_bcknd_server_connect(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
+static int mgmt_bcknd_server_connect(struct mgmt_bcknd_client_ctxt *clnt_ctxt)
 {
 	int ret, sock, len;
 	struct sockaddr_un addr;
@@ -1413,25 +1412,25 @@ static int mgmt_bcknd_server_connect(mgmt_bcknd_client_ctxt_t *clnt_ctxt)
 	return 0;
 
 mgmt_bcknd_server_connect_failed:
-	if (sock && sock != clnt_ctxt->conn_fd) {
+	if (sock && sock != clnt_ctxt->conn_fd)
 		close(sock);
-	}
+
 	mgmt_bcknd_server_disconnect(clnt_ctxt, true);
 	return -1;
 }
 
 static int mgmt_bcknd_client_conn_timeout(struct thread *thread)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)THREAD_ARG(thread);
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)THREAD_ARG(thread);
 	assert(clnt_ctxt);
 
 	return mgmt_bcknd_server_connect(clnt_ctxt);
 }
 
 static void
-mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+mgmt_bcknd_client_register_event(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				 enum mgmt_event event)
 {
 	struct timeval tv = {0};
@@ -1456,13 +1455,14 @@ mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 				    &tv, &clnt_ctxt->msg_proc_ev);
 		assert(clnt_ctxt->msg_proc_ev);
 		break;
-	// case MGMTD_BCKND_SCHED_CFG_APPLY:
-	// 	tv.tv_usec = MGMTD_BCKND_CFGAPPLY_SCHED_DELAY_USEC;
-	// 	clnt_ctxt->msg_proc_ev =
-	// 		thread_add_timer_tv(clnt_ctxt->tm,
-	// 			mgmt_bcknd_client_proc_msgbufs, clnt_ctxt,
-	// 			&tv, NULL);
-	// 	break;
+	/* case MGMTD_BCKND_SCHED_CFG_APPLY:
+	 *	tv.tv_usec = MGMTD_BCKND_CFGAPPLY_SCHED_DELAY_USEC;
+	 *	clnt_ctxt->msg_proc_ev =
+	 *		thread_add_timer_tv(clnt_ctxt->tm,
+	 *			mgmt_bcknd_client_proc_msgbufs, clnt_ctxt,
+	 *			&tv, NULL);
+	 *	break;
+	 */
 	case MGMTD_BCKND_CONN_WRITES_ON:
 		thread_add_timer_msec(
 			clnt_ctxt->tm, mgmt_bcknd_client_resume_writes,
@@ -1476,7 +1476,7 @@ mgmt_bcknd_client_register_event(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
 }
 
 static void
-mgmt_bcknd_client_schedule_conn_retry(mgmt_bcknd_client_ctxt_t *clnt_ctxt,
+mgmt_bcknd_client_schedule_conn_retry(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				      unsigned long intvl_secs)
 {
 	MGMTD_BCKND_CLNT_DBG(
@@ -1492,7 +1492,7 @@ extern struct nb_config *running_config;
 /*
  * Initialize library and try connecting with MGMTD.
  */
-uint64_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
+uint64_t mgmt_bcknd_client_lib_init(struct mgmt_bcknd_client_params *params,
 				    struct thread_master *master_thread)
 {
 	assert(master_thread && params && strlen(params->name)
@@ -1501,7 +1501,7 @@ uint64_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
 	mgmt_bcknd_clntctxt.tm = master_thread;
 
 	if (!running_config)
-		assert(!"Call mgmt_bcknd_client_lib_init() after frr_init() only!");
+		assert(!"MGMTD Bcknd Client lib_init() after frr_init() only!");
 	mgmt_bcknd_clntctxt.running_config = running_config;
 	mgmt_bcknd_clntctxt.candidate_config = nb_config_new(NULL);
 
@@ -1519,7 +1519,8 @@ uint64_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
 	mgmt_bcknd_clntctxt.ibuf_fifo = stream_fifo_new();
 	mgmt_bcknd_clntctxt.ibuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
 	mgmt_bcknd_clntctxt.obuf_fifo = stream_fifo_new();
-	// mgmt_bcknd_clntctxt.obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
+	/* mgmt_bcknd_clntctxt.obuf_work = stream_new(MGMTD_BCKND_MSG_MAX_LEN);
+	 */
 	mgmt_bcknd_clntctxt.obuf_work = NULL;
 
 	/* Start trying to connect to MGMTD backend server immediately */
@@ -1537,12 +1538,11 @@ enum mgmt_result mgmt_bcknd_subscribe_yang_data(uint64_t lib_hndl,
 						char *reg_yang_xpaths[],
 						int num_reg_xpaths)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)lib_hndl;
-	if (!clnt_ctxt) {
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)lib_hndl;
+	if (!clnt_ctxt)
 		return MGMTD_INVALID_PARAM;
-	}
 
 	if (mgmt_bcknd_send_subscr_req(clnt_ctxt, true, num_reg_xpaths,
 				       reg_yang_xpaths)
@@ -1559,9 +1559,9 @@ enum mgmt_result mgmt_bcknd_unsubscribe_yang_data(uint64_t lib_hndl,
 						  char *reg_yang_xpaths[],
 						  int num_reg_xpaths)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)lib_hndl;
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)lib_hndl;
 	if (!clnt_ctxt)
 		return MGMTD_INVALID_PARAM;
 
@@ -1578,12 +1578,12 @@ enum mgmt_result mgmt_bcknd_unsubscribe_yang_data(uint64_t lib_hndl,
  * Send one or more YANG notifications to MGMTD daemon.
  */
 enum mgmt_result mgmt_bcknd_send_yang_notify(uint64_t lib_hndl,
-					     mgmt_yang_data_t *data_elems[],
+					     Mgmtd__YangData * data_elems[],
 					     int num_elems)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)lib_hndl;
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)lib_hndl;
 	if (!clnt_ctxt)
 		return MGMTD_INVALID_PARAM;
 
@@ -1595,9 +1595,9 @@ enum mgmt_result mgmt_bcknd_send_yang_notify(uint64_t lib_hndl,
  */
 void mgmt_bcknd_client_lib_destroy(uint64_t lib_hndl)
 {
-	mgmt_bcknd_client_ctxt_t *clnt_ctxt;
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
-	clnt_ctxt = (mgmt_bcknd_client_ctxt_t *)lib_hndl;
+	clnt_ctxt = (struct mgmt_bcknd_client_ctxt *)lib_hndl;
 	assert(clnt_ctxt);
 
 	MGMTD_BCKND_CLNT_DBG("Destroying MGMTD Backend Client '%s'",

@@ -75,12 +75,12 @@ extern "C" {
  * Data-structures
  ***************************************************************/
 
-typedef enum mgmt_bcknd_client_id_ {
+enum mgmt_bcknd_client_id {
 	MGMTD_BCKND_CLIENT_ID_MIN = 0,
 	MGMTD_BCKND_CLIENT_ID_STATICD = MGMTD_BCKND_CLIENT_ID_MIN,
 	MGMTD_BCKND_CLIENT_ID_BGPD,
 	MGMTD_BCKND_CLIENT_ID_MAX
-} mgmt_bcknd_client_id_t;
+};
 
 #define FOREACH_MGMTD_BCKND_CLIENT_ID(id)                                      \
 	for ((id) = MGMTD_BCKND_CLIENT_ID_MIN;                                 \
@@ -88,17 +88,17 @@ typedef enum mgmt_bcknd_client_id_ {
 
 #define MGMTD_BCKND_MAX_CLIENTS_PER_XPATH_REG 32
 
-typedef struct mgmt_bcknd_msg_hdr_ {
+struct mgmt_bcknd_msg_hdr {
 	uint16_t marker;
 	uint16_t len; /* Includes header */
-} mgmt_bcknd_msg_hdr_t;
-#define MGMTD_BCKND_MSG_HDR_LEN sizeof(mgmt_bcknd_msg_hdr_t)
+};
+#define MGMTD_BCKND_MSG_HDR_LEN sizeof(struct mgmt_bcknd_msg_hdr)
 #define MGMTD_BCKND_MSG_MARKER 0xfeed
 
-typedef struct mgmt_bcknd_msg_ {
-	mgmt_bcknd_msg_hdr_t hdr;
+struct mgmt_bcknd_msg {
+	struct mgmt_bcknd_msg_hdr hdr;
 	uint8_t payload[];
-} mgmt_bcknd_msg_t;
+};
 
 /*
  * Single handler to notify connection/disconnoect to/from
@@ -116,9 +116,9 @@ typedef void (*mgmt_bcknd_client_subscribe_notify_t)(
 	uint64_t lib_hndl, uint64_t usr_data, struct nb_yang_xpath *xpath[],
 	enum mgmt_result subscribe_result[], int num_paths);
 
-typedef struct mgmt_bcknd_client_trxn_ctxt_ {
+struct mgmt_bcknd_client_trxn_ctxt {
 	uintptr_t *user_ctx;
-} mgmt_bcknd_client_trxn_ctxt_t;
+};
 
 /*
  * Single handler to notify create/destroy of MGMTD
@@ -126,7 +126,7 @@ typedef struct mgmt_bcknd_client_trxn_ctxt_ {
  */
 typedef void (*mgmt_bcknd_client_trxn_notify_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, bool destroyed);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt, bool destroyed);
 
 /*
  * Handler to validate any config data on the MGMTD
@@ -134,8 +134,9 @@ typedef void (*mgmt_bcknd_client_trxn_notify_t)(
  */
 typedef enum mgmt_result (*mgmt_bcknd_client_data_validate_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_value *data, bool delete, char *error_if_any);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+	struct nb_yang_xpath *xpath, struct nb_yang_value *data, bool delete,
+	char *error_if_any);
 
 /*
  * Handler to apply any config data on the MGMTD
@@ -143,25 +144,25 @@ typedef enum mgmt_result (*mgmt_bcknd_client_data_validate_t)(
  */
 typedef enum mgmt_result (*mgmt_bcknd_client_data_apply_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_value *data, bool delete);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+	struct nb_yang_xpath *xpath, struct nb_yang_value *data, bool delete);
 
 /*
  * Handler to get value of a specific leaf items for a container node.
  */
 typedef enum mgmt_result (*mgmt_bcknd_client_get_data_elem_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	struct nb_yang_xpath_elem *elem);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+	struct nb_yang_xpath *xpath, struct nb_yang_xpath_elem *elem);
 
 /*
  * Handler to get vaues of all or key leaf items for a container node.
  */
 typedef enum mgmt_result (*mgmt_bcknd_client_get_data_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	bool keys_only, struct nb_yang_xpath_elem **elems, int *num_elems,
-	int *next_key);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+	struct nb_yang_xpath *xpath, bool keys_only,
+	struct nb_yang_xpath_elem **elems, int *num_elems, int *next_key);
 
 /*
  * Handler to get vaues of all or key leaf items for first or next
@@ -169,10 +170,11 @@ typedef enum mgmt_result (*mgmt_bcknd_client_get_data_t)(
  */
 typedef enum mgmt_result (*mgmt_bcknd_client_get_next_data_t)(
 	uint64_t lib_hndl, uint64_t usr_data,
-	mgmt_bcknd_client_trxn_ctxt_t *trxn_ctxt, struct nb_yang_xpath *xpath,
-	bool keys_only, struct nb_yang_xpath_elem **elems, int *num_elems);
+	struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+	struct nb_yang_xpath *xpath, bool keys_only,
+	struct nb_yang_xpath_elem **elems, int *num_elems);
 
-typedef struct mgmt_bcknd_client_params_ {
+struct mgmt_bcknd_client_params {
 	char name[MGMTD_CLIENT_NAME_MAX_LEN];
 	uint64_t user_data;
 	unsigned long conn_retry_intvl_sec;
@@ -184,7 +186,7 @@ typedef struct mgmt_bcknd_client_params_ {
 	mgmt_bcknd_client_get_data_elem_t get_data_elem_cb;
 	mgmt_bcknd_client_get_data_t get_data_cb;
 	mgmt_bcknd_client_get_next_data_t get_next_data_cb;
-} mgmt_bcknd_client_params_t;
+};
 
 /***************************************************************
  * Global data exported
@@ -192,16 +194,17 @@ typedef struct mgmt_bcknd_client_params_ {
 
 extern const char *mgmt_bcknd_client_names[MGMTD_CLIENT_NAME_MAX_LEN];
 
-static inline const char *mgmt_bknd_client_id2name(mgmt_bcknd_client_id_t id)
+static inline const char *mgmt_bknd_client_id2name(enum mgmt_bcknd_client_id id)
 {
 	if (id > MGMTD_BCKND_CLIENT_ID_MAX)
 		id = MGMTD_BCKND_CLIENT_ID_MAX;
 	return mgmt_bcknd_client_names[id];
 }
 
-static inline mgmt_bcknd_client_id_t mgmt_bknd_client_name2id(const char *name)
+static inline enum mgmt_bcknd_client_id
+mgmt_bknd_client_name2id(const char *name)
 {
-	mgmt_bcknd_client_id_t id;
+	enum mgmt_bcknd_client_id id;
 
 	FOREACH_MGMTD_BCKND_CLIENT_ID(id)
 	{
@@ -220,8 +223,9 @@ static inline mgmt_bcknd_client_id_t mgmt_bknd_client_name2id(const char *name)
 /*
  * Initialize library and try connecting with MGMTD.
  */
-extern uint64_t mgmt_bcknd_client_lib_init(mgmt_bcknd_client_params_t *params,
-					   struct thread_master *master_thread);
+extern uint64_t
+mgmt_bcknd_client_lib_init(struct mgmt_bcknd_client_params *params,
+			   struct thread_master *master_thread);
 
 /*
  * Subscribe with MGMTD for one or more YANG subtree(s).
@@ -234,7 +238,7 @@ extern enum mgmt_result mgmt_bcknd_subscribe_yang_data(uint64_t lib_hndl,
  * Send one or more YANG notifications to MGMTD daemon.
  */
 extern enum mgmt_result
-mgmt_bcknd_send_yang_notify(uint64_t lib_hndl, mgmt_yang_data_t *data_elems[],
+mgmt_bcknd_send_yang_notify(uint64_t lib_hndl, Mgmtd__YangData * data_elems[],
 			    int num_elems);
 
 /*

@@ -800,6 +800,7 @@ static bool nb_is_operation_allowed(struct nb_node *nb_node,
 				    struct nb_cfg_change *change)
 {
 	enum nb_operation oper = change->operation;
+
 	if (lysc_is_key(nb_node->snode)) {
 		if (oper == NB_OP_MODIFY || oper == NB_OP_DESTROY)
 			return false;
