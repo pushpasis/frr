@@ -129,7 +129,7 @@ DECLARE_LIST(mgmt_trxn_batch_list, struct mgmt_trxn_bcknd_cfg_batch,
 	     list_linkage);
 
 #define FOREACH_TRXN_CFG_BATCH_IN_LIST(list, batch)                            \
-	frr_each_safe (mgmt_trxn_batch_list, list, batch)
+	frr_each_safe(mgmt_trxn_batch_list, list, batch)
 
 struct mgmt_commit_cfg_req {
 	Mgmtd__DatabaseId src_db_id;
@@ -229,7 +229,7 @@ struct mgmt_trxn_req {
 DECLARE_LIST(mgmt_trxn_req_list, struct mgmt_trxn_req, list_linkage);
 
 #define FOREACH_TRXN_REQ_IN_LIST(list, req)                                    \
-	frr_each_safe (mgmt_trxn_req_list, list, req)
+	frr_each_safe(mgmt_trxn_req_list, list, req)
 
 struct mgmt_trxn_ctxt {
 	uint64_t session_id; /* One transaction per client session */
@@ -283,7 +283,7 @@ struct mgmt_trxn_ctxt {
 DECLARE_LIST(mgmt_trxn_list, struct mgmt_trxn_ctxt, list_linkage);
 
 #define FOREACH_TRXN_IN_LIST(cm, trxn)                                         \
-	frr_each_safe (mgmt_trxn_list, &(cm)->mgmt_trxns, (trxn))
+	frr_each_safe(mgmt_trxn_list, &(cm)->mgmt_trxns, (trxn))
 
 static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 					   bool success,

@@ -115,10 +115,10 @@ struct mgmt_bcknd_trxn_ctxt {
 DECLARE_LIST(mgmt_bcknd_trxn_list, struct mgmt_bcknd_trxn_ctxt, list_linkage);
 
 #define FOREACH_BCKND_TRXN_BATCH_IN_LIST(trxn, batch)                          \
-	frr_each_safe (mgmt_bcknd_batch_list, &(trxn)->cfg_batches, (batch))
+	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->cfg_batches, (batch))
 
 #define FOREACH_BCKND_APPLY_BATCH_IN_LIST(trxn, batch)                         \
-	frr_each_safe (mgmt_bcknd_batch_list, &(trxn)->apply_cfgs, (batch))
+	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->apply_cfgs, (batch))
 
 struct mgmt_bcknd_client_ctxt {
 	int conn_fd;
@@ -157,7 +157,7 @@ struct mgmt_bcknd_client_ctxt {
 #define MGMTD_BCKND_CLNT_FLAGS_WRITES_OFF (1U << 0)
 
 #define FOREACH_BCKND_TRXN_IN_LIST(clntctxt, trxn)                             \
-	frr_each_safe (mgmt_bcknd_trxn_list, &(clntctxt)->trxn_head, (trxn))
+	frr_each_safe(mgmt_bcknd_trxn_list, &(clntctxt)->trxn_head, (trxn))
 
 static bool mgmt_debug_bcknd_clnt;
 
