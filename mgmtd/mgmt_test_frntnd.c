@@ -60,12 +60,12 @@ static void mgmt_test_frntnd_session_created(
 	bool success, uint64_t session_id, uint64_t req_id, uintptr_t user_ctxt)
 {
 	if (!success) {
-		printf("ERROR: %s session for client %lu failed!\n",
+		printf("ERROR: %s session for client %llu failed!\n",
 		       create ? "Creating" : "Destroying", client_id);
 		exit(-1);
 	}
 
-	printf("%s session for client %lu successfully!\n",
+	printf("%s session for client %llu successfully!\n",
 	       create ? "Created" : "Destroyed", client_id);
 	if (create) {
 		frntnd_session_id[client_id] = session_id;

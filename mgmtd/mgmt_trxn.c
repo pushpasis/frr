@@ -116,7 +116,7 @@ struct mgmt_trxn_bcknd_cfg_batch {
 	union mgmt_bcknd_xpath_subscr_info
 		xp_subscr[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	Mgmtd__YangCfgDataReq cfg_data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
-	Mgmtd__YangCfgDataReq *cfg_datap[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
+	Mgmtd__YangCfgDataReq * cfg_datap[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	Mgmtd__YangData data[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	Mgmtd__YangDataValue value[MGMTD_MAX_CFG_CHANGES_IN_BATCH];
 	size_t num_cfg_data;
@@ -191,7 +191,7 @@ struct mgmt_get_data_reply {
 	int last_batch;
 	Mgmtd__YangDataReply data_reply;
 	Mgmtd__YangData reply_data[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
-	Mgmtd__YangData *reply_datap[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangData * reply_datap[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
 	Mgmtd__YangDataValue reply_value[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
 	char *reply_xpathp[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
 };
@@ -2321,7 +2321,7 @@ enum mgmt_trxn_type mgmt_get_trxn_type(uint64_t trxn_id)
 
 int mgmt_trxn_send_set_config_req(uint64_t trxn_id, uint64_t req_id,
 				  Mgmtd__DatabaseId db_id, uint64_t db_hndl,
-				  Mgmtd__YangCfgDataReq *cfg_req[],
+				  Mgmtd__YangCfgDataReq * cfg_req[],
 				  size_t num_req, bool implicit_commit,
 				  Mgmtd__DatabaseId dst_db_id,
 				  uint64_t dst_db_hndl)

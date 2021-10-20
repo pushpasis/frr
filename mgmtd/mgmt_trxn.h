@@ -93,7 +93,7 @@ extern enum mgmt_trxn_type mgmt_get_trxn_type(uint64_t trxn_id);
 extern int mgmt_trxn_send_set_config_req(uint64_t trxn_id, uint64_t req_id,
 					 Mgmtd__DatabaseId db_id,
 					 uint64_t db_hndl,
-					 Mgmtd__YangCfgDataReq *cfg_req[],
+					 Mgmtd__YangCfgDataReq * cfg_req[],
 					 size_t num_req, bool implicit_commit,
 					 Mgmtd__DatabaseId dst_db_id,
 					 uint64_t dst_db_hndl);

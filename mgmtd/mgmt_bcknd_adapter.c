@@ -98,18 +98,22 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 	{.xpath_regexp = "/frr-interface:lib/*",
 	 .num_clients = 2,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD,
-			   MGMTD_BCKND_CLIENT_BGPD}},
+			   MGMTD_BCKND_CLIENT_BGPD}
+	},
 	{.xpath_regexp =
 		 "/frr-routing:routing/control-plane-protocols/			 \
 		  control-plane-protocol[type='frr-staticd:staticd']	 \
 		  [name='staticd'][vrf='default']/frr-staticd:staticd/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}},
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}
+	},
 	{.xpath_regexp = "/frr-routing:routing/control-plane-protocols/	 \
 			  control-plane-protocol[type='frr-bgp:bgp']			 \
 			  [name='bgp'][vrf='default']/frr-bgp:bgp/*",
 	 .num_clients = 1,
-	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}}};
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
+	}
+};
 
 #define MGMTD_BCKND_MAX_NUM_XPATH_MAP 256
 static struct mgmt_bcknd_xpath_regexp_map

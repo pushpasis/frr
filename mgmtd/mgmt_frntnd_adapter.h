@@ -145,7 +145,7 @@ extern int mgmt_frntnd_send_get_data_reply(
 	Mgmtd__YangDataReply *data_resp, const char *error_if_any);
 
 extern int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
-					Mgmtd__YangData *data_resp[],
+					Mgmtd__YangData * data_resp[],
 					int num_data);
 
 extern struct mgmt_setcfg_stats *

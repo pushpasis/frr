@@ -439,7 +439,7 @@ static int
 mgmt_frntnd_send_getcfg_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 			    struct mgmt_frntnd_client_session *sessn,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    Mgmtd__YangGetDataReq *data_req[],
+			    Mgmtd__YangGetDataReq * data_req[],
 			    int num_data_reqs)
 {
 	(void)req_id;
@@ -469,7 +469,7 @@ static int
 mgmt_frntnd_send_getdata_req(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 			     struct mgmt_frntnd_client_session *sessn,
 			     uint64_t req_id, Mgmtd__DatabaseId db_id,
-			     Mgmtd__YangGetDataReq *data_req[],
+			     Mgmtd__YangGetDataReq * data_req[],
 			     int num_data_reqs)
 {
 	(void)req_id;
@@ -1031,7 +1031,7 @@ static void mgmt_frntnd_client_schedule_conn_retry(
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt, unsigned long intvl_secs)
 {
 	MGMTD_FRNTND_CLNT_DBG(
-		"Scheduling MGMTD Frontend server connection retry after %llu seconds",
+		"Scheduling MGMTD Frontend server connection retry after %lu seconds",
 		intvl_secs);
 	thread_add_timer(clnt_ctxt->tm, mgmt_frntnd_client_conn_timeout,
 			 (void *)clnt_ctxt, intvl_secs,
@@ -1220,7 +1220,7 @@ enum mgmt_result mgmt_frntnd_commit_config_data(uint64_t lib_hndl,
 enum mgmt_result
 mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    Mgmtd__YangGetDataReq *data_req[], int num_reqs)
+			    Mgmtd__YangGetDataReq * data_req[], int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
 	struct mgmt_frntnd_client_session *sessn;
@@ -1246,7 +1246,7 @@ mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
  */
 enum mgmt_result mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id,
 				      uint64_t req_id, Mgmtd__DatabaseId db_id,
-				      Mgmtd__YangGetDataReq *data_req[],
+				      Mgmtd__YangGetDataReq * data_req[],
 				      int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;

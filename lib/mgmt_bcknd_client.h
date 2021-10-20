@@ -238,7 +238,7 @@ extern enum mgmt_result mgmt_bcknd_subscribe_yang_data(uint64_t lib_hndl,
  * Send one or more YANG notifications to MGMTD daemon.
  */
 extern enum mgmt_result
-mgmt_bcknd_send_yang_notify(uint64_t lib_hndl, Mgmtd__YangData *data_elems[],
+mgmt_bcknd_send_yang_notify(uint64_t lib_hndl, Mgmtd__YangData * data_elems[],
 			    int num_elems);
 
 /*

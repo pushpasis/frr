@@ -626,7 +626,7 @@ static int
 mgmt_bcknd_update_setcfg_in_batch(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 				  struct mgmt_bcknd_trxn_ctxt *trxn,
 				  uint64_t batch_id,
-				  Mgmtd__YangCfgDataReq *cfg_req[], int num_req)
+				  Mgmtd__YangCfgDataReq * cfg_req[], int num_req)
 {
 	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 	struct mgmt_bcknd_trxn_req *trxn_req = NULL;
@@ -683,7 +683,7 @@ mgmt_bcknd_update_setcfg_in_batch(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 static int
 mgmt_bcknd_process_cfgdata_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 			       uint64_t trxn_id, uint64_t batch_id,
-			       Mgmtd__YangCfgDataReq *cfg_req[], int num_req,
+			       Mgmtd__YangCfgDataReq * cfg_req[], int num_req,
 			       bool end_of_data)
 {
 	struct mgmt_bcknd_trxn_ctxt *trxn;
@@ -1578,7 +1578,7 @@ enum mgmt_result mgmt_bcknd_unsubscribe_yang_data(uint64_t lib_hndl,
  * Send one or more YANG notifications to MGMTD daemon.
  */
 enum mgmt_result mgmt_bcknd_send_yang_notify(uint64_t lib_hndl,
-					     Mgmtd__YangData *data_elems[],
+					     Mgmtd__YangData * data_elems[],
 					     int num_elems)
 {
 	struct mgmt_bcknd_client_ctxt *clnt_ctxt;

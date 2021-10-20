@@ -1807,7 +1807,7 @@ int mgmt_frntnd_send_get_data_reply(uint64_t session_id, uint64_t trxn_id,
 }
 
 int mgmt_frntnd_send_data_notify(Mgmtd__DatabaseId db_id,
-				 Mgmtd__YangData *data_resp[], int num_data)
+				 Mgmtd__YangData * data_resp[], int num_data)
 {
 	/* struct mgmt_frntnd_sessn_ctxt *sessn; */
 

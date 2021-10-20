@@ -563,12 +563,12 @@ static int vty_command(struct vty *vty, char *buf)
 	    && cputime > cputime_threshold)
 		/* Warn about CPU hog that must be fixed. */
 		flog_warn(EC_LIB_SLOW_THREAD_CPU,
-			  "CPU HOG: command took %llums (cpu time %llums): %s",
+			  "CPU HOG: command took %lums (cpu time %lums): %s",
 			  walltime / 1000, cputime / 1000, buf);
 	else if (walltime_threshold && walltime > walltime_threshold)
 		flog_warn(
 			EC_LIB_SLOW_THREAD_WALL,
-			"STARVATION: command took %llums (cpu time %llums): %s",
+			"STARVATION: command took %lums (cpu time %lums): %s",
 			walltime / 1000, cputime / 1000, buf);
 
 	/* Get the name of the protocol if any */
@@ -1273,13 +1273,13 @@ static int vty_telnet_option(struct vty *vty, unsigned char *buf, int nbytes)
 			if (vty->sb_len != TELNET_NAWS_SB_LEN)
 				flog_err(
 					EC_LIB_SYSTEM_CALL,
-					"RFC 1073 violation detected: telnet NAWS option should send %d characters, but we received %llu",
+					"RFC 1073 violation detected: telnet NAWS option should send %d characters, but we received %lu",
 					TELNET_NAWS_SB_LEN,
 					(unsigned long)vty->sb_len);
 			else if (sizeof(vty->sb_buf) < TELNET_NAWS_SB_LEN)
 				flog_err(
 					EC_LIB_DEVELOPMENT,
-					"Bug detected: sizeof(vty->sb_buf) %llu < %d, too small to handle the telnet NAWS option",
+					"Bug detected: sizeof(vty->sb_buf) %lu < %d, too small to handle the telnet NAWS option",
 					(unsigned long)sizeof(vty->sb_buf),
 					TELNET_NAWS_SB_LEN);
 			else {

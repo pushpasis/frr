@@ -129,7 +129,7 @@ typedef void (*mgmt_frntnd_client_commit_config_notify_t)(
 typedef enum mgmt_result (*mgmt_frntnd_client_get_data_notify_t)(
 	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
 	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
-	Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[], size_t num_data,
+	Mgmtd__DatabaseId db_id, Mgmtd__YangData * yang_data[], size_t num_data,
 	int next_key, char *errmsg_if_any);
 
 /*
@@ -138,7 +138,7 @@ typedef enum mgmt_result (*mgmt_frntnd_client_get_data_notify_t)(
  */
 typedef enum mgmt_result (*mgmt_frntnd_client_data_notify_t)(
 	uint64_t client_id, uint64_t session_id, uintptr_t user_ctxt,
-	uint64_t req_id, Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[],
+	uint64_t req_id, Mgmtd__DatabaseId db_id, Mgmtd__YangData * yang_data[],
 	size_t num_data);
 
 struct mgmt_frntnd_client_params {
@@ -209,14 +209,14 @@ mgmt_frntnd_commit_config_data(uint64_t lib_hndl, uint64_t session_id,
 extern enum mgmt_result
 mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
 			    uint64_t req_id, Mgmtd__DatabaseId db_id,
-			    Mgmtd__YangGetDataReq *data_req[], int num_reqs);
+			    Mgmtd__YangGetDataReq * data_req[], int num_reqs);
 
 /*
  * Send GET_DATA_REQ to MGMTD for one or more data item(s).
  */
 extern enum mgmt_result
 mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
-		     Mgmtd__DatabaseId db_id, Mgmtd__YangGetDataReq *data_req[],
+		     Mgmtd__DatabaseId db_id, Mgmtd__YangGetDataReq * data_req[],
 		     int num_reqs);
 
 /*
