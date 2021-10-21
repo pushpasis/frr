@@ -980,7 +980,7 @@ void mgmt_db_status_write_one(struct vty *vty, uint64_t db_hndl)
 	}
 
 	vty_out(vty, "  DB: %s\n", mgmt_db_id2name(db_ctxt->db_id));
-	vty_out(vty, "    DB-Hndl: \t\t\t0x%p\n", db_ctxt);
+	vty_out(vty, "    DB-Hndl: \t\t\t%p\n", db_ctxt);
 	vty_out(vty, "    Config: \t\t\t%s\n",
 		db_ctxt->config_db ? "True" : "False");
 }

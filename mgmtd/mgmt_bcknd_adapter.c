@@ -1215,7 +1215,7 @@ void mgmt_bcknd_xpath_register_write(struct vty *vty)
 						: "F");
 				adptr = mgmt_bcknd_get_adapter_by_id(id);
 				if (adptr) {
-					vty_out(vty, "     -- Adapter: 0x%p\n",
+					vty_out(vty, "     -- Adapter: %p\n",
 						adptr);
 				}
 			}
@@ -1252,7 +1252,7 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 								      : "F");
 			adptr = mgmt_bcknd_get_adapter_by_id(id);
 			if (adptr)
-				vty_out(vty, "    -- Adapter: 0x%p\n", adptr);
+				vty_out(vty, "    -- Adapter: %p\n", adptr);
 		}
 	}
 }

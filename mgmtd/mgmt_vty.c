@@ -54,6 +54,7 @@
 #include "mgmtd/mgmt_vty_clippy.c"
 #endif
 
+extern int errno;
 
 /*
  * Declare prototypes for command initialization routines defined by
@@ -202,7 +203,7 @@ DEFPY(show_mgmt_trxn, show_mgmt_trxn_cmd, "show mgmt transaction all",
 }
 
 DEFPY(show_mgmt_db_all, show_mgmt_db_all_cmd, "show mgmt database all",
-      SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display all Databases\n")
+      SHOW_STR MGMTD_STR MGMTD_DB_STR "Display all Databases\n")
 {
 	mgmt_db_status_write(vty);
 
@@ -210,13 +211,13 @@ DEFPY(show_mgmt_db_all, show_mgmt_db_all_cmd, "show mgmt database all",
 }
 
 DEFPY(show_mgmt_db_runn, show_mgmt_db_runn_cmd, "show mgmt database running",
-      SHOW_STR MGMTD_STR MGMTD_TRXN_STR "Display Running Database\n")
+      SHOW_STR MGMTD_STR MGMTD_DB_STR "Display Running Database\n")
 {
 	uint64_t db_hndl;
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_RUNNING);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access running database!\n");
+		vty_out(vty, "ERROR: Could not access running database!\n");
 		return CMD_ERR_NO_MATCH;
 	}
 
@@ -232,7 +233,7 @@ DEFPY(show_mgmt_db_cand, show_mgmt_db_cand_cmd, "show mgmt database candidate",
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_CANDIDATE);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access candidate database!\n");
+		vty_out(vty, "ERROR: Could not access candidate database!\n");
 		return CMD_ERR_NO_MATCH;
 	}
 
@@ -249,7 +250,7 @@ DEFPY(show_mgmt_db_oper, show_mgmt_db_oper_cmd,
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_OPERATIONAL);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access operational database!\n");
+		vty_out(vty, "ERROR: Could not access operational database!\n");
 		return CMD_ERR_NO_MATCH;
 	}
 
@@ -381,7 +382,7 @@ DEFPY(show_mgmt_get_data, show_mgmt_get_data_cmd,
 DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
       "show mgmt database-contents db-name WORD$dbname [xpath WORD$path] [file WORD$filepath] format WORD$format_str",
       SHOW_STR MGMTD_STR
-      "Get Database Contenents from a specific database\n"
+      "Get Database contents from a specific database\n"
       "DB name\n"
       "<candidate | running | operational>\n"
       "XPath expression specifying the YANG data path\n"
@@ -389,7 +390,7 @@ DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
       "Dump the contents to a file\n"
       "Full path of the file\n"
       "Format of the output\n"
-      "JSON|XML")
+      "json|xml")
 {
 	Mgmtd__DatabaseId database = MGMTD_DB_CANDIDATE;
 	uint64_t db_hndl;
@@ -407,7 +408,7 @@ DEFPY(show_mgmt_dump_data, show_mgmt_dump_data_cmd,
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, database);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access database!\n");
+		vty_out(vty, "ERROR: Could not access database!\n");
 		return CMD_ERR_NO_MATCH;
 	}
 
@@ -460,9 +461,14 @@ DEFPY(mgmt_load_config, mgmt_load_config_cmd,
 	int ret;
 	uint64_t db_hndl;
 
+	if (access(filepath, F_OK) == -1) {
+		vty_out(vty, "ERROR: File %s : %s\n", filepath, strerror(errno));
+		return CMD_ERR_NO_FILE;
+	}
+
 	db_hndl = mgmt_db_get_hndl_by_id(mm, MGMTD_DB_CANDIDATE);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access Candidate database!\n");
+		vty_out(vty, "ERROR: Could not access Candidate database!\n");
 		return CMD_ERR_NO_MATCH;
 	}
 
@@ -514,7 +520,7 @@ DEFPY(mgmt_save_config, mgmt_save_config_cmd,
 
 	db_hndl = mgmt_db_get_hndl_by_id(mm, database);
 	if (!db_hndl) {
-		vty_out(vty, "ERROR: Couldnot access the '%s' database!\n",
+		vty_out(vty, "ERROR: Could not access the '%s' database!\n",
 			dbname);
 		return CMD_ERR_NO_MATCH;
 	}
@@ -613,7 +619,7 @@ static int config_write_mgmt_debug(struct vty *vty)
 
 
 DEFPY(debug_mgmt_bcknd, debug_mgmt_bcknd_cmd, "[no$no] debug mgmt backend",
-      NO_STR DEBUG_STR MGMTD_STR "Debug Backend Fucntionality")
+      NO_STR DEBUG_STR MGMTD_STR "Debug Backend Functionality")
 {
 	if (no)
 		mgmt_debug_bcknd = false;
@@ -624,7 +630,7 @@ DEFPY(debug_mgmt_bcknd, debug_mgmt_bcknd_cmd, "[no$no] debug mgmt backend",
 }
 
 DEFPY(debug_mgmt_frntnd, debug_mgmt_frntnd_cmd, "[no$no] debug mgmt frontend",
-      NO_STR DEBUG_STR MGMTD_STR "Debug Frontend Fucntionality")
+      NO_STR DEBUG_STR MGMTD_STR "Debug Frontend Functionality")
 {
 	if (no)
 		mgmt_debug_frntnd = false;
@@ -635,7 +641,7 @@ DEFPY(debug_mgmt_frntnd, debug_mgmt_frntnd_cmd, "[no$no] debug mgmt frontend",
 }
 
 DEFPY(debug_mgmt_db, debug_mgmt_db_cmd, "[no$no] debug mgmt database",
-      NO_STR DEBUG_STR MGMTD_STR "Debug Database Fucntionality")
+      NO_STR DEBUG_STR MGMTD_STR "Debug Database Functionality")
 {
 	if (no)
 		mgmt_debug_db = false;
@@ -646,7 +652,7 @@ DEFPY(debug_mgmt_db, debug_mgmt_db_cmd, "[no$no] debug mgmt database",
 }
 
 DEFPY(debug_mgmt_trxn, debug_mgmt_trxn_cmd, "[no$no] debug mgmt transaction",
-      NO_STR DEBUG_STR MGMTD_STR "Debug Transaction Fucntionality")
+      NO_STR DEBUG_STR MGMTD_STR "Debug Transaction Functionality")
 {
 	if (no)
 		mgmt_debug_trxn = false;
@@ -656,7 +662,7 @@ DEFPY(debug_mgmt_trxn, debug_mgmt_trxn_cmd, "[no$no] debug mgmt transaction",
 	return CMD_SUCCESS;
 }
 DEFPY(debug_mgmt_all, debug_mgmt_all_cmd, "[no$no] debug mgmt all",
-      NO_STR DEBUG_STR MGMTD_STR "Debug All Fucntionality")
+      NO_STR DEBUG_STR MGMTD_STR "Debug All Functionality")
 {
 	if (no) {
 		mgmt_debug_bcknd = false;
