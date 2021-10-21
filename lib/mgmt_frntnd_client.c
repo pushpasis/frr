@@ -499,7 +499,7 @@ static int mgmt_frntnd_send_regnotify_req(
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 	struct mgmt_frntnd_client_session *sessn, uint64_t req_id,
 	Mgmtd__DatabaseId db_id, bool register_req,
-	Mgmtd__YangDataXPath *data_req[], int num_data_reqs)
+	Mgmtd__YangDataXPath * data_req[], int num_data_reqs)
 {
 	(void)req_id;
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -1023,7 +1023,7 @@ mgmt_frntnd_client_register_event(struct mgmt_frntnd_client_ctxt *clnt_ctxt,
 		assert(clnt_ctxt->conn_writes_on);
 		break;
 	default:
-		assert(!"mgmt_frntnd_clnt_ctxt_post_event() called incorrectly");
+		assert(!"mgmt_frntnd_clnt_ctxt_post_event called incorrectly");
 	}
 }
 
@@ -1275,7 +1275,8 @@ enum mgmt_result
 mgmt_frntnd_register_yang_notify(uint64_t lib_hndl, uint64_t session_id,
 				 uint64_t req_id, Mgmtd__DatabaseId db_id,
 				 bool register_req,
-				 Mgmtd__YangDataXPath *data_req[], int num_reqs)
+				 Mgmtd__YangDataXPath * data_req[],
+				 int num_reqs)
 {
 	struct mgmt_frntnd_client_ctxt *clnt_ctxt;
 	struct mgmt_frntnd_client_session *sessn;

@@ -840,7 +840,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 				false,
 				"Configuration already in-progress through a different user session!",
 				setcfg_req->implicit_commit);
-			goto mgmt_frntnd_session_handle_setcfg_req_failed;
+			goto mgmt_frntnd_sess_handle_setcfg_req_failed;
 		}
 
 		/*
@@ -855,7 +855,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					setcfg_req->req_id, false,
 					"Failed to lock the DB!",
 					setcfg_req->implicit_commit);
-				goto mgmt_frntnd_session_handle_setcfg_req_failed;
+				goto mgmt_frntnd_sess_handle_setcfg_req_failed;
 			}
 
 			sessn->db_locked_implict[setcfg_req->db_id] = true;
@@ -872,7 +872,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 				false,
 				"Failed to create a Configuration session!",
 				setcfg_req->implicit_commit);
-			goto mgmt_frntnd_session_handle_setcfg_req_failed;
+			goto mgmt_frntnd_sess_handle_setcfg_req_failed;
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
@@ -920,12 +920,12 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 			sessn, setcfg_req->db_id, setcfg_req->req_id, false,
 			"Request processing for SET-CONFIG failed!",
 			setcfg_req->implicit_commit);
-		goto mgmt_frntnd_session_handle_setcfg_req_failed;
+		goto mgmt_frntnd_sess_handle_setcfg_req_failed;
 	}
 
 	return 0;
 
-mgmt_frntnd_session_handle_setcfg_req_failed:
+mgmt_frntnd_sess_handle_setcfg_req_failed:
 
 	if (sessn->cfg_trxn_id != MGMTD_TRXN_ID_NONE)
 		mgmt_destroy_trxn(&sessn->cfg_trxn_id);
@@ -984,7 +984,7 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					sessn, getcfg_req->db_id,
 					getcfg_req->req_id, false, NULL,
 					"Failed to lock the DB! Another session might have locked it!");
-				goto mgmt_frntnd_session_handle_getcfg_req_failed;
+				goto mgmt_frntnd_sess_handle_getcfg_req_failed;
 			}
 
 			sessn->db_locked_implict[getcfg_req->db_id] = true;
@@ -1000,7 +1000,7 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 				sessn, getcfg_req->db_id, getcfg_req->req_id,
 				false, NULL,
 				"Failed to create a Show transaction!");
-			goto mgmt_frntnd_session_handle_getcfg_req_failed;
+			goto mgmt_frntnd_sess_handle_getcfg_req_failed;
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
@@ -1019,12 +1019,12 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		mgmt_frntnd_send_getcfg_reply(
 			sessn, getcfg_req->db_id, getcfg_req->req_id, false,
 			NULL, "Request processing for GET-CONFIG failed!");
-		goto mgmt_frntnd_session_handle_getcfg_req_failed;
+		goto mgmt_frntnd_sess_handle_getcfg_req_failed;
 	}
 
 	return 0;
 
-mgmt_frntnd_session_handle_getcfg_req_failed:
+mgmt_frntnd_sess_handle_getcfg_req_failed:
 
 	if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
 		mgmt_destroy_trxn(&sessn->trxn_id);
@@ -1069,7 +1069,7 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					sessn, getdata_req->db_id,
 					getdata_req->req_id, false, NULL,
 					"Failed to lock the DB! Another session might have locked it!");
-				goto mgmt_frntnd_session_handle_getdata_req_failed;
+				goto mgmt_frntnd_sess_handle_getdata_req_failed;
 			}
 
 			sessn->db_locked_implict[getdata_req->db_id] = true;
@@ -1085,7 +1085,7 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 				sessn, getdata_req->db_id, getdata_req->req_id,
 				false, NULL,
 				"Failed to create a Show transaction!");
-			goto mgmt_frntnd_session_handle_getdata_req_failed;
+			goto mgmt_frntnd_sess_handle_getdata_req_failed;
 		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
@@ -1104,12 +1104,12 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		mgmt_frntnd_send_getdata_reply(
 			sessn, getdata_req->db_id, getdata_req->req_id, false,
 			NULL, "Request processing for GET-CONFIG failed!");
-		goto mgmt_frntnd_session_handle_getdata_req_failed;
+		goto mgmt_frntnd_sess_handle_getdata_req_failed;
 	}
 
 	return 0;
 
-mgmt_frntnd_session_handle_getdata_req_failed:
+mgmt_frntnd_sess_handle_getdata_req_failed:
 
 	if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
 		mgmt_destroy_trxn(&sessn->trxn_id);
@@ -1243,7 +1243,7 @@ mgmt_frntnd_adapter_handle_msg(struct mgmt_frntnd_client_adapter *adptr,
 		       == MGMTD__FRNTND_MESSAGE__MESSAGE_SESSN_REQ);
 		if (frntnd_msg->sessn_req->create
 		    && frntnd_msg->sessn_req->id_case
-			       == MGMTD__FRNTND_SESSION_REQ__ID_CLIENT_CONN_ID) {
+			== MGMTD__FRNTND_SESSION_REQ__ID_CLIENT_CONN_ID) {
 			MGMTD_FRNTND_ADPTR_DBG(
 				"Got Session Create Req Msg for client-id %llu from '%s'",
 				frntnd_msg->sessn_req->client_conn_id,
@@ -1256,7 +1256,7 @@ mgmt_frntnd_adapter_handle_msg(struct mgmt_frntnd_client_adapter *adptr,
 		} else if (
 			!frntnd_msg->sessn_req->create
 			&& frntnd_msg->sessn_req->id_case
-				   == MGMTD__FRNTND_SESSION_REQ__ID_SESSION_ID) {
+				== MGMTD__FRNTND_SESSION_REQ__ID_SESSION_ID) {
 			MGMTD_FRNTND_ADPTR_DBG(
 				"Got Session Destroy Req Msg for session-id %llu from '%s'",
 				frntnd_msg->sessn_req->session_id, adptr->name);

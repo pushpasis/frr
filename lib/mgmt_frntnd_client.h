@@ -216,8 +216,8 @@ mgmt_frntnd_get_config_data(uint64_t lib_hndl, uint64_t session_id,
  */
 extern enum mgmt_result
 mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
-		     Mgmtd__DatabaseId db_id, Mgmtd__YangGetDataReq * data_req[],
-		     int num_reqs);
+		     Mgmtd__DatabaseId db_id,
+		     Mgmtd__YangGetDataReq * data_req[], int num_reqs);
 
 /*
  * Send NOTIFY_REGISTER_REQ to MGMTD daemon.
@@ -225,7 +225,7 @@ mgmt_frntnd_get_data(uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
 extern enum mgmt_result mgmt_frntnd_register_yang_notify(
 	uint64_t lib_hndl, uint64_t session_id, uint64_t req_id,
 	Mgmtd__DatabaseId db_id, bool register_req,
-	Mgmtd__YangDataXPath *data_req[], int num_reqs);
+	Mgmtd__YangDataXPath * data_req[], int num_reqs);
 
 /*
  * Destroy library and cleanup everything.
