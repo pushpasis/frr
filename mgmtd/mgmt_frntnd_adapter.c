@@ -83,7 +83,7 @@ DECLARE_LIST(mgmt_frntnd_sessn_list, struct mgmt_frntnd_sessn_ctxt,
 	frr_each_safe(mgmt_frntnd_sessn_list, &(adptr)->frntnd_sessns, (sessn))
 
 static struct thread_master *mgmt_frntnd_adptr_tm;
-static struct mgmt_master *mgmt_frntnd_adptr_cm;
+static struct mgmt_master *mgmt_frntnd_adptr_mm;
 
 static struct mgmt_frntnd_adptr_list_head mgmt_frntnd_adptrs = {0};
 
@@ -188,7 +188,7 @@ mgmt_frntnd_sessn_cfg_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 	mgmt_db_copy_dbs(mm->running_db, mm->candidate_db, false);
 
 	for (db_id = 0; db_id < MGMTD_DB_MAX_ID; db_id++) {
-		db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, db_id);
+		db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm, db_id);
 		if (db_hndl) {
 			if (sessn->db_locked_implict[db_id])
 				mgmt_frntnd_session_unlock_db(
@@ -207,7 +207,7 @@ mgmt_frntnd_sessn_show_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 	uint64_t db_hndl;
 
 	for (db_id = 0; db_id < MGMTD_DB_MAX_ID; db_id++) {
-		db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, db_id);
+		db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm, db_id);
 		if (db_hndl) {
 			mgmt_frntnd_session_unlock_db(db_id, db_hndl, sessn,
 						      false, true);
@@ -256,6 +256,12 @@ static void mgmt_frntnd_cleanup_session(struct mgmt_frntnd_sessn_ctxt **sessn)
 	if ((*sessn)->adptr) {
 		mgmt_frntnd_sessn_cfg_trxn_cleanup((*sessn));
 		mgmt_frntnd_sessn_show_trxn_cleanup((*sessn));
+		mgmt_frntnd_session_unlock_db(
+			MGMTD_DB_CANDIDATE, mgmt_frntnd_adptr_mm->candidate_db,
+			*sessn, true, true);
+		mgmt_frntnd_session_unlock_db(MGMTD_DB_RUNNING,
+					      mgmt_frntnd_adptr_mm->running_db,
+					      *sessn, true, true);
 
 		mgmt_frntnd_sessn_list_del(&(*sessn)->adptr->frntnd_sessns,
 					   *sessn);
@@ -493,7 +499,7 @@ static int mgmt_frntnd_send_setcfg_reply(struct mgmt_frntnd_sessn_ctxt *sessn,
 
 static int mgmt_frntnd_send_commitcfg_reply(
 	struct mgmt_frntnd_sessn_ctxt *sessn, Mgmtd__DatabaseId src_db_id,
-	Mgmtd__DatabaseId dst_db_id, uint64_t req_id, bool success,
+	Mgmtd__DatabaseId dst_db_id, uint64_t req_id, enum mgmt_result result,
 	bool validate_only, const char *error_if_any)
 {
 	Mgmtd__FrntndMessage frntnd_msg;
@@ -506,7 +512,10 @@ static int mgmt_frntnd_send_commitcfg_reply(
 	commcfg_reply.src_db_id = src_db_id;
 	commcfg_reply.dst_db_id = dst_db_id;
 	commcfg_reply.req_id = req_id;
-	commcfg_reply.success = success;
+	commcfg_reply.success =
+		(result == MGMTD_SUCCESS || result == MGMTD_NO_CFG_CHANGES)
+			? true
+			: false;
 	commcfg_reply.validate_only = validate_only;
 	if (error_if_any)
 		commcfg_reply.error_if_any = (char *)error_if_any;
@@ -523,7 +532,9 @@ static int mgmt_frntnd_send_commitcfg_reply(
 	/*
 	 * Cleanup the CONFIG transaction associated with this session.
 	 */
-	if (success && !validate_only && sessn->cfg_trxn_id)
+	if (sessn->cfg_trxn_id
+	    && ((result == MGMTD_SUCCESS && !validate_only)
+		|| (result == MGMTD_NO_CFG_CHANGES)))
 		mgmt_frntnd_session_register_event(
 			sessn, MGMTD_FRNTND_SESSN_CFG_TRXN_CLNUP);
 
@@ -745,7 +756,7 @@ mgmt_frntnd_session_handle_lockdb_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 	}
 
 	db_hndl =
-		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, lockdb_req->db_id);
+		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm, lockdb_req->db_id);
 	if (!db_hndl) {
 		mgmt_frntnd_send_lockdb_reply(
 			sessn, lockdb_req->db_id, lockdb_req->req_id,
@@ -818,7 +829,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 	 * Get the DB handle.
 	 */
 	db_hndl =
-		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, setcfg_req->db_id);
+		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm, setcfg_req->db_id);
 	if (!db_hndl) {
 		mgmt_frntnd_send_setcfg_reply(
 			sessn, setcfg_req->db_id, setcfg_req->req_id, false,
@@ -899,7 +910,7 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 
 	dst_db_hndl = 0;
 	if (setcfg_req->implicit_commit) {
-		dst_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm,
+		dst_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm,
 						     setcfg_req->commit_db_id);
 		if (!dst_db_hndl) {
 			mgmt_frntnd_send_setcfg_reply(
@@ -946,7 +957,7 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 	 * Get the DB handle.
 	 */
 	db_hndl =
-		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm, getcfg_req->db_id);
+		mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm, getcfg_req->db_id);
 	if (!db_hndl) {
 		mgmt_frntnd_send_getcfg_reply(sessn, getcfg_req->db_id,
 					      getcfg_req->req_id, false, NULL,
@@ -1044,7 +1055,7 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 	/*
 	 * Get the DB handle.
 	 */
-	db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm,
+	db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm,
 					 getdata_req->db_id);
 	if (!db_hndl) {
 		mgmt_frntnd_send_getdata_reply(sessn, getdata_req->db_id,
@@ -1132,12 +1143,13 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 	/*
 	 * Get the source DB handle.
 	 */
-	src_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm,
+	src_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm,
 					     commcfg_req->src_db_id);
 	if (!src_db_hndl) {
 		mgmt_frntnd_send_commitcfg_reply(
 			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-			commcfg_req->req_id, false, commcfg_req->validate_only,
+			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
+			commcfg_req->validate_only,
 			"No such source DB exists!");
 		return 0;
 	}
@@ -1145,12 +1157,13 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 	/*
 	 * Get the destination DB handle.
 	 */
-	dst_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_cm,
+	dst_db_hndl = mgmt_db_get_hndl_by_id(mgmt_frntnd_adptr_mm,
 					     commcfg_req->dst_db_id);
 	if (!dst_db_hndl) {
 		mgmt_frntnd_send_commitcfg_reply(
 			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-			commcfg_req->req_id, false, commcfg_req->validate_only,
+			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
+			commcfg_req->validate_only,
 			"No such destination DB exists!");
 		return 0;
 	}
@@ -1163,7 +1176,8 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 	if (commcfg_req->dst_db_id != MGMTD_DB_RUNNING) {
 		mgmt_frntnd_send_commitcfg_reply(
 			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-			commcfg_req->req_id, false, commcfg_req->validate_only,
+			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
+			commcfg_req->validate_only,
 			"Set-Config on databases other than Running DB not permitted!");
 		return 0;
 	}
@@ -1178,7 +1192,8 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 			mgmt_frntnd_send_commitcfg_reply(
 				sessn, commcfg_req->src_db_id,
 				commcfg_req->dst_db_id, commcfg_req->req_id,
-				false, commcfg_req->validate_only,
+				MGMTD_INTERNAL_ERROR,
+				commcfg_req->validate_only,
 				"Failed to create a Configuration session!");
 			return 0;
 		}
@@ -1194,7 +1209,8 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 			mgmt_frntnd_send_commitcfg_reply(
 				sessn, commcfg_req->src_db_id,
 				commcfg_req->dst_db_id, commcfg_req->req_id,
-				false, commcfg_req->validate_only,
+				MGMTD_DB_LOCK_FAILED,
+				commcfg_req->validate_only,
 				"Failed to lock the destination DB!");
 			return 0;
 		}
@@ -1210,7 +1226,8 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 	    != 0) {
 		mgmt_frntnd_send_commitcfg_reply(
 			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-			commcfg_req->req_id, false, commcfg_req->validate_only,
+			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
+			commcfg_req->validate_only,
 			"Request processing for COMMIT-CONFIG failed!");
 		return 0;
 	}
@@ -1675,11 +1692,11 @@ mgmt_frntnd_adapter_unlock(struct mgmt_frntnd_client_adapter **adptr)
 	*adptr = NULL;
 }
 
-int mgmt_frntnd_adapter_init(struct thread_master *tm, struct mgmt_master *cm)
+int mgmt_frntnd_adapter_init(struct thread_master *tm, struct mgmt_master *mm)
 {
 	if (!mgmt_frntnd_adptr_tm) {
 		mgmt_frntnd_adptr_tm = tm;
-		mgmt_frntnd_adptr_cm = mm;
+		mgmt_frntnd_adptr_mm = mm;
 		mgmt_frntnd_adptr_list_init(&mgmt_frntnd_adptrs);
 	}
 
@@ -1768,8 +1785,8 @@ int mgmt_frntnd_send_commit_cfg_reply(uint64_t session_id, uint64_t trxn_id,
 		return -1;
 
 	return mgmt_frntnd_send_commitcfg_reply(sessn, src_db_id, dst_db_id,
-						req_id, result == MGMTD_SUCCESS,
-						validate_only, error_if_any);
+						req_id, result, validate_only,
+						error_if_any);
 }
 
 int mgmt_frntnd_send_get_cfg_reply(uint64_t session_id, uint64_t trxn_id,

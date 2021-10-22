@@ -103,7 +103,8 @@ extern int mgmt_trxn_send_commit_config_req(
 	uint64_t dst_db_hndl, Mgmtd__DatabaseId dst_db_id, uint64_t src_db_hndl,
 	bool validate_only, bool abort, bool implicit);
 
-extern int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
+extern int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id,
+					      enum mgmt_result result,
 					      const char *error_if_any);
 
 extern int mgmt_trxn_send_get_config_req(uint64_t trxn_id, uint64_t req_id,
