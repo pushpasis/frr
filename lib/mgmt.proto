@@ -38,7 +38,7 @@ message YangDataXPath {
 
 message YangDataValue {
   oneof value {
-    // 
+    //
     // NOTE: For now let's use stringized value ONLY.
     // We will enhance it later to pass native-format
     // if needed.
@@ -398,4 +398,3 @@ message FrntndMessage {
     FrntndRegisterNotifyReq regnotify_req = 16;
   }
 }
-
