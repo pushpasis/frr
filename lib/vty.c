@@ -73,11 +73,11 @@ enum event {
 #endif /* VTYSH */
 };
 
-struct nb_config *vty_mgmt_candidate_config = NULL;
+struct nb_config *vty_mgmt_candidate_config;
 
-static uint64_t mgmt_lib_hndl = 0;
-static bool mgmt_frntnd_connected = false;
-static bool mgmt_candidate_db_wr_locked = false;
+static uint64_t mgmt_lib_hndl;
+static bool mgmt_frntnd_connected;
+static bool mgmt_candidate_db_wr_locked;
 
 static void vty_event_serv(enum event event, int sock);
 static void vty_event(enum event, struct vty *);
@@ -116,10 +116,6 @@ static char integrate_default[] = SYSCONFDIR INTEGRATE_DEFAULT_CONFIG;
 static bool do_log_commands;
 static bool do_log_commands_perm;
 
-#define VTY_MGMTD_WAIT_RESPONSE(vty)                                           \
-	if (vty->mgmt_req_pending)                                             \
-		return 0;
-
 static void vty_mgmt_resume_response(struct vty *vty, bool success)
 {
 	uint8_t header[4] = {0, 0, 0, 0};
@@ -140,7 +136,8 @@ static void vty_mgmt_resume_response(struct vty *vty, bool success)
 
 	if (!vty->t_write && (vtysh_flush(vty) < 0))
 		/* Try to flush results; exit if a write
-		 * error occurs. */
+		 * error occurs.
+		 */
 		return;
 
 	if (vty->status == VTY_CLOSE)
@@ -2187,7 +2184,8 @@ static int vtysh_read(struct thread *thread)
 				/* with new infra we need to stop response till
 				 * we get response through callback.
 				 */
-				VTY_MGMTD_WAIT_RESPONSE(vty);
+				if (vty->mgmt_req_pending)
+					return 0;
 
 				/* warning: watchfrr hardcodes this result write
 				 */
@@ -3276,7 +3274,6 @@ static void vty_mgmt_session_created(uint64_t lib_hndl, uint64_t usr_data,
 	if (!success) {
 		zlog_err("%s session for client %llu failed!",
 			 create ? "Creating" : "Destroying", client_id);
-		// assert(!"MGMTD session creation for VTY failed!");
 		return;
 	}
 
@@ -3325,7 +3322,6 @@ static void vty_mgmt_set_config_result_notified(
 			client_id, errmsg_if_any ? errmsg_if_any : "Unknown");
 		vty_out(vty, "ERROR: SET_CONFIG request failed! Error: %s\n",
 			errmsg_if_any ? errmsg_if_any : "Unknown");
-		// assert(!"MGMTD SET_CONFIG request for VTY failed!");
 	} else {
 		zlog_err(
 			"SET_CONFIG request for client 0x%llx req-id %llu was successfull!",
@@ -3367,7 +3363,7 @@ static uint64_t last_req_id = 0xFFFFFFFFFFFFFFFF;
 static enum mgmt_result vty_mgmt_get_data_result_notified(
 	uint64_t lib_hndl, uint64_t usr_data, uint64_t client_id,
 	uint64_t session_id, uintptr_t user_ctxt, uint64_t req_id, bool success,
-	Mgmtd__DatabaseId db_id, Mgmtd__YangData *yang_data[], size_t num_data,
+	Mgmtd__DatabaseId db_id, Mgmtd__YangData * yang_data[], size_t num_data,
 	int next_key, char *errmsg_if_any)
 {
 	struct vty *vty;
@@ -3453,10 +3449,6 @@ int vty_mgmt_send_lockdb_req(struct vty *vty, Mgmtd__DatabaseId db_id,
 			return -1;
 		}
 
-		// zlog_err("Sent %sLOCK-DB-REQ request for session 0x%llx,
-		// req-id: %llu!", 	lock ? "" : "UN", vty->mgmt_session_id,
-		// vty->mgmt_req_id);
-
 		vty->mgmt_req_pending = true;
 	}
 
@@ -3468,7 +3460,7 @@ int vty_mgmt_send_config_data(struct vty *vty)
 	Mgmtd__YangDataValue value[VTY_MAXCFGCHANGES];
 	Mgmtd__YangData cfg_data[VTY_MAXCFGCHANGES];
 	Mgmtd__YangCfgDataReq cfg_req[VTY_MAXCFGCHANGES];
-	Mgmtd__YangCfgDataReq *cfgreq[VTY_MAXCFGCHANGES] = {0};
+	Mgmtd__YangCfgDataReq * cfgreq[VTY_MAXCFGCHANGES] = {0};
 	size_t indx;
 	int cnt;
 
@@ -3482,7 +3474,7 @@ int vty_mgmt_send_config_data(struct vty *vty)
 				value[cnt].encoded_str_val =
 					(char *)vty->cfg_changes[indx].value;
 				value[cnt].value_case =
-					MGMTD__YANG_DATA_VALUE__VALUE_ENCODED_STR_VAL;
+				MGMTD__YANG_DATA_VALUE__VALUE_ENCODED_STR_VAL;
 				cfg_data[cnt].value = &value[cnt];
 			}
 
@@ -3524,10 +3516,6 @@ int vty_mgmt_send_config_data(struct vty *vty)
 			return -1;
 		}
 
-		// zlog_err("Sent SET_CONFIG request for session 0x%llx, req-id:
-		// %llu, num_xpaths: %d!", 	vty->mgmt_session_id,
-		// vty->mgmt_req_id, cnt);
-
 		vty->mgmt_req_pending = true;
 	}
 
@@ -3552,9 +3540,6 @@ int vty_mgmt_send_commit_config(struct vty *vty, bool validate_only, bool abort)
 			return -1;
 		}
 
-		// zlog_err("Sent COMMIT_CONFIG request for session 0x%llx,
-		// req-id: %llu!", 	vty->mgmt_session_id, vty->mgmt_req_id);
-
 		vty->mgmt_req_pending = true;
 	}
 
@@ -3567,7 +3552,7 @@ int vty_mgmt_send_get_config(struct vty *vty, Mgmtd__DatabaseId database,
 	enum mgmt_result ret;
 	Mgmtd__YangData yang_data[VTY_MAXCFGCHANGES];
 	Mgmtd__YangGetDataReq get_req[VTY_MAXCFGCHANGES];
-	Mgmtd__YangGetDataReq *getreq[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq * getreq[VTY_MAXCFGCHANGES];
 	int i;
 
 	vty->mgmt_req_id++;
@@ -3592,9 +3577,6 @@ int vty_mgmt_send_get_config(struct vty *vty, Mgmtd__DatabaseId database,
 		return -1;
 	}
 
-	// zlog_err("Sent GET_CONFIG request for session 0x%llx, req-id: %llu!",
-	// 	vty->mgmt_session_id, vty->mgmt_req_id);
-
 	vty->mgmt_req_pending = true;
 
 	return 0;
@@ -3606,7 +3588,7 @@ int vty_mgmt_send_get_data(struct vty *vty, Mgmtd__DatabaseId database,
 	enum mgmt_result ret;
 	Mgmtd__YangData yang_data[VTY_MAXCFGCHANGES];
 	Mgmtd__YangGetDataReq get_req[VTY_MAXCFGCHANGES];
-	Mgmtd__YangGetDataReq *getreq[VTY_MAXCFGCHANGES];
+	Mgmtd__YangGetDataReq * getreq[VTY_MAXCFGCHANGES];
 	int i;
 
 	vty->mgmt_req_id++;
@@ -3629,9 +3611,6 @@ int vty_mgmt_send_get_data(struct vty *vty, Mgmtd__DatabaseId database,
 		vty_out(vty, "Failed to send GET-DATA to MGMTD!");
 		return -1;
 	}
-
-	// zlog_err("Sent GET_DATA request for session 0x%llx, req-id: %llu!",
-	// 	vty->mgmt_session_id, vty->mgmt_req_id);
 
 	vty->mgmt_req_pending = true;
 
