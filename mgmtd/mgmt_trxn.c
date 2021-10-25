@@ -286,7 +286,7 @@ DECLARE_LIST(mgmt_trxn_list, struct mgmt_trxn_ctxt, list_linkage);
 	frr_each_safe(mgmt_trxn_list, &(cm)->mgmt_trxns, (trxn))
 
 static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
-					   bool success,
+					   enum mgmt_result result,
 					   const char *error_if_any);
 
 static inline const char *
@@ -690,7 +690,7 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 					trxn_req->req.set_cfg->dst_db_id, trxn,
 					trxn->session_id, strerror(ret));
 				mgmt_trxn_send_commit_cfg_reply(
-					trxn, false,
+					trxn, MGMTD_DB_LOCK_FAILED,
 					"Lock running DB before implicit commit failed!");
 				goto mgmt_trxn_process_set_cfg_done;
 			}
@@ -742,14 +742,18 @@ static int mgmt_trxn_process_set_cfg(struct thread *thread)
 }
 
 static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
-					   bool success,
+					   enum mgmt_result result,
 					   const char *error_if_any)
 {
 	int ret = 0;
+	bool success, create_cmt_info_rec;
 
 	if (!trxn->commit_cfg_req)
 		return -1;
 
+	success = result == MGMTD_SUCCESS || result == MGMTD_NO_CFG_CHANGES
+			  ? true
+			  : false;
 	if (!trxn->commit_cfg_req->req.commit_cfg.implicit && trxn->session_id
 	    && mgmt_frntnd_send_commit_cfg_reply(
 		       trxn->session_id, (uint64_t)trxn,
@@ -757,8 +761,7 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 		       trxn->commit_cfg_req->req.commit_cfg.dst_db_id,
 		       trxn->commit_cfg_req->req_id,
 		       trxn->commit_cfg_req->req.commit_cfg.validate_only,
-		       success ? MGMTD_SUCCESS : MGMTD_INTERNAL_ERROR,
-		       error_if_any)
+		       result, error_if_any)
 		       != 0) {
 		MGMTD_TRXN_ERR(
 			"Failed to send COMMIT-CONFIG-REPLY for Trxn %p Sessn 0x%llx",
@@ -782,6 +785,13 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 		/* Stop the commit-timeout timer */
 		THREAD_OFF(trxn->comm_cfg_timeout);
 
+		create_cmt_info_rec =
+			result != MGMTD_NO_CFG_CHANGES
+					&& !trxn->commit_cfg_req->req.commit_cfg
+						    .rollback
+				? true
+				: false;
+
 		/*
 		 * Successful commit: Merge Src DB into Dst DB if and only if
 		 * this was not a validate-only or abort request.
@@ -790,14 +800,11 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 		     && !trxn->commit_cfg_req->req.commit_cfg.validate_only
 		     && !trxn->commit_cfg_req->req.commit_cfg.abort)
 		    || trxn->commit_cfg_req->req.commit_cfg.rollback) {
-			mgmt_db_copy_dbs(
-				trxn->commit_cfg_req->req.commit_cfg
-					.src_db_hndl,
-				trxn->commit_cfg_req->req.commit_cfg
-					.dst_db_hndl,
-				trxn->commit_cfg_req->req.commit_cfg.rollback
-					? false
-					: true);
+			mgmt_db_copy_dbs(trxn->commit_cfg_req->req.commit_cfg
+						 .src_db_hndl,
+					 trxn->commit_cfg_req->req.commit_cfg
+						 .dst_db_hndl,
+					 create_cmt_info_rec);
 		}
 
 		/*
@@ -1022,7 +1029,7 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 		xpath = lyd_path(chg->cb.dnode, LYD_PATH_STD, NULL, 0);
 		if (!xpath) {
 			(void)mgmt_trxn_send_commit_cfg_reply(
-				trxn_req->trxn, false,
+				trxn_req->trxn, MGMTD_INTERNAL_ERROR,
 				"Internal error! Could not get Xpath from Db node!");
 			goto mgmt_trxn_create_config_batches_failed;
 		}
@@ -1039,8 +1046,8 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 			snprintf(err_buf, sizeof(err_buf),
 				 "No backend module found for XPATH: '%s",
 				 xpath);
-			(void)mgmt_trxn_send_commit_cfg_reply(trxn_req->trxn,
-							      false, err_buf);
+			(void)mgmt_trxn_send_commit_cfg_reply(
+				trxn_req->trxn, MGMTD_INTERNAL_ERROR, err_buf);
 			goto mgmt_trxn_create_config_batches_failed;
 		}
 
@@ -1128,8 +1135,8 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 			snprintf(err_buf, sizeof(err_buf),
 				 "No validator module found for XPATH: '%s",
 				 xpath);
-			(void)mgmt_trxn_send_commit_cfg_reply(trxn_req->trxn,
-							      false, err_buf);
+			(void)mgmt_trxn_send_commit_cfg_reply(
+				trxn_req->trxn, MGMTD_INTERNAL_ERROR, err_buf);
 			goto mgmt_trxn_create_config_batches_failed;
 		}
 	}
@@ -1137,7 +1144,8 @@ static int mgmt_trxn_create_config_batches(struct mgmt_trxn_req *trxn_req,
 	cmtcfg_req->cmt_stats->last_batch_cnt = num_chgs;
 	if (!num_chgs) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn_req->trxn, false, "No changes found to commit!");
+			trxn_req->trxn, MGMTD_NO_CFG_CHANGES,
+			"No changes found to commit!");
 		goto mgmt_trxn_create_config_batches_failed;
 	}
 
@@ -1173,7 +1181,7 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 	if (trxn->commit_cfg_req->req.commit_cfg.src_db_id
 	    != MGMTD_DB_CANDIDATE) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INVALID_PARAM,
 			"Source DB cannot be any other than CANDIDATE!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
@@ -1182,7 +1190,7 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 	if (trxn->commit_cfg_req->req.commit_cfg.dst_db_id
 	    != MGMTD_DB_RUNNING) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INVALID_PARAM,
 			"Destination DB cannot be any other than RUNNING!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
@@ -1190,14 +1198,15 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 
 	if (!trxn->commit_cfg_req->req.commit_cfg.src_db_hndl) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, false, "No such source database!");
+			trxn, MGMTD_INVALID_PARAM, "No such source database!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
 	}
 
 	if (!trxn->commit_cfg_req->req.commit_cfg.dst_db_hndl) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, false, "No such destination database!");
+			trxn, MGMTD_INVALID_PARAM,
+			"No such destination database!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
 	}
@@ -1208,7 +1217,8 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 		 * That should trigger a restore of Candidate database to
 		 * Running.
 		 */
-		(void)mgmt_trxn_send_commit_cfg_reply(trxn, true, NULL);
+		(void)mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_SUCCESS,
+						      NULL);
 		goto mgmt_trxn_prepare_config_done;
 	}
 
@@ -1216,7 +1226,7 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 		trxn->commit_cfg_req->req.commit_cfg.src_db_hndl);
 	if (!nb_config) {
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INTERNAL_ERROR,
 			"Unable to retrieve Commit DB Config Tree!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
@@ -1249,7 +1259,8 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 		 * is the source of the changes in config.
 		 */
 		(void)mgmt_trxn_send_commit_cfg_reply(
-			trxn, true, "No changes found to be committed!");
+			trxn, MGMTD_NO_CFG_CHANGES,
+			"No changes found to be committed!");
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
 	}
@@ -1265,7 +1276,8 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 	if (ret != NB_OK) {
 		if (strncmp(err_buf, " ", strlen(err_buf)) == 0)
 			strlcpy(err_buf, "Validation failed", sizeof(err_buf));
-		(void)mgmt_trxn_send_commit_cfg_reply(trxn, false, err_buf);
+		(void)mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_INVALID_PARAM,
+						      err_buf);
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
 	}
@@ -1284,7 +1296,8 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 	if (ret != NB_OK) {
 		if (strncmp(err_buf, " ", strlen(err_buf)) == 0)
 			strlcpy(err_buf, "Validation failed", sizeof(err_buf));
-		(void)mgmt_trxn_send_commit_cfg_reply(trxn, false, err_buf);
+		(void)mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_INVALID_PARAM,
+						      err_buf);
 		ret = -1;
 		goto mgmt_trxn_prepare_config_done;
 	}
@@ -1293,7 +1306,8 @@ static int mgmt_trxn_prepare_config(struct mgmt_trxn_ctxt *trxn)
 		/*
 		 * This was a validate-only COMMIT request return success.
 		 */
-		(void)mgmt_trxn_send_commit_cfg_reply(trxn, true, NULL);
+		(void)mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_SUCCESS,
+						      NULL);
 		goto mgmt_trxn_prepare_config_done;
 	}
 #endif /* ifdef MGMTD_LOCAL_VALIDATIONS_ENABLED */
@@ -1349,7 +1363,7 @@ static int mgmt_trxn_send_bcknd_trxn_create(struct mgmt_trxn_ctxt *trxn)
 			if (mgmt_bcknd_create_trxn(adptr, (uint64_t)trxn)
 			    != 0) {
 				(void)mgmt_trxn_send_commit_cfg_reply(
-					trxn, false,
+					trxn, MGMTD_INTERNAL_ERROR,
 					"Could not send TRXN_CREATE to backend adapter");
 				return -1;
 			}
@@ -1411,7 +1425,7 @@ mgmt_trxn_send_bcknd_cfg_data(struct mgmt_trxn_ctxt *trxn,
 			    indx == num_batches ? true : false)
 		    != 0) {
 			(void)mgmt_trxn_send_commit_cfg_reply(
-				trxn, false,
+				trxn, MGMTD_INTERNAL_ERROR,
 				"Internal Error! Could not send config data to backend!");
 			MGMTD_TRXN_ERR(
 				"Could not send CFGDATA_CREATE for Trxn %p Batch %p to client '%s",
@@ -1484,7 +1498,7 @@ static int mgmt_trxn_cfg_commit_timedout(struct thread *thread)
 	 * adapter.
 	 */
 	mgmt_trxn_send_commit_cfg_reply(
-		trxn, false,
+		trxn, MGMTD_INTERNAL_ERROR,
 		"Operation on the backend timed-out. Aborting commit!");
 
 	return 0;
@@ -1513,7 +1527,8 @@ static int mgmt_trxn_send_bcknd_cfg_apply(struct mgmt_trxn_ctxt *trxn)
 		/*
 		 * If this was a validate-only COMMIT request return success.
 		 */
-		(void)mgmt_trxn_send_commit_cfg_reply(trxn, true, NULL);
+		(void)mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_SUCCESS,
+						      NULL);
 		return 0;
 	}
 
@@ -1528,7 +1543,7 @@ static int mgmt_trxn_send_bcknd_cfg_apply(struct mgmt_trxn_ctxt *trxn)
 			if (mgmt_bcknd_send_cfg_apply_req(adptr, (uint64_t)trxn)
 			    != 0) {
 				(void)mgmt_trxn_send_commit_cfg_reply(
-					trxn, false,
+					trxn, MGMTD_INTERNAL_ERROR,
 					"Could not send CFG_APPLY_REQ to backend adapter");
 				return -1;
 			}
@@ -1597,7 +1612,7 @@ static int mgmt_trxn_send_bcknd_cfg_validate(struct mgmt_trxn_ctxt *trxn)
 				    adptr, (uint64_t)trxn, batch_ids, indx)
 			    != 0) {
 				(void)mgmt_trxn_send_commit_cfg_reply(
-					trxn, false,
+					trxn, MGMTD_INTERNAL_ERROR,
 					"Could not send CFG_VALIDATE_REQ to backend adapter");
 				return -1;
 			}
@@ -1709,7 +1724,7 @@ static int mgmt_trxn_process_commit_cfg(struct thread *thread)
 		 * more details.
 		 */
 		THREAD_OFF(trxn->comm_cfg_timeout);
-		mgmt_trxn_send_commit_cfg_reply(trxn, true, NULL);
+		mgmt_trxn_send_commit_cfg_reply(trxn, MGMTD_SUCCESS, NULL);
 		break;
 	default:
 		break;
@@ -2508,7 +2523,7 @@ int mgmt_trxn_notify_bcknd_adapter_conn(struct mgmt_bcknd_client_adapter *adptr,
 					       .xpath_subscr[adptr->id]
 					       .subscribed) {
 					mgmt_trxn_send_commit_cfg_reply(
-						trxn, false,
+						trxn, MGMTD_INTERNAL_ERROR,
 						"Backend daemon disconnected while processing commit!");
 				}
 				break;
@@ -2552,7 +2567,7 @@ int mgmt_trxn_notify_bcknd_trxn_reply(uint64_t trxn_id, bool create,
 			mgmt_trxn_send_bcknd_cfg_data(trxn, adptr);
 		} else {
 			mgmt_trxn_send_commit_cfg_reply(
-				trxn, false,
+				trxn, MGMTD_INTERNAL_ERROR,
 				"Internal error! Failed to initiate transaction at backend!");
 		}
 	} else {
@@ -2592,7 +2607,7 @@ int mgmt_trxn_notify_bcknd_cfgdata_reply(
 			adptr->name, trxn, cfg_btch,
 			error_if_any ? error_if_any : "None");
 		mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INTERNAL_ERROR,
 			"Internal error! Failed to download config data to backend!");
 		return 0;
 	}
@@ -2639,7 +2654,7 @@ int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 			batch_ids[num_batch_ids - 1],
 			error_if_any ? error_if_any : "None");
 		mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INTERNAL_ERROR,
 			"Internal error! Failed to validate config data on backend!");
 		return 0;
 	}
@@ -2685,7 +2700,7 @@ mgmt_trxn_notify_bcknd_cfg_apply_reply(uint64_t trxn_id, bool success,
 			batch_ids[num_batch_ids - 1],
 			error_if_any ? error_if_any : "None");
 		mgmt_trxn_send_commit_cfg_reply(
-			trxn, false,
+			trxn, MGMTD_INTERNAL_ERROR,
 			"Internal error! Failed to apply config data on backend!");
 		return 0;
 	}
@@ -2717,7 +2732,8 @@ mgmt_trxn_notify_bcknd_cfg_apply_reply(uint64_t trxn_id, bool success,
 	return 0;
 }
 
-int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
+int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id,
+				       enum mgmt_result result,
 				       const char *error_if_any)
 {
 	struct mgmt_trxn_ctxt *trxn;
@@ -2733,7 +2749,7 @@ int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id, bool success,
 		return -1;
 	}
 
-	return mgmt_trxn_send_commit_cfg_reply(trxn, success, error_if_any);
+	return mgmt_trxn_send_commit_cfg_reply(trxn, result, error_if_any);
 }
 
 int mgmt_trxn_send_get_config_req(uint64_t trxn_id, uint64_t req_id,
