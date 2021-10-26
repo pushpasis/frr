@@ -148,6 +148,7 @@ void mgmt_init(void)
 
 void mgmt_terminate(void)
 {
+	mgmt_frntnd_server_destroy();
 	mgmt_bcknd_server_destroy();
 	mgmt_db_destroy();
 }
