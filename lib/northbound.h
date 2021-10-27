@@ -946,30 +946,6 @@ extern int nb_candidate_validate_code(struct nb_context *context,
  */
 extern int nb_candidate_update(struct nb_config *candidate);
 
-extern void nb_candidate_edit_config_changes(
-	struct nb_config *candidate_config, struct nb_cfg_change cfg_changes[],
-	size_t num_cfg_changes, const char *xpath_base, const char *curr_xpath,
-	int xpath_index, char *err_buf, int err_bufsize, bool *error);
-
-extern void nb_config_diff_del_changes(struct nb_config_cbs *changes);
-
-extern int nb_candidate_diff_and_validate_yang(struct nb_context *context,
-					       struct nb_config *candidate,
-					       struct nb_config_cbs *changes,
-					       char *errmsg, size_t errmsg_len);
-
-extern void nb_config_diff(const struct nb_config *reference,
-			   const struct nb_config *incremental,
-			   struct nb_config_cbs *changes);
-
-extern int nb_candidate_validate_yang(struct nb_config *candidate, char *errmsg,
-				      size_t errmsg_len);
-
-extern int nb_candidate_validate_code(struct nb_context *context,
-				      struct nb_config *candidate,
-				      struct nb_config_cbs *changes,
-				      char *errmsg, size_t errmsg_len);
-
 /*
  * Validate a candidate configuration. Perform both YANG syntactic/semantic
  * validation and code-level validation using the northbound callbacks.
