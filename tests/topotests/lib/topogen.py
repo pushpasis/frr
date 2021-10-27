@@ -797,7 +797,7 @@ class TopoRouter(TopoGear):
         TopoRouter.RD_RIPNG, TopoRouter.RD_OSPF, TopoRouter.RD_OSPF6,
         TopoRouter.RD_ISIS, TopoRouter.RD_BGP, TopoRouter.RD_LDP,
         TopoRouter.RD_PIM, TopoRouter.RD_PBR, TopoRouter.RD_SNMP,
-        TopoRouter.RD_mgmtd.
+        TopoRouter.RD_MGMTD.
 
         Possible `source` values are `None` for an empty config file, a path name which is
         used directly, or a file name with no path components which is first looked for
