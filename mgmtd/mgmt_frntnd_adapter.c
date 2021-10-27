@@ -101,11 +101,14 @@ static int
 mgmt_frntnd_session_write_lock_db(Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 				  struct mgmt_frntnd_sessn_ctxt *sessn)
 {
+	int ret = 0;
+
 	if (!sessn->db_write_locked[db_id]) {
-		if (mgmt_db_write_lock(db_hndl) != 0) {
+		ret = mgmt_db_write_lock(db_hndl);
+		if (ret != 0) {
 			MGMTD_FRNTND_ADPTR_DBG(
-				"Failed to lock the DB %u for Sessn: %p from %s!",
-				db_id, sessn, sessn->adptr->name);
+				"Failed to lock the DB %u for Sessn: %p from %s, ret %d!",
+				db_id, sessn, sessn->adptr->namei, ret);
 			return -1;
 		}
 
