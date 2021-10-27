@@ -126,6 +126,7 @@ static void vtysh_pager_envdef(bool fallback)
 /* --- */
 
 struct vtysh_client vtysh_client[] = {
+	{.fd = -1, .name = "mgmtd", .flag = VTYSH_MGMTD, .next = NULL},
 	{.fd = -1, .name = "zebra", .flag = VTYSH_ZEBRA, .next = NULL},
 	{.fd = -1, .name = "ripd", .flag = VTYSH_RIPD, .next = NULL},
 	{.fd = -1, .name = "ripngd", .flag = VTYSH_RIPNGD, .next = NULL},
@@ -602,7 +603,8 @@ static int vtysh_execute_func(const char *line, int pager)
 						fprintf(stderr,
 							"%s is not running\n",
 							vtysh_client[i].name);
-						continue;
+						cmd_stat = CMD_ERR_NO_DAEMON;
+						break;
 					}
 				}
 				cmd_stat = vtysh_client_execute(
@@ -611,7 +613,7 @@ static int vtysh_execute_func(const char *line, int pager)
 					break;
 			}
 		}
-		if (cmd_stat != CMD_SUCCESS)
+		if (cmd_stat != CMD_SUCCESS && cmd_stat != CMD_ERR_NO_DAEMON)
 			break;
 
 		if (cmd->func)

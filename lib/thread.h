@@ -213,6 +213,13 @@ struct cpu_thread_history {
 		_thread_execute(&_xref, m, f, a, v);                           \
 	}) /* end */
 
+
+static inline unsigned long timeval_elapsed(struct timeval a, struct timeval b)
+{
+	return (((a.tv_sec - b.tv_sec) * TIMER_SECOND_MICRO)
+		+ (a.tv_usec - b.tv_usec));
+}
+
 /* Prototypes. */
 extern struct thread_master *thread_master_create(const char *);
 void thread_master_set_name(struct thread_master *master, const char *name);

@@ -42,11 +42,13 @@ sub scan_file {
 
     $cppadd = $fabricd ? "-DFABRICD=1" : "";
 
-    open (FH, "@CPP@ -P -std=gnu11 -DHAVE_CONFIG_H -DVTYSH_EXTRACT_PL -Ivtysh/@top_builddir@ -Ivtysh/@top_srcdir@ -Ivtysh/@top_srcdir@/lib -Ivtysh/@top_builddir@/lib -Ivtysh/@top_srcdir@/bgpd -Ivtysh/@top_srcdir@/bgpd/rfapi @LUA_INCLUDE@ @CPPFLAGS@ @LIBYANG_CFLAGS@ $cppadd $file |");
+    $command_line = "@CPP@ -P -std=gnu11 -DHAVE_CONFIG_H -DVTYSH_EXTRACT_PL -Ivtysh/@top_builddir@ -Ivtysh/@top_srcdir@ -Ivtysh/@top_srcdir@/lib -Ivtysh/@top_builddir@/lib -Ivtysh/@top_srcdir@/bgpd -Ivtysh/@top_srcdir@/bgpd/rfapi @LUA_INCLUDE@ @CPPFLAGS@ @LIBYANG_CFLAGS@ $cppadd $file |";
+    open (FH, $command_line)
+	|| die "Open to the pipeline failed: $!\n\nCommand Issued:\n$command_line";
     local $/; undef $/;
     $line = <FH>;
     if (!close (FH)) {
-	printf "File: $file failed to compile, when extracting cli from it please inspect\n"
+	die "File: $file failed to compile:\n$!\nwhen extracting cli from it please inspect\n"
     }
 
     # ?: makes a group non-capturing
@@ -68,6 +70,12 @@ sub scan_file {
             $hidden = 1;
         } else {
             $hidden = 0;
+        }
+ 
+        if ($defun_or_alias =~ /_YANG/) {
+            $yang = 1;
+        } else {
+            $yang = 0;
         }
 
         $defun_array[0] = '';
@@ -144,6 +152,18 @@ sub scan_file {
         else {
            ($protocol) = ($file =~ /^(?:.*\/)?([a-z0-9]+)\/[a-zA-Z0-9_\-]+\.c$/);
            $protocol = "VTYSH_" . uc $protocol;
+        }
+
+        if ($yang) {
+            # 
+            # MGMTD-NOTE: Slowly bit-by-bit we will move all components and 
+            # their command handling to MGMTD daemon. For now following 
+            # component commands will be handled by the new MGMTD daemon.
+            #
+            if ($protocol =~ /VTYSH_STATICD$/) {
+                # Move all Static YANG commands to new MGMTD daemon
+                $protocol = "VTYSH_MGMTD";
+            }
         }
 
         # Append _vtysh to structure then build DEFUN again

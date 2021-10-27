@@ -9894,6 +9894,52 @@ DEFUN (no_ospf_proactive_arp,
 
 /* Graceful Restart HELPER Commands */
 DEFPY(ospf_gr_helper_enable, ospf_gr_helper_enable_cmd,
+      "graceful-restart helper enable [A.B.C.D$address]",
+      "OSPF Graceful Restart\n"
+      "OSPF GR Helper\n"
+      "Enable Helper support\n"
+      "Advertising Router-ID\n")
+{
+	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
+
+	if (address_str) {
+		ospf_gr_helper_support_set_per_routerid(ospf, &address,
+							OSPF_GR_TRUE);
+		return CMD_SUCCESS;
+	}
+
+	ospf_gr_helper_support_set(ospf, OSPF_GR_TRUE);
+
+	return CMD_SUCCESS;
+}
+
+DEFPY(no_ospf_gr_helper_enable,
+      no_ospf_gr_helper_enable_cmd,
+      "no graceful-restart helper enable [A.B.C.D$address]",
+      NO_STR
+      "OSPF Graceful Restart\n"
+      "OSPF GR Helper\n"
+      "Enable Helper support\n"
+      "Advertising Router-ID\n")
+{
+	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
+
+	if (address_str) {
+		ospf_gr_helper_support_set_per_routerid(ospf, &address,
+							OSPF_GR_FALSE);
+		return CMD_SUCCESS;
+	}
+
+	ospf_gr_helper_support_set(ospf, OSPF_GR_FALSE);
+	return CMD_SUCCESS;
+}
+
+#if CONFDATE > 20220921
+CPP_NOTICE(
+	"Time to remove the deprecated \"[no] graceful-restart helper-only\" commands")
+#endif
+
+DEFPY_HIDDEN(ospf_gr_helper_only, ospf_gr_helper_only_cmd,
       "graceful-restart helper-only [A.B.C.D]",
       "OSPF Graceful Restart\n"
       "Enable Helper support\n"
@@ -9902,6 +9948,9 @@ DEFPY(ospf_gr_helper_enable, ospf_gr_helper_enable_cmd,
 	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
 	struct in_addr addr;
 	int ret;
+
+	vty_out(vty,
+		"%% This command is deprecated. Please, use `graceful-restart helper enable` instead.\n");
 
 	if (argc == 3) {
 		ret = inet_aton(argv[2]->arg, &addr);
@@ -9920,34 +9969,13 @@ DEFPY(ospf_gr_helper_enable, ospf_gr_helper_enable_cmd,
 	return CMD_SUCCESS;
 }
 
-DEFPY(no_ospf_gr_helper_enable,
-      no_ospf_gr_helper_enable_cmd,
+ALIAS_HIDDEN(no_ospf_gr_helper_enable,
+      no_ospf_gr_helper_only_cmd,
       "no graceful-restart helper-only [A.B.C.D]",
       NO_STR
       "OSPF Graceful Restart\n"
       "Disable Helper support\n"
       "Advertising router id\n")
-{
-	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
-	struct in_addr addr;
-	int ret;
-
-	if (argc == 4) {
-		ret = inet_aton(argv[3]->arg, &addr);
-		if (!ret) {
-			vty_out(vty,
-				"Please specify the valid routerid address.\n");
-			return CMD_WARNING_CONFIG_FAILED;
-		}
-
-		ospf_gr_helper_support_set_per_routerid(ospf, &addr,
-							OSPF_GR_FALSE);
-		return CMD_SUCCESS;
-	}
-
-	ospf_gr_helper_support_set(ospf, OSPF_GR_FALSE);
-	return CMD_SUCCESS;
-}
 
 DEFPY(ospf_gr_helper_enable_lsacheck,
       ospf_gr_helper_enable_lsacheck_cmd,
@@ -10607,11 +10635,9 @@ static void show_ip_ospf_route_network(struct vty *vty, struct ospf *ospf,
 
 		prefix2str(&rn->p, buf1, sizeof(buf1));
 
-		json_route = json_object_new_object();
 		if (json) {
+			json_route = json_object_new_object();
 			json_object_object_add(json, buf1, json_route);
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_NOSLASHESCAPE);
 		}
 
 		switch (or->path_type) {
@@ -10733,8 +10759,6 @@ static void show_ip_ospf_route_network(struct vty *vty, struct ospf *ospf,
 				}
 			}
 		}
-		if (!json)
-			json_object_free(json_route);
 	}
 	if (!json)
 		vty_out(vty, "\n");
@@ -10762,8 +10786,8 @@ static void show_ip_ospf_route_router(struct vty *vty, struct ospf *ospf,
 			continue;
 		int flag = 0;
 
-		json_route = json_object_new_object();
 		if (json) {
+			json_route = json_object_new_object();
 			json_object_object_add(
 				json, inet_ntop(AF_INET, &rn->p.u.prefix4,
 						buf, sizeof(buf)),
@@ -10878,8 +10902,6 @@ static void show_ip_ospf_route_router(struct vty *vty, struct ospf *ospf,
 				}
 			}
 		}
-		if (!json)
-			json_object_free(json_route);
 	}
 	if (!json)
 		vty_out(vty, "\n");
@@ -10908,11 +10930,9 @@ static void show_ip_ospf_route_external(struct vty *vty, struct ospf *ospf,
 		char buf1[19];
 
 		snprintfrr(buf1, sizeof(buf1), "%pFX", &rn->p);
-		json_route = json_object_new_object();
 		if (json) {
+			json_route = json_object_new_object();
 			json_object_object_add(json, buf1, json_route);
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_NOSLASHESCAPE);
 		}
 
 		switch (er->path_type) {
@@ -11010,8 +11030,6 @@ static void show_ip_ospf_route_external(struct vty *vty, struct ospf *ospf,
 				}
 			}
 		}
-		if (!json)
-			json_object_free(json_route);
 	}
 	if (!json)
 		vty_out(vty, "\n");
@@ -11224,7 +11242,9 @@ DEFUN (show_ip_ospf_route,
 			if (uj) {
 				/* Keep Non-pretty format */
 				vty_out(vty, "%s\n",
-					json_object_to_json_string(json));
+					json_object_to_json_string_ext(
+						json,
+						JSON_C_TO_STRING_NOSLASHESCAPE));
 				json_object_free(json);
 			} else if (!ospf_output)
 				vty_out(vty, "%% OSPF instance not found\n");
@@ -11236,7 +11256,9 @@ DEFUN (show_ip_ospf_route,
 			if (uj) {
 				vty_out(vty, "%s\n",
 					json_object_to_json_string_ext(
-						json, JSON_C_TO_STRING_PRETTY));
+						json,
+						JSON_C_TO_STRING_PRETTY
+							| JSON_C_TO_STRING_NOSLASHESCAPE));
 				json_object_free(json);
 			} else
 				vty_out(vty, "%% OSPF instance not found\n");
@@ -11250,7 +11272,9 @@ DEFUN (show_ip_ospf_route,
 			if (uj) {
 				vty_out(vty, "%s\n",
 					json_object_to_json_string_ext(
-						json, JSON_C_TO_STRING_PRETTY));
+						json,
+						JSON_C_TO_STRING_PRETTY
+							| JSON_C_TO_STRING_NOSLASHESCAPE));
 				json_object_free(json);
 			} else
 				vty_out(vty, "%% OSPF instance not found\n");
@@ -11263,7 +11287,9 @@ DEFUN (show_ip_ospf_route,
 		ret = show_ip_ospf_route_common(vty, ospf, json, use_vrf);
 		/* Keep Non-pretty format */
 		if (uj)
-			vty_out(vty, "%s\n", json_object_to_json_string(json));
+			vty_out(vty, "%s\n",
+				json_object_to_json_string_ext(
+					json, JSON_C_TO_STRING_NOSLASHESCAPE));
 	}
 
 	if (uj)
@@ -12261,7 +12287,7 @@ static int ospf_cfg_write_helper_dis_rtr_walkcb(struct hash_bucket *bucket,
 	struct advRtr *rtr = bucket->data;
 	struct vty *vty = (struct vty *)arg;
 
-	vty_out(vty, " graceful-restart helper-only %pI4\n",
+	vty_out(vty, " graceful-restart helper enable %pI4\n",
 		&rtr->advRtrAddr);
 	return HASHWALK_CONTINUE;
 }
@@ -12281,7 +12307,7 @@ static void config_write_ospf_gr(struct vty *vty, struct ospf *ospf)
 static int config_write_ospf_gr_helper(struct vty *vty, struct ospf *ospf)
 {
 	if (ospf->is_helper_supported)
-		vty_out(vty, " graceful-restart helper-only\n");
+		vty_out(vty, " graceful-restart helper enable\n");
 
 	if (!ospf->strict_lsa_check)
 		vty_out(vty,
@@ -12744,6 +12770,8 @@ static void ospf_vty_zebra_init(void)
 	/*Ospf garcefull restart helper configurations */
 	install_element(OSPF_NODE, &ospf_gr_helper_enable_cmd);
 	install_element(OSPF_NODE, &no_ospf_gr_helper_enable_cmd);
+	install_element(OSPF_NODE, &ospf_gr_helper_only_cmd);
+	install_element(OSPF_NODE, &no_ospf_gr_helper_only_cmd);
 	install_element(OSPF_NODE, &ospf_gr_helper_enable_lsacheck_cmd);
 	install_element(OSPF_NODE, &no_ospf_gr_helper_enable_lsacheck_cmd);
 	install_element(OSPF_NODE, &ospf_gr_helper_supported_grace_time_cmd);
