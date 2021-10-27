@@ -838,13 +838,6 @@ static int mgmt_trxn_send_commit_cfg_reply(struct mgmt_trxn_ctxt *trxn,
 			MGMTD_TRXN_ERR(
 				"Failed to unlock the dst DB during rollback : %s",
 				strerror(ret));
-
-		ret = mgmt_db_unlock(
-			trxn->commit_cfg_req->req.commit_cfg.src_db_hndl);
-		if (ret != 0)
-			MGMTD_TRXN_ERR(
-				"Failed to unlock the src DB during rollback : %s",
-				strerror(ret));
 	}
 
 	if (trxn->commit_cfg_req->req.commit_cfg.implicit)

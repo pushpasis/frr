@@ -1001,9 +1001,15 @@ int mgmt_db_rollback_by_cmtid(struct vty *vty, const char *cmtid_str)
 	int ret = 0;
 	struct mgmt_cmt_info_t *cmt_info;
 
-	if (!mgmt_cmt_info_dlist_count(&mm->cmt_dlist)
-	    || !mgmt_db_find_cmt_record(cmtid_str)) {
+	if (!mgmt_db_find_cmt_record(cmtid_str)) {
 		vty_out(vty, "Invalid commit Id\n");
+		return -1;
+	}
+
+	if (mgmt_cmt_info_dlist_count(&mm->cmt_dlist) <= 1) {
+		vty_out(vty,
+			"Commit-Id (%s), Rollback of last commit is not supported\n",
+			cmtid_str);
 		return -1;
 	}
 
