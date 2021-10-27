@@ -108,7 +108,7 @@ mgmt_frntnd_session_write_lock_db(Mgmtd__DatabaseId db_id, uint64_t db_hndl,
 		if (ret != 0) {
 			MGMTD_FRNTND_ADPTR_DBG(
 				"Failed to lock the DB %u for Sessn: %p from %s, ret %d!",
-				db_id, sessn, sessn->adptr->namei, ret);
+				db_id, sessn, sessn->adptr->name, ret);
 			return -1;
 		}
 
