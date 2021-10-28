@@ -1663,6 +1663,11 @@ AS_IF([test "$enable_mgmtd" != "no"], [
                   [PROTO3=false && AC_MSG_FAILURE([protobuf requested but protobuf-c.h not found.  Install protobuf-c.])])
 
   AC_DEFINE([HAVE_MGMTD], [1], [mgmtd])
+
+  # Enable MGMTD local validations
+  AS_IF([test "$enable_mgmtd_local_validations" != "no"], [
+    AC_DEFINE([MGMTD_LOCAL_VALIDATIONS_ENABLED], [1], [Enable mgmtd local validations.])
+  ])
 ])
 
 AS_IF([test "$enable_ripd" != "no"], [
