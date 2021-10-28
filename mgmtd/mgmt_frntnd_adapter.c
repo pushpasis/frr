@@ -200,10 +200,11 @@ mgmt_frntnd_sessn_cfg_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 		}
 	}
 
-	/* TODO: Destroy the actual transaction created earlier.
-	 * if (sessn->cfg_trxn_id != MGMTD_TRXN_ID_NONE)
-	 *	mgmt_destroy_trxn(&sessn->cfg_trxn_id);
+	/*
+	 * Destroy the actual transaction created earlier.
 	 */
+	if (sessn->cfg_trxn_id != MGMTD_TRXN_ID_NONE)
+		mgmt_destroy_trxn(&sessn->cfg_trxn_id);
 }
 
 static void
@@ -220,10 +221,11 @@ mgmt_frntnd_sessn_show_trxn_cleanup(struct mgmt_frntnd_sessn_ctxt *sessn)
 		}
 	}
 
-	/* TODO: Destroy the transaction created recently.
-	 * if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
-	 *	mgmt_destroy_trxn(&sessn->trxn_id);
+	/*
+	 * Destroy the transaction created recently.
 	 */
+	if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
+		mgmt_destroy_trxn(&sessn->trxn_id);
 }
 
 static void
@@ -711,9 +713,6 @@ mgmt_frntnd_session_register_event(struct mgmt_frntnd_sessn_ctxt *sessn,
 				    &tv, &sessn->proc_show_trxn_clnp);
 		assert(sessn->proc_show_trxn_clnp);
 		break;
-	default:
-		assert(!"mgmt_frntnd_adptr_post_event() called incorrectly");
-		break;
 	}
 }
 
@@ -857,7 +856,7 @@ static int
 mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 					  Mgmtd__FrntndSetConfigReq *setcfg_req)
 {
-	/* uint64_t cfg_sessn_id; */
+	uint64_t cfg_sessn_id;
 	struct mgmt_db_ctxt *db_ctxt, *dst_db_ctxt;
 
 	if (mm->perf_stats_en)
@@ -890,20 +889,20 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 
 	if (sessn->cfg_trxn_id == MGMTD_TRXN_ID_NONE) {
 		/*
-		 * TODO: Check first if the current session can run a CONFIG
+		 * Check first if the current session can run a CONFIG
 		 * transaction or not. Report failure if a CONFIG transaction
 		 * from another session is already in progress.
-		 * cfg_sessn_id = mgmt_config_trxn_in_progress();
-		 * if (cfg_sessn_id != MGMTD_SESSION_ID_NONE
-		 *   && cfg_sessn_id != sessn->session_id) {
-		 *	mgmt_frntnd_send_setcfg_reply(
-		 *		sessn, setcfg_req->db_id, setcfg_req->req_id,
-		 *		false,
-		 *		"Configuration already in-progress through a
-		 *different user session!", setcfg_req->implicit_commit); goto
-		 *mgmt_frntnd_sess_handle_setcfg_req_failed;
-		 *}
 		 */
+		cfg_sessn_id = mgmt_config_trxn_in_progress();
+		if (cfg_sessn_id != MGMTD_SESSION_ID_NONE
+		   && cfg_sessn_id != sessn->session_id) {
+			mgmt_frntnd_send_setcfg_reply(
+				sessn, setcfg_req->db_id, setcfg_req->req_id,
+				false,
+				"Configuration already in-progress through a different user session!",
+				setcfg_req->implicit_commit);
+			goto mgmt_frntnd_sess_handle_setcfg_req_failed;
+		}
 
 
 		/*
@@ -925,18 +924,18 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		/*
-		 * TODO: Start a CONFIG Transaction (if not started already)
-		 * sessn->cfg_trxn_id = mgmt_create_trxn(sessn->session_id,
-		 *				      MGMTD_TRXN_TYPE_CONFIG);
-		 * if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
-		 *	mgmt_frntnd_send_setcfg_reply(
-		 *		sessn, setcfg_req->db_id, setcfg_req->req_id,
-		 *		false,
-		 *		"Failed to create a Configuration session!",
-		 *		setcfg_req->implicit_commit);
-		 *	goto mgmt_frntnd_sess_handle_setcfg_req_failed;
-		 * }
+		 * Start a CONFIG Transaction (if not started already)
 		 */
+		sessn->cfg_trxn_id = mgmt_create_trxn(sessn->session_id,
+						      MGMTD_TRXN_TYPE_CONFIG);
+		if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
+			mgmt_frntnd_send_setcfg_reply(
+				sessn, setcfg_req->db_id, setcfg_req->req_id,
+				false,
+				"Failed to create a Configuration session!",
+				setcfg_req->implicit_commit);
+			goto mgmt_frntnd_sess_handle_setcfg_req_failed;
+		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
 			"Created new Config Trxn 0x%llx for session %p",
@@ -973,36 +972,31 @@ mgmt_frntnd_session_handle_setcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 	}
 
-	/* TODO: Create the SETConfig request under the transaction.
-	 * if (mgmt_trxn_send_set_config_req(
-	 *	sessn->cfg_trxn_id, setcfg_req->req_id, setcfg_req->db_id,
-	 *	db_ctxt, setcfg_req->data, setcfg_req->n_data,
-	 *	setcfg_req->implicit_commit, setcfg_req->commit_db_id,
-	 *	dst_db_ctxt)
-	 *	!= 0) {
-	 *	mgmt_frntnd_send_setcfg_reply(
-	 *		sessn, setcfg_req->db_id, setcfg_req->req_id, false,
-	 *		"Request processing for SET-CONFIG failed!",
-	 *		setcfg_req->implicit_commit);
-	 *	goto mgmt_frntnd_sess_handle_setcfg_req_failed;
-	 * }
-	 *
-	 * For now send a failure reply.
+	/*
+	 * Create the SETConfig request under the transaction.
 	 */
-	mgmt_frntnd_send_setcfg_reply(
-		sessn, setcfg_req->db_id, setcfg_req->req_id, false,
-		"Request processing for SET-CONFIG failed!",
-		setcfg_req->implicit_commit);
-	goto mgmt_frntnd_sess_handle_setcfg_req_failed;
+	if (mgmt_trxn_send_set_config_req(
+		    sessn->cfg_trxn_id, setcfg_req->req_id, setcfg_req->db_id,
+		    db_ctxt, setcfg_req->data, setcfg_req->n_data,
+		    setcfg_req->implicit_commit, setcfg_req->commit_db_id,
+		    dst_db_ctxt)
+	    != 0) {
+		mgmt_frntnd_send_setcfg_reply(
+			sessn, setcfg_req->db_id, setcfg_req->req_id, false,
+			"Request processing for SET-CONFIG failed!",
+			setcfg_req->implicit_commit);
+		goto mgmt_frntnd_sess_handle_setcfg_req_failed;
+	}
 
 	return 0;
 
 mgmt_frntnd_sess_handle_setcfg_req_failed:
 
-	/* TODO: Delete transaction created recently.
-	 * if (sessn->cfg_trxn_id != MGMTD_TRXN_ID_NONE)
-	 *	mgmt_destroy_trxn(&sessn->cfg_trxn_id);
+	/*
+	 * Delete transaction created recently.
 	 */
+	if (sessn->cfg_trxn_id != MGMTD_TRXN_ID_NONE)
+		mgmt_destroy_trxn(&sessn->cfg_trxn_id);
 	if (db_ctxt && sessn->db_write_locked[setcfg_req->db_id])
 		mgmt_frntnd_session_unlock_db(setcfg_req->db_id, db_ctxt, sessn,
 					      true, false);
@@ -1065,22 +1059,17 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		/*
-		 * TODO: Start a SHOW Transaction (if not started already)
-		 * sessn->trxn_id = mgmt_create_trxn(sessn->session_id,
-		 *				MGMTD_TRXN_TYPE_SHOW);
-		 * if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
-		 *	mgmt_frntnd_send_getcfg_reply(
-		 *		sessn, getcfg_req->db_id, getcfg_req->req_id,
-		 *		false, NULL,
-		 *		"Failed to create a Show transaction!");
-		 *	goto mgmt_frntnd_sess_handle_getcfg_req_failed;
-		 * }
+		 * Start a SHOW Transaction (if not started already)
 		 */
-		mgmt_frntnd_send_getcfg_reply(
-			sessn, getcfg_req->db_id, getcfg_req->req_id, false,
-			NULL, "Failed to create a Show transaction!");
-		goto mgmt_frntnd_sess_handle_getcfg_req_failed;
-
+		sessn->trxn_id = mgmt_create_trxn(sessn->session_id,
+						  MGMTD_TRXN_TYPE_SHOW);
+		if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
+			mgmt_frntnd_send_getcfg_reply(
+				sessn, getcfg_req->db_id, getcfg_req->req_id,
+				false, NULL,
+				"Failed to create a Show transaction!");
+			goto mgmt_frntnd_sess_handle_getcfg_req_failed;
+		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
 			"Created new Show Trxn 0x%llx for session %p",
@@ -1091,32 +1080,28 @@ mgmt_frntnd_session_handle_getcfg_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 			sessn->trxn_id, sessn);
 	}
 
-	/* TODO: Create a GETConfig request under the transaction.
-	 * if (mgmt_trxn_send_get_config_req(sessn->trxn_id, getcfg_req->req_id,
-	 *				getcfg_req->db_id, db_ctxt,
-	 *				getcfg_req->data, getcfg_req->n_data)
-	 *	!= 0) {
-	 *	mgmt_frntnd_send_getcfg_reply(
-	 *		sessn, getcfg_req->db_id, getcfg_req->req_id, false,
-	 *		NULL, "Request processing for GET-CONFIG failed!");
-	 *	goto mgmt_frntnd_sess_handle_getcfg_req_failed;
-	 * }
-	 *
-	 * For now send back a failure reply.
+	/*
+	 * Create a GETConfig request under the transaction.
 	 */
-	mgmt_frntnd_send_getcfg_reply(
-		sessn, getcfg_req->db_id, getcfg_req->req_id, false, NULL,
-		"Request processing for GET-CONFIG failed!");
-	goto mgmt_frntnd_sess_handle_getcfg_req_failed;
+	if (mgmt_trxn_send_get_config_req(sessn->trxn_id, getcfg_req->req_id,
+					  getcfg_req->db_id, db_ctxt,
+					  getcfg_req->data, getcfg_req->n_data)
+	    != 0) {
+		mgmt_frntnd_send_getcfg_reply(
+			sessn, getcfg_req->db_id, getcfg_req->req_id, false,
+			NULL, "Request processing for GET-CONFIG failed!");
+		goto mgmt_frntnd_sess_handle_getcfg_req_failed;
+	}
 
 	return 0;
 
 mgmt_frntnd_sess_handle_getcfg_req_failed:
 
-	/* TODO: Destroy the transaction created recently.
-	 * if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
-	 *	mgmt_destroy_trxn(&sessn->trxn_id);
+	/*
+	 * Destroy the transaction created recently.
 	 */
+	if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
+		mgmt_destroy_trxn(&sessn->trxn_id);
 	if (db_ctxt && sessn->db_read_locked[getcfg_req->db_id])
 		mgmt_frntnd_session_unlock_db(getcfg_req->db_id, db_ctxt, sessn,
 					      false, true);
@@ -1165,23 +1150,17 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 		}
 
 		/*
-		 * TODO: Start a SHOW Transaction (if not started already)
-		 * sessn->trxn_id =
-		 *	mgmt_create_trxn(sessn->session_id,
-		 *			MGMTD_TRXN_TYPE_SHOW);
-		 * if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
-		 *	mgmt_frntnd_send_getdata_reply(
-		 *		sessn, getdata_req->db_id, getdata_req->req_id,
-		 *		false, NULL,
-		 *		"Failed to create a Show transaction!");
-		 *	goto mgmt_frntnd_sess_handle_getdata_req_failed;
-		 * }
+		 * Start a SHOW Transaction (if not started already)
 		 */
-		mgmt_frntnd_send_getdata_reply(
-			sessn, getdata_req->db_id, getdata_req->req_id, false,
-			NULL, "Failed to create a Show transaction!");
-		goto mgmt_frntnd_sess_handle_getdata_req_failed;
-
+		sessn->trxn_id =
+			mgmt_create_trxn(sessn->session_id, MGMTD_TRXN_TYPE_SHOW);
+		if (sessn->trxn_id == MGMTD_SESSION_ID_NONE) {
+			mgmt_frntnd_send_getdata_reply(
+				sessn, getdata_req->db_id, getdata_req->req_id,
+				false, NULL,
+				"Failed to create a Show transaction!");
+			goto mgmt_frntnd_sess_handle_getdata_req_failed;
+		}
 
 		MGMTD_FRNTND_ADPTR_DBG(
 			"Created new Show Trxn 0x%llx for session %p",
@@ -1192,32 +1171,28 @@ mgmt_frntnd_session_handle_getdata_req_msg(struct mgmt_frntnd_sessn_ctxt *sessn,
 			sessn->trxn_id, sessn);
 	}
 
-	/* TODO: Create a GETData request under the transaction.
-	 * if (mgmt_trxn_send_get_data_req(sessn->trxn_id, getdata_req->req_id,
-	 *				getdata_req->db_id, db_ctxt,
-	 *				getdata_req->data, getdata_req->n_data)
-	 *	!= 0) {
-	 *	mgmt_frntnd_send_getdata_reply(
-	 *		sessn, getdata_req->db_id, getdata_req->req_id, false,
-	 *		NULL, "Request processing for GET-CONFIG failed!");
-	 *	goto mgmt_frntnd_sess_handle_getdata_req_failed;
-	 * }
-	 *
-	 * For now send back a failure reply.
+	/*
+	 * Create a GETData request under the transaction.
 	 */
-	mgmt_frntnd_send_getdata_reply(
-		sessn, getdata_req->db_id, getdata_req->req_id, false, NULL,
-		"Request processing for GET-CONFIG failed!");
-	goto mgmt_frntnd_sess_handle_getdata_req_failed;
+	if (mgmt_trxn_send_get_data_req(sessn->trxn_id, getdata_req->req_id,
+					getdata_req->db_id, db_ctxt,
+					getdata_req->data, getdata_req->n_data)
+	    != 0) {
+		mgmt_frntnd_send_getdata_reply(
+			sessn, getdata_req->db_id, getdata_req->req_id, false,
+			NULL, "Request processing for GET-CONFIG failed!");
+		goto mgmt_frntnd_sess_handle_getdata_req_failed;
+	}
 
 	return 0;
 
 mgmt_frntnd_sess_handle_getdata_req_failed:
 
-	/* TODO: Destroy the transaction created recently.
-	 * if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
-	 *	mgmt_destroy_trxn(&sessn->trxn_id);
+	/*
+	 * Destroy the transaction created recently.
 	 */
+	if (sessn->trxn_id != MGMTD_TRXN_ID_NONE)
+		mgmt_destroy_trxn(&sessn->trxn_id);
 
 	if (db_ctxt && sessn->db_read_locked[getdata_req->db_id])
 		mgmt_frntnd_session_unlock_db(getdata_req->db_id, db_ctxt,
@@ -1279,25 +1254,19 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 
 	if (sessn->cfg_trxn_id == MGMTD_TRXN_ID_NONE) {
 		/*
-		 * TODO: Start a CONFIG Transaction (if not started already)
-		 * sessn->cfg_trxn_id = mgmt_create_trxn(sessn->session_id,
-		 *				MGMTD_TRXN_TYPE_CONFIG);
-		 * if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
-		 *	mgmt_frntnd_send_commitcfg_reply(
-		 *		sessn, commcfg_req->src_db_id,
-		 *		commcfg_req->dst_db_id, commcfg_req->req_id,
-		 *		MGMTD_INTERNAL_ERROR,
-		 *		commcfg_req->validate_only,
-		 *		"Failed to create a Configuration session!");
-		 *	return 0;
-		 * }
+		 * Start a CONFIG Transaction (if not started already)
 		 */
-		mgmt_frntnd_send_commitcfg_reply(
-			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
-			commcfg_req->validate_only,
-			"Failed to create a Configuration session!");
-		return 0;
+		sessn->cfg_trxn_id = mgmt_create_trxn((uint64_t)sessn,
+						MGMTD_TRXN_TYPE_CONFIG);
+		if (sessn->cfg_trxn_id == MGMTD_SESSION_ID_NONE) {
+			mgmt_frntnd_send_commitcfg_reply(
+				sessn, commcfg_req->src_db_id,
+				commcfg_req->dst_db_id, commcfg_req->req_id,
+				MGMTD_INTERNAL_ERROR,
+				commcfg_req->validate_only,
+				"Failed to create a Configuration session!");
+			return 0;
+		}
 	}
 
 
@@ -1320,28 +1289,22 @@ static int mgmt_frntnd_session_handle_commit_config_req_msg(
 		sessn->db_locked_implict[commcfg_req->dst_db_id] = true;
 	}
 
-	/* TODO: Create COMMITConfig request under the transaction
-	 * if (mgmt_trxn_send_commit_config_req(
-	 *	sessn->cfg_trxn_id, commcfg_req->req_id,
-	 *	commcfg_req->src_db_id, src_db_ctxt, commcfg_req->dst_db_id,
-	 *	dst_db_ctxt, commcfg_req->validate_only, commcfg_req->abort,
-	 *	false)
-	 *	!= 0) {
-	 *	mgmt_frntnd_send_commitcfg_reply(
-	 *		sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-	 *		commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
-	 *		commcfg_req->validate_only,
-	 *		"Request processing for COMMIT-CONFIG failed!");
-	 *	return 0;
-	 * }
-	 *
-	 * For now due to lack of trxn modules send a unsuccessfull reply.
+	/*
+	 * Create COMMITConfig request under the transaction
 	 */
-	mgmt_frntnd_send_commitcfg_reply(
-		sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
-		commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
-		commcfg_req->validate_only,
-		"Request processing for COMMIT-CONFIG failed!");
+	if (mgmt_trxn_send_commit_config_req(
+		    sessn->cfg_trxn_id, commcfg_req->req_id,
+		    commcfg_req->src_db_id, src_db_ctxt, commcfg_req->dst_db_id,
+		    dst_db_ctxt, commcfg_req->validate_only, commcfg_req->abort,
+		    false)
+	    != 0) {
+		mgmt_frntnd_send_commitcfg_reply(
+			sessn, commcfg_req->src_db_id, commcfg_req->dst_db_id,
+			commcfg_req->req_id, MGMTD_INTERNAL_ERROR,
+			commcfg_req->validate_only,
+			"Request processing for COMMIT-CONFIG failed!");
+		return 0;
+	}
 
 	return 0;
 }
