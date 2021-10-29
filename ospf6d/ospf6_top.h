@@ -60,6 +60,15 @@ struct ospf6_redist {
 #define ROUTEMAP(R) (R->route_map.map)
 };
 
+struct ospf6_gr_info {
+	bool restart_support;
+	bool restart_in_progress;
+	bool prepare_in_progress;
+	bool finishing_restart;
+	uint32_t grace_period;
+	struct thread *t_grace_period;
+};
+
 struct ospf6_gr_helper {
 	/* Gracefull restart Helper supported configs*/
 	/* Supported grace interval*/
@@ -134,6 +143,18 @@ struct ospf6 {
 	/* OSPF6 redistribute configuration */
 	struct list *redist[ZEBRA_ROUTE_MAX + 1];
 
+	/* NSSA default-information-originate */
+	struct {
+		/* # of NSSA areas requesting default information */
+		uint16_t refcnt;
+
+		/*
+		 * Whether a default route known through non-OSPF protocol is
+		 * present in the RIB.
+		 */
+		bool status;
+	} nssa_default_import_check;
+
 	uint8_t flag;
 #define OSPF6_FLAG_ABR          0x04
 #define OSPF6_FLAG_ASBR         0x08
@@ -192,6 +213,9 @@ struct ospf6 {
 	 */
 	uint16_t max_multipath;
 
+	/* OSPF Graceful Restart info (restarting mode) */
+	struct ospf6_gr_info gr_info;
+
 	/*ospf6 Graceful restart helper info */
 	struct ospf6_gr_helper ospf6_helper_cfg;
 
@@ -227,7 +251,7 @@ extern void ospf6_master_init(struct thread_master *master);
 extern void install_element_ospf6_clear_process(void);
 extern void ospf6_top_init(void);
 extern void ospf6_delete(struct ospf6 *o);
-extern void ospf6_router_id_update(struct ospf6 *ospf6);
+extern bool ospf6_router_id_update(struct ospf6 *ospf6, bool init);
 
 extern void ospf6_maxage_remove(struct ospf6 *o);
 extern struct ospf6 *ospf6_instance_create(const char *name);

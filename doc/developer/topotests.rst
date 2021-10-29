@@ -130,12 +130,42 @@ And create ``frr`` user and ``frrvty`` group as follows:
 Executing Tests
 ---------------
 
+Configure your sudo environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Topotests must be run as root. Normally this will be accomplished through the
+use of the ``sudo`` command. In order for topotests to be able to open new
+windows (either XTerm or byobu/screen/tmux windows) certain environment
+variables must be passed through the sudo command. One way to do this is to
+specify the :option:`-E` flag to ``sudo``. This will carry over most if not all
+your environment variables include ``PATH``. For example:
+
+.. code:: shell
+
+   sudo -E python3 -m pytest -s -v
+
+If you do not wish to use :option:`-E` (e.g., to avoid ``sudo`` inheriting
+``PATH``) you can modify your `/etc/sudoers` config file to specifically pass
+the environment variables required by topotests. Add the following commands to
+your ``/etc/sudoers`` config file.
+
+.. code:: shell
+
+   Defaults env_keep="TMUX"
+   Defaults env_keep+="TMUX_PANE"
+   Defaults env_keep+="STY"
+   Defaults env_keep+="DISPLAY"
+
+If there was already an ``env_keep`` configuration there be sure to use the
+``+=`` rather than ``=`` on the first line above as well.
+
+
 Execute all tests in distributed test mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: shell
 
-   py.test -s -v -nauto --dist=loadfile
+   sudo -E pytest -s -v -nauto --dist=loadfile
 
 The above command must be executed from inside the topotests directory.
 
@@ -167,7 +197,7 @@ the run.
 
 Here we see that 4 tests have failed. We an dig deeper by displaying the
 captured logs and errors. First let's redisplay the results enumerated by adding
-the ``-E`` flag
+the :option:`-E` flag
 
 .. code:: shell
 
@@ -353,6 +383,12 @@ be run within ``tmux`` (or ``screen``)_, as ``gdb``, the shell or ``vtysh`` will
 be launched using that windowing program, otherwise ``xterm`` will be attempted
 to launch the given programs.
 
+NOTE: you must run the topotest (pytest) such that your DISPLAY, STY or TMUX
+environment variables are carried over. You can do this by passing the
+:option:`-E` flag to ``sudo`` or you can modify your ``/etc/sudoers`` config to
+automatically pass that environment variable through to the ``sudo``
+environment.
+
 .. _screen: https://www.gnu.org/software/screen/
 .. _tmux: https://github.com/tmux/tmux/wiki
 
@@ -364,7 +400,7 @@ One can have a debugging CLI invoked on test failures by specifying the
 
 .. code:: shell
 
-   pytest --cli-on-error all-protocol-startup
+   sudo -E pytest --cli-on-error all-protocol-startup
 
 The debugging CLI can run shell or vtysh commands on any combination of routers
 It can also open shells or vtysh in their own windows for any combination of
@@ -415,7 +451,7 @@ Here's an example of launching ``vtysh`` on routers ``rt1`` and ``rt2``.
 
 .. code:: shell
 
-   pytest --vtysh=rt1,rt2 all-protocol-startup
+   sudo -E pytest --vtysh=rt1,rt2 all-protocol-startup
 
 Debugging with GDB
 """"""""""""""""""
@@ -436,7 +472,7 @@ Here's an example of launching ``zebra`` and ``bgpd`` inside ``gdb`` on router
 
 .. code:: shell
 
-   pytest --gdb-routers=r1 \
+   sudo -E pytest --gdb-routers=r1 \
           --gdb-daemons=bgpd,zebra \
           --gdb-breakpoints=nb_config_diff \
           all-protocol-startup
@@ -453,7 +489,7 @@ memleak detection is enabled.
 
 .. code:: shell
 
-   pytest --valgrind-memleaks all-protocol-startup
+   sudo -E pytest --valgrind-memleaks all-protocol-startup
 
 .. _topotests_docker:
 
@@ -555,21 +591,21 @@ top level directory of topotest:
    $ # Change to the top level directory of topotests.
    $ cd path/to/topotests
    $ # Tests must be run as root, since micronet requires it.
-   $ sudo pytest
+   $ sudo -E pytest
 
 In order to run a specific test, you can use the following command:
 
 .. code:: shell
 
    $ # running a specific topology
-   $ sudo pytest ospf-topo1/
+   $ sudo -E pytest ospf-topo1/
    $ # or inside the test folder
    $ cd ospf-topo1
-   $ sudo pytest # to run all tests inside the directory
-   $ sudo pytest test_ospf_topo1.py # to run a specific test
+   $ sudo -E pytest # to run all tests inside the directory
+   $ sudo -E pytest test_ospf_topo1.py # to run a specific test
    $ # or outside the test folder
    $ cd ..
-   $ sudo pytest ospf-topo1/test_ospf_topo1.py # to run a specific one
+   $ sudo -E pytest ospf-topo1/test_ospf_topo1.py # to run a specific one
 
 The output of the tested daemons will be available at the temporary folder of
 your machine:
@@ -588,7 +624,7 @@ You can also run memory leak tests to get reports:
 .. code:: shell
 
    $ # Set the environment variable to apply to a specific test...
-   $ sudo env TOPOTESTS_CHECK_MEMLEAK="/tmp/memleak_report_" pytest ospf-topo1/test_ospf_topo1.py
+   $ sudo -E env TOPOTESTS_CHECK_MEMLEAK="/tmp/memleak_report_" pytest ospf-topo1/test_ospf_topo1.py
    $ # ...or apply to all tests adding this line to the configuration file
    $ echo 'memleak_path = /tmp/memleak_report_' >> pytest.ini
    $ # You can also use your editor
@@ -626,12 +662,12 @@ Some things to keep in mind:
 - Using sleep is almost never appropriate. As an example: if the test resets the
   peers in BGP, the test should look for the peers re-converging instead of just
   sleeping an arbitrary amount of time and continuing on. See
-  `verify_bgp_convergence` as a good example of this. In particular look at it's
-  use of the `@retry` decorator. If you are having troubles figuring out what to
-  look for, please do not be afraid to ask.
+  ``verify_bgp_convergence`` as a good example of this. In particular look at
+  it's use of the ``@retry`` decorator. If you are having troubles figuring out
+  what to look for, please do not be afraid to ask.
 - Don't duplicate effort. There exists many protocol utility functions that can
-  be found in their eponymous module under `tests/topotests/lib/` (e.g.,
-  `ospf.py`)
+  be found in their eponymous module under ``tests/topotests/lib/`` (e.g.,
+  ``ospf.py``)
 
 
 
@@ -827,11 +863,11 @@ that using the following example commands:
 .. code:: shell
 
    $ # Running your bootstraped topology
-   $ sudo pytest -s --topology-only new-topo/test_new_topo.py
+   $ sudo -E pytest -s --topology-only new-topo/test_new_topo.py
    $ # Running the test_template.py topology
-   $ sudo pytest -s --topology-only example-test/test_template.py
+   $ sudo -E pytest -s --topology-only example-test/test_template.py
    $ # Running the ospf_topo1.py topology
-   $ sudo pytest -s --topology-only ospf-topo1/test_ospf_topo1.py
+   $ sudo -E pytest -s --topology-only ospf-topo1/test_ospf_topo1.py
 
 Parameters explanation:
 
@@ -851,7 +887,7 @@ output:
 
 .. code:: shell
 
-    frr/tests/topotests# sudo pytest -s --topology-only ospf_topo1/test_ospf_topo1.py
+    frr/tests/topotests# sudo -E pytest -s --topology-only ospf_topo1/test_ospf_topo1.py
     ============================= test session starts ==============================
     platform linux -- Python 3.9.2, pytest-6.2.4, py-1.10.0, pluggy-0.13.1
     rootdir: /home/chopps/w/frr/tests/topotests, configfile: pytest.ini
@@ -953,26 +989,50 @@ configuration files (per-daemon) using the following commands:
    end
    r1#
 
+You can also login to the node specified by nsenter using bash, etc.
+A pid file for each node will be created in the relevant test dir.
+You can run scripts inside the node, or use vtysh's <tab> or <?> feature.
+
+.. code:: shell
+
+  [unet shell]
+  # cd tests/topotests/srv6_locator
+  # ./test_srv6_locator.py --topology-only
+  unet> r1 show segment-routing srv6 locator
+  Locator:
+  Name                 ID      Prefix                   Status
+  -------------------- ------- ------------------------ -------
+  loc1                       1 2001:db8:1:1::/64        Up
+  loc2                       2 2001:db8:2:2::/64        Up
+
+  [Another shell]
+  # nsenter -a -t $(cat /tmp/topotests/srv6_locator.test_srv6_locator/r1.pid) bash --norc
+  # vtysh
+  r1# r1 show segment-routing srv6 locator
+  Locator:
+  Name                 ID      Prefix                   Status
+  -------------------- ------- ------------------------ -------
+  loc1                       1 2001:db8:1:1::/64        Up
+  loc2                       2 2001:db8:2:2::/64        Up
+
 Writing Tests
 """""""""""""
 
 Test topologies should always be bootstrapped from
-:file:`tests/topotests/example-test/test_template.py` because it contains
+:file:`tests/topotests/example_test/test_template.py` because it contains
 important boilerplate code that can't be avoided, like:
 
 Example:
 
 .. code:: py
 
-   # For all registered routers, load the zebra configuration file
-   CWD = os.path.dirname(os.path.realpath(__file__))
-   for rname, router in router_list.items():
-       router.load_config(
-           TopoRouter.RD_ZEBRA,
-           os.path.join(CWD, '{}/zebra.conf'.format(rname))
-       )
-       # os.path.join() joins the CWD string with arguments adding the necessary
-       # slashes ('/'). Arguments must not begin with '/'.
+       # For all routers arrange for:
+       # - starting zebra using config file from <rtrname>/zebra.conf
+       # - starting ospfd using an empty config file.
+       for rname, router in router_list.items():
+           router.load_config(TopoRouter.RD_ZEBRA, "zebra.conf")
+           router.load_config(TopoRouter.RD_OSPF)
+
 
 - The topology definition or build function
 
@@ -987,27 +1047,31 @@ Example:
        # topology build code
        ...
 
-- pytest ``setup_module()`` and ``teardown_module()`` to start the topology
+- pytest setup/teardown fixture to start the topology and supply ``tgen``
+  argument to tests.
 
 .. code:: py
 
-   def setup_module(module):
+
+   @pytest.fixture(scope="module")
+   def tgen(request):
+       "Setup/Teardown the environment and provide tgen argument to tests"
+
        tgen = Topogen(topodef, module.__name__)
        # or
        tgen = Topogen(build_topo, module.__name__)
 
-       tgen.start_topology('debug')
+       ...
 
-   def teardown_module(_m):
-       tgen = get_topogen()
+       # Start and configure the router daemons
+       tgen.start_router()
+
+       # Provide tgen as argument to each test function
+       yield tgen
+
+       # Teardown after last test runs
        tgen.stop_topology()
 
-- ``__main__`` initialization code (to support running the script directly)
-
-.. code:: py
-
-   if __name__ == '__main__':
-       sys.exit(pytest.main(["-s"]))
 
 Requirements:
 

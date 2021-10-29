@@ -44,6 +44,7 @@ from lib.micronet import comm_error
 from lib.topogen import TopoRouter, get_topogen
 from lib.topolog import get_logger, logger
 from lib.topotest import frr_unicode, interface_set_status, version_cmp
+from lib import topotest
 
 FRRCFG_FILE = "frr_json.conf"
 FRRCFG_BKUP_FILE = "frr_json_initial.conf"
@@ -101,6 +102,7 @@ DEBUG_LOGS = {
         "debug zebra vxlan",
         "debug zebra nht",
     ],
+    "mgmt": [],
     "ospf": [
         "debug ospf event",
         "debug ospf ism",
@@ -449,6 +451,8 @@ def check_router_status(tgen):
             result = rnode.check_router_running()
             if result != "":
                 daemons = []
+                if "mgmtd" in result:
+                    daemons.append("mgmtd")
                 if "bgpd" in result:
                     daemons.append("bgpd")
                 if "zebra" in result:
@@ -1012,6 +1016,11 @@ def start_topology(tgen, daemon=None):
 
         except IOError as err:
             logger.error("I/O error({0}): {1}".format(err.errno, err.strerror))
+
+        # Loading empty mgmtd.conf file to router, to start the mgmtd daemon
+        router.load_config(
+            TopoRouter.RD_MGMTD, "{}/{}/mgmtd.conf".format(tgen.logdir, rname)
+        )
 
         # Loading empty zebra.conf file to router, to start the zebra daemon
         router.load_config(
@@ -2971,6 +2980,8 @@ def addKernelRoute(
             ip, mask = grp_addr.split("/")
             if mask == "32" or mask == "128":
                 grp_addr = ip
+        else:
+            mask = "32" if addr_type == "ipv4" else "128"
 
         if not re_search(r"{}".format(grp_addr), result) and mask != "0":
             errormsg = (

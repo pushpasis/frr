@@ -90,6 +90,22 @@ struct ospf6_neighbor *ospf6_neighbor_lookup(uint32_t router_id,
 	return (struct ospf6_neighbor *)NULL;
 }
 
+struct ospf6_neighbor *ospf6_area_neighbor_lookup(struct ospf6_area *area,
+						  uint32_t router_id)
+{
+	struct ospf6_interface *oi;
+	struct ospf6_neighbor *nbr;
+	struct listnode *node;
+
+	for (ALL_LIST_ELEMENTS_RO(area->if_list, node, oi)) {
+		nbr = ospf6_neighbor_lookup(router_id, oi);
+		if (nbr)
+			return nbr;
+	}
+
+	return NULL;
+}
+
 /* create ospf6_neighbor */
 struct ospf6_neighbor *ospf6_neighbor_create(uint32_t router_id,
 					     struct ospf6_interface *oi)
@@ -257,7 +273,6 @@ int hello_received(struct thread *thread)
 
 	/* reset Inactivity Timer */
 	THREAD_OFF(on->inactivity_timer);
-	on->inactivity_timer = NULL;
 	thread_add_timer(master, inactivity_timer, on,
 			 on->ospf6_if->dead_interval, &on->inactivity_timer);
 
@@ -296,7 +311,6 @@ int twoway_received(struct thread *thread)
 	SET_FLAG(on->dbdesc_bits, OSPF6_DBDESC_IBIT);
 
 	THREAD_OFF(on->thread_send_dbdesc);
-	on->thread_send_dbdesc = NULL;
 	thread_add_event(master, ospf6_dbdesc_send, on, 0,
 			 &on->thread_send_dbdesc);
 
@@ -422,7 +436,6 @@ void ospf6_check_nbr_loading(struct ospf6_neighbor *on)
 		else if (on->last_ls_req == NULL) {
 			if (on->thread_send_lsreq != NULL)
 				THREAD_OFF(on->thread_send_lsreq);
-			on->thread_send_lsreq = NULL;
 			thread_add_event(master, ospf6_lsreq_send, on, 0,
 					 &on->thread_send_lsreq);
 		}
@@ -604,7 +617,6 @@ int inactivity_timer(struct thread *thread)
 	if (IS_OSPF6_DEBUG_NEIGHBOR(EVENT))
 		zlog_debug("Neighbor Event %s: *InactivityTimer*", on->name);
 
-	on->inactivity_timer = NULL;
 	on->drouter = on->prev_drouter = 0;
 	on->bdrouter = on->prev_bdrouter = 0;
 
@@ -1081,7 +1093,6 @@ DEFUN(show_ipv6_ospf6_neighbor, show_ipv6_ospf6_neighbor_cmd,
 	bool detail = false;
 	bool drchoice = false;
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 
 	if (argv_find(argv, argc, "detail", &idx_type))
@@ -1156,7 +1167,6 @@ DEFUN(show_ipv6_ospf6_neighbor_one, show_ipv6_ospf6_neighbor_one_cmd,
 	bool all_vrf = false;
 	int idx_vrf = 0;
 
-	OSPF6_CMD_CHECK_RUNNING();
 	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
 	if (idx_vrf > 0)
 		idx_ipv4 += 2;

@@ -37,9 +37,11 @@
 #include "ospf6_lsa.h"
 #include "ospf6_lsdb.h"
 #include "ospf6_asbr.h"
+#include "ospf6_nssa.h"
 #include "ospf6_zebra.h"
 #include "ospf6d.h"
 #include "ospf6_area.h"
+#include "ospf6_gr.h"
 #include "lib/json.h"
 
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_DISTANCE, "OSPF6 distance");
@@ -101,7 +103,7 @@ static int ospf6_router_id_update_zebra(ZAPI_CALLBACK_ARGS)
 
 	o->router_id_zebra = router_id.u.prefix4.s_addr;
 
-	ospf6_router_id_update(o);
+	ospf6_router_id_update(o, false);
 
 	return 0;
 }
@@ -126,6 +128,61 @@ void ospf6_zebra_no_redistribute(int type, vrf_id_t vrf_id)
 	if (zclient->sock > 0)
 		zebra_redistribute_send(ZEBRA_REDISTRIBUTE_DELETE, zclient,
 					AFI_IP6, type, 0, vrf_id);
+}
+
+void ospf6_zebra_import_default_route(struct ospf6 *ospf6, bool unreg)
+{
+	struct prefix prefix = {};
+	int command;
+
+	if (zclient->sock < 0) {
+		if (IS_OSPF6_DEBUG_ZEBRA(SEND))
+			zlog_debug("  Not connected to Zebra");
+		return;
+	}
+
+	prefix.family = AF_INET6;
+	prefix.prefixlen = 0;
+
+	if (unreg)
+		command = ZEBRA_IMPORT_ROUTE_UNREGISTER;
+	else
+		command = ZEBRA_IMPORT_ROUTE_REGISTER;
+
+	if (IS_OSPF6_DEBUG_ZEBRA(SEND))
+		zlog_debug("%s: sending cmd %s for %pFX (vrf %u)", __func__,
+			   zserv_command_string(command), &prefix,
+			   ospf6->vrf_id);
+
+	if (zclient_send_rnh(zclient, command, &prefix, true, ospf6->vrf_id)
+	    == ZCLIENT_SEND_FAILURE)
+		flog_err(EC_LIB_ZAPI_SOCKET, "%s: zclient_send_rnh() failed",
+			 __func__);
+}
+
+static int ospf6_zebra_import_check_update(ZAPI_CALLBACK_ARGS)
+{
+	struct ospf6 *ospf6;
+	struct zapi_route nhr;
+
+	ospf6 = ospf6_lookup_by_vrf_id(vrf_id);
+	if (ospf6 == NULL || !IS_OSPF6_ASBR(ospf6))
+		return 0;
+
+	if (!zapi_nexthop_update_decode(zclient->ibuf, &nhr)) {
+		zlog_err("%s[%u]: Failure to decode route", __func__,
+			 ospf6->vrf_id);
+		return -1;
+	}
+
+	if (nhr.prefix.family != AF_INET6 || nhr.prefix.prefixlen != 0
+	    || nhr.type == ZEBRA_ROUTE_OSPF6)
+		return 0;
+
+	ospf6->nssa_default_import_check.status = !!nhr.nexthop_num;
+	ospf6_abr_nssa_type_7_defaults(ospf6);
+
+	return 0;
 }
 
 static int ospf6_zebra_if_address_update_add(ZAPI_CALLBACK_ARGS)
@@ -171,6 +228,36 @@ static int ospf6_zebra_if_address_update_delete(ZAPI_CALLBACK_ARGS)
 	connected_free(&c);
 
 	return 0;
+}
+
+static int ospf6_zebra_gr_update(struct ospf6 *ospf6, int command,
+				 uint32_t stale_time)
+{
+	struct zapi_cap api;
+
+	if (!zclient || zclient->sock < 0 || !ospf6)
+		return 1;
+
+	memset(&api, 0, sizeof(struct zapi_cap));
+	api.cap = command;
+	api.stale_removal_time = stale_time;
+	api.vrf_id = ospf6->vrf_id;
+
+	(void)zclient_capabilities_send(ZEBRA_CLIENT_CAPABILITIES, zclient,
+					&api);
+
+	return 0;
+}
+
+int ospf6_zebra_gr_enable(struct ospf6 *ospf6, uint32_t stale_time)
+{
+	return ospf6_zebra_gr_update(ospf6, ZEBRA_CLIENT_GR_CAPABILITIES,
+				     stale_time);
+}
+
+int ospf6_zebra_gr_disable(struct ospf6 *ospf6)
+{
+	return ospf6_zebra_gr_update(ospf6, ZEBRA_CLIENT_GR_DISABLE, 0);
 }
 
 static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
@@ -384,12 +471,30 @@ static void ospf6_zebra_route_update(int type, struct ospf6_route *request,
 void ospf6_zebra_route_update_add(struct ospf6_route *request,
 				  struct ospf6 *ospf6)
 {
+	if (ospf6->gr_info.restart_in_progress
+	    || ospf6->gr_info.prepare_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Zebra: Graceful Restart in progress -- not installing %pFX",
+				&request->prefix);
+		return;
+	}
+
 	ospf6_zebra_route_update(ADD, request, ospf6);
 }
 
 void ospf6_zebra_route_update_remove(struct ospf6_route *request,
 				     struct ospf6 *ospf6)
 {
+	if (ospf6->gr_info.restart_in_progress
+	    || ospf6->gr_info.prepare_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",
+				&request->prefix);
+		return;
+	}
+
 	ospf6_zebra_route_update(REM, request, ospf6);
 }
 
@@ -397,6 +502,15 @@ void ospf6_zebra_add_discard(struct ospf6_route *request, struct ospf6 *ospf6)
 {
 	struct zapi_route api;
 	struct prefix *dest = &request->prefix;
+
+	if (ospf6->gr_info.restart_in_progress
+	    || ospf6->gr_info.prepare_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Zebra: Graceful Restart in progress -- not installing %pFX",
+				&request->prefix);
+		return;
+	}
 
 	if (!CHECK_FLAG(request->flag, OSPF6_ROUTE_BLACKHOLE_ADDED)) {
 		memset(&api, 0, sizeof(api));
@@ -425,6 +539,15 @@ void ospf6_zebra_delete_discard(struct ospf6_route *request,
 {
 	struct zapi_route api;
 	struct prefix *dest = &request->prefix;
+
+	if (ospf6->gr_info.restart_in_progress
+	    || ospf6->gr_info.prepare_in_progress) {
+		if (IS_DEBUG_OSPF6_GR)
+			zlog_debug(
+				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",
+				&request->prefix);
+		return;
+	}
 
 	if (CHECK_FLAG(request->flag, OSPF6_ROUTE_BLACKHOLE_ADDED)) {
 		memset(&api, 0, sizeof(api));
@@ -597,6 +720,7 @@ void ospf6_zebra_init(struct thread_master *master)
 		ospf6_zebra_if_address_update_delete;
 	zclient->redistribute_route_add = ospf6_zebra_read_route;
 	zclient->redistribute_route_del = ospf6_zebra_read_route;
+	zclient->import_check_update = ospf6_zebra_import_check_update;
 
 	/* Install command element for zebra node. */
 	install_element(VIEW_NODE, &show_ospf6_zebra_cmd);

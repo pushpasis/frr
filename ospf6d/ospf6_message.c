@@ -553,6 +553,21 @@ static void ospf6_hello_recv(struct in6_addr *src, struct in6_addr *dst,
 		return;
 	}
 
+	/*
+	 * RFC 3623 - Section 2:
+	 * "If the restarting router determines that it was the Designated
+	 * Router on a given segment prior to the restart, it elects
+	 * itself as the Designated Router again.  The restarting router
+	 * knows that it was the Designated Router if, while the
+	 * associated interface is in Waiting state, a Hello packet is
+	 * received from a neighbor listing the router as the Designated
+	 * Router".
+	 */
+	if (oi->area->ospf6->gr_info.restart_in_progress
+	    && oi->state == OSPF6_INTERFACE_WAITING
+	    && hello->drouter == oi->area->ospf6->router_id)
+		oi->drouter = hello->drouter;
+
 	/* Schedule interface events */
 	if (backupseen)
 		thread_add_event(master, backup_seen, oi, 0, NULL);
@@ -711,7 +726,6 @@ static void ospf6_dbdesc_recv_master(struct ospf6_header *oh,
 				zlog_debug("Ignoring LSA of reserved scope");
 			ospf6_lsa_delete(his);
 			continue;
-			break;
 		}
 
 		if (ntohs(his->header->type) == OSPF6_LSTYPE_AS_EXTERNAL
@@ -760,7 +774,6 @@ static void ospf6_dbdesc_recv_master(struct ospf6_header *oh,
 	    && !CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_MBIT))
 		thread_add_event(master, exchange_done, on, 0, NULL);
 	else {
-		on->thread_send_dbdesc = NULL;
 		thread_add_event(master, ospf6_dbdesc_send_newone, on, 0,
 				 &on->thread_send_dbdesc);
 	}
@@ -841,7 +854,6 @@ static void ospf6_dbdesc_recv_slave(struct ospf6_header *oh,
 				zlog_debug(
 					"Duplicated dbdesc causes retransmit");
 			THREAD_OFF(on->thread_send_dbdesc);
-			on->thread_send_dbdesc = NULL;
 			thread_add_event(master, ospf6_dbdesc_send, on, 0,
 					 &on->thread_send_dbdesc);
 			return;
@@ -934,7 +946,6 @@ static void ospf6_dbdesc_recv_slave(struct ospf6_header *oh,
 				zlog_debug("Ignoring LSA of reserved scope");
 			ospf6_lsa_delete(his);
 			continue;
-			break;
 		}
 
 		if (OSPF6_LSA_SCOPE(his->header->type) == OSPF6_SCOPE_AS
@@ -1069,7 +1080,6 @@ static void ospf6_lsreq_recv(struct in6_addr *src, struct in6_addr *dst,
 			if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
 				zlog_debug("Ignoring LSA of reserved scope");
 			continue;
-			break;
 		}
 
 		/* Find database copy */
@@ -1621,7 +1631,6 @@ static void ospf6_lsack_recv(struct in6_addr *src, struct in6_addr *dst,
 				zlog_debug("Ignoring LSA of reserved scope");
 			ospf6_lsa_delete(his);
 			continue;
-			break;
 		}
 
 		if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
@@ -1863,11 +1872,13 @@ static void ospf6_make_header(uint8_t type, struct ospf6_interface *oi,
 
 	oh->version = (uint8_t)OSPFV3_VERSION;
 	oh->type = type;
-
+	oh->length = 0;
 	oh->router_id = oi->area->ospf6->router_id;
 	oh->area_id = oi->area->area_id;
+	oh->checksum = 0;
 	oh->instance_id = oi->instance_id;
 	oh->reserved = 0;
+
 	stream_forward_endp(s, OSPF6_HEADER_SIZE);
 }
 
@@ -2382,7 +2393,6 @@ int ospf6_lsreq_send(struct thread *thread)
 
 	/* set next thread */
 	if (on->request_list->count != 0) {
-		on->thread_send_lsreq = NULL;
 		thread_add_timer(master, ospf6_lsreq_send, on,
 				 on->ospf6_if->rxmt_interval,
 				 &on->thread_send_lsreq);
@@ -2568,11 +2578,9 @@ int ospf6_lsupdate_send_neighbor(struct thread *thread)
 		ospf6_packet_free(op);
 
 	if (on->lsupdate_list->count != 0) {
-		on->thread_send_lsupdate = NULL;
 		thread_add_event(master, ospf6_lsupdate_send_neighbor, on, 0,
 				 &on->thread_send_lsupdate);
 	} else if (on->retrans_list->count != 0) {
-		on->thread_send_lsupdate = NULL;
 		thread_add_timer(master, ospf6_lsupdate_send_neighbor, on,
 				 on->ospf6_if->rxmt_interval,
 				 &on->thread_send_lsupdate);
@@ -2686,7 +2694,6 @@ int ospf6_lsupdate_send_interface(struct thread *thread)
 		ospf6_packet_free(op);
 
 	if (oi->lsupdate_list->count > 0) {
-		oi->thread_send_lsupdate = NULL;
 		thread_add_event(master, ospf6_lsupdate_send_interface, oi, 0,
 				 &oi->thread_send_lsupdate);
 	}

@@ -1137,6 +1137,31 @@ static int zsend_table_manager_connect_response(struct zserv *client,
 	return zserv_send_message(client, s);
 }
 
+/* SRv6 locator add notification from zebra daemon. */
+int zsend_zebra_srv6_locator_add(struct zserv *client, struct srv6_locator *loc)
+{
+	struct stream *s = stream_new(ZEBRA_MAX_PACKET_SIZ);
+
+	zclient_create_header(s, ZEBRA_SRV6_LOCATOR_ADD, VRF_DEFAULT);
+	zapi_srv6_locator_encode(s, loc);
+	stream_putw_at(s, 0, stream_get_endp(s));
+
+	return zserv_send_message(client, s);
+}
+
+/* SRv6 locator delete notification from zebra daemon. */
+int zsend_zebra_srv6_locator_delete(struct zserv *client,
+				    struct srv6_locator *loc)
+{
+	struct stream *s = stream_new(ZEBRA_MAX_PACKET_SIZ);
+
+	zclient_create_header(s, ZEBRA_SRV6_LOCATOR_DELETE, VRF_DEFAULT);
+	zapi_srv6_locator_encode(s, loc);
+	stream_putw_at(s, 0, stream_get_endp(s));
+
+	return zserv_send_message(client, s);
+}
+
 /* Inbound message handling ------------------------------------------------ */
 
 const int cmd2type[] = {
@@ -1611,7 +1636,8 @@ static struct nexthop *nexthop_from_zapi(const struct zapi_nexthop *api_nh,
 			zlog_debug("%s: nh blackhole %d",
 				   __func__, api_nh->bh_type);
 
-		nexthop = nexthop_from_blackhole(api_nh->bh_type);
+		nexthop =
+			nexthop_from_blackhole(api_nh->bh_type, api_nh->vrf_id);
 		break;
 	}
 
@@ -2221,8 +2247,8 @@ stream_failure:
 static void zread_router_id_add(ZAPI_HANDLER_ARGS)
 {
 	afi_t afi;
-
 	struct prefix p;
+	struct prefix zero;
 
 	STREAM_GETW(msg, afi);
 
@@ -2237,6 +2263,18 @@ static void zread_router_id_add(ZAPI_HANDLER_ARGS)
 	vrf_bitmap_set(client->ridinfo[afi], zvrf_id(zvrf));
 
 	router_id_get(afi, &p, zvrf);
+
+	/*
+	 * If we have not officially setup a router-id let's not
+	 * tell the upper level protocol about it yet.
+	 */
+	memset(&zero, 0, sizeof(zero));
+	if ((p.family == AF_INET && p.u.prefix4.s_addr == INADDR_ANY)
+	    || (p.family == AF_INET6
+		&& memcmp(&p.u.prefix6, &zero.u.prefix6,
+			  sizeof(struct in6_addr))
+			   == 0))
+		return;
 
 	zsend_router_id_update(client, afi, &p, zvrf_id(zvrf));
 

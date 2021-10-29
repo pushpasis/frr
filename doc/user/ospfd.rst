@@ -691,13 +691,12 @@ Redistribution
    the 'always' keyword is given then the default is always advertised, even
    when there is no default present in the routing table.
 
-.. clicmd:: distribute-list NAME out (kernel|connected|static|rip|ospf
-
-
 .. _ospf-distribute-list:
 
+.. clicmd:: distribute-list NAME out <kernel|connected|static|rip|isis|bgp|eigrp|nhrp|table|vnc|babel|openfabric>
+
    Apply the access-list filter, NAME, to redistributed routes of the given
-   type before allowing the routes to redistributed into OSPF
+   type before allowing the routes to be redistributed into OSPF
    (:ref:`ospf redistribution <ospf-redistribute>`).
 
 .. clicmd:: default-metric (0-16777214)
@@ -722,7 +721,7 @@ Graceful Restart
    To perform a graceful shutdown, the "graceful-restart prepare ip ospf"
    EXEC-level command needs to be issued before restarting the ospfd daemon.
 
-.. clicmd:: graceful-restart helper-only [A.B.C.D]
+.. clicmd:: graceful-restart helper enable [A.B.C.D]
 
 
    Configure Graceful Restart (RFC 3623) helper support.
@@ -954,8 +953,6 @@ Router Information
 
    Show Router Capabilities PCE parameters.
 
-.. _debugging-ospf:
-
 Segment Routing
 ===============
 
@@ -1041,6 +1038,8 @@ TI-LFA requires a proper Segment Routing configuration.
    Configured on the router level. Activates TI-LFA for all interfaces.
 
    Note that so far only P2P interfaces are supported.
+
+.. _debugging-ospf:
 
 Debugging OSPF
 ==============
