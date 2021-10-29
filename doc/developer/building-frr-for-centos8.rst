@@ -14,8 +14,8 @@ Add packages:
     sudo dnf install --enablerepo=PowerTools git autoconf pcre-devel \
       automake libtool make readline-devel texinfo net-snmp-devel pkgconfig \
       groff pkgconfig json-c-devel pam-devel bison flex python2-pytest \
-      c-ares-devel python2-devel libcap-devel \
-      elfutils-libelf-devel
+      c-ares-devel python2-devel libcap-devel elfutils-libelf-devel \
+      protobuf-c-devel
 
 .. include:: building-libyang.rst
 
