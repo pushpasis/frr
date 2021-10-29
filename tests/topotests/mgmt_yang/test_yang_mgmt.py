@@ -27,6 +27,8 @@
 4. Verify mgmt delete config.
 5. Kill mgmtd - verify that static routes are intact.
 6. Kill mgmtd - verify that watch frr restarts.
+7. Show and CLI - Execute all the newly introduced commands of mgmtd.
+8. Verify mgmt rollback functionality.
 
 """
 import sys
@@ -60,7 +62,7 @@ from lib.common_config import (
     start_router,
     apply_raw_config,
     kill_router_daemons,
-    start_router_daemons
+    start_router_daemons,
 )
 from lib.topolog import logger
 from lib.bgp import verify_bgp_convergence, create_router_bgp, verify_bgp_rib
@@ -135,6 +137,7 @@ def teardown_module(mod):
     )
     logger.info("=" * 40)
 
+
 def populate_nh():
     """
     Populate nexthops.
@@ -151,11 +154,236 @@ def populate_nh():
         },
     }
     return next_hop_ip
+
+
 #####################################################
 #
 #   Testcases
 #
 #####################################################
+
+
+def test_mgmt_commit_check(request):
+    """
+    Verify mgmt commit check.
+
+    """
+    tc_name = request.node.name
+    write_test_header(tc_name)
+    tgen = get_topogen()
+    # Don't run this test if we have any failure.
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    reset_config_on_routers(tgen)
+
+    step("Mgmt Commit check")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt set-config xpath   /frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.2/32'][afi-safi='frr-routing:ipv4-unicast']/path-list[table-id='0'][distance='1']/frr-nexthops/nexthop[nh-type='blackhole'][vrf='default'][gateway=''][interface='(null)']/vrf value default"
+                "mgmt commit-check"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("Mgmt Commit check")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt set-config xpath   /frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.2/32'][afi-safi='frr-routing:ipv4-unicast']/path-list[table-id='0'][distance='1']/frr-nexthops/nexthop[nh-type='blackhole'][vrf='default'][gateway=''][interface='(null)']/vrf value default"
+                "mgmt commit-check"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("verify that the route is not configured, as commit apply not done.")
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.1/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is not True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
+
+    write_test_footer(tc_name)
+
+
+def test_mgmt_commit_apply(request):
+    """
+    Verify mgmt commit apply.
+
+    """
+    tc_name = request.node.name
+    write_test_header(tc_name)
+    tgen = get_topogen()
+    # Don't run this test if we have any failure.
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    reset_config_on_routers(tgen)
+
+    step("Mgmt Commit apply")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt set-config xpath   /frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.2/32'][afi-safi='frr-routing:ipv4-unicast']/path-list[table-id='0'][distance='1']/frr-nexthops/nexthop[nh-type='blackhole'][vrf='default'][gateway=''][interface='(null)']/vrf value default"
+                "mgmt commit-apply"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("Mgmt Commit apply")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt set-config xpath   /frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.2/32'][afi-safi='frr-routing:ipv4-unicast']/path-list[table-id='0'][distance='1']/frr-nexthops/nexthop[nh-type='blackhole'][vrf='default'][gateway=''][interface='(null)']/vrf value default"
+                "mgmt commit-apply"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("verify that the route is configured")
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.2/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
+
+    write_test_footer(tc_name)
+
+
+def test_mgmt_commit_abort(request):
+    """
+    Verify mgmt commit abort.
+
+    """
+    tc_name = request.node.name
+    write_test_header(tc_name)
+    tgen = get_topogen()
+    # Don't run this test if we have any failure.
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    reset_config_on_routers(tgen)
+
+    step("Mgmt Commit abort")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt set-config xpath   /frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.3/32'][afi-safi='frr-routing:ipv4-unicast']/path-list[table-id='0'][distance='1']/frr-nexthops/nexthop[nh-type='blackhole'][vrf='default'][gateway=''][interface='(null)']/vrf value default"
+                "mgmt commit-abort"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("verify that the route is not configured")
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.3/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is not True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
+
+    write_test_footer(tc_name)
+
+
+def test_mgmt_delete_config(request):
+    """
+    Verify mgmt delete config.
+
+    """
+    tc_name = request.node.name
+    write_test_header(tc_name)
+    tgen = get_topogen()
+    # Don't run this test if we have any failure.
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    reset_config_on_routers(tgen)
+
+    step("Mgmt delete config")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "mgmt  delete-config xpath /frr-routing:routing/control-plane-protocols/control-plane-protoco[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/route-list[prefix='192.1.1.3/32'][afi-safi='frr-routing:ipv4-unicast']"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("verify that the route is deleted configured")
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.3/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is not True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
+
+    write_test_footer(tc_name)
+
+
 def test_mgmt_chaos_kill_daemon(request):
     """
     Kill mgmtd - verify that static routes are intact
@@ -183,11 +411,11 @@ def test_mgmt_chaos_kill_daemon(request):
                 "static_routes": [
                     {
                         "network": NETWORK[addr_type],
-                        "next_hop": 'Null0',
+                        "next_hop": "Null0",
                     },
                     {
                         "network": NETWORK[addr_type],
-                        "next_hop": 'Null0',
+                        "next_hop": "Null0",
                     },
                 ]
             }
@@ -206,68 +434,61 @@ def test_mgmt_chaos_kill_daemon(request):
         nh = [next_hop_ip["nh1"][addr_type], next_hop_ip["nh2"][addr_type]]
         dut = "r2"
         protocol = "static"
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
-        step("Kill mgmt daemon on R2.")
-        kill_router_daemons(tgen, "r2", ["mgmtd"])
+    step("Kill mgmt daemon on R2.")
+    kill_router_daemons(tgen, "r2", ["mgmtd"])
 
+    for addr_type in ADDR_TYPES:
         step("Verify routes are intact in zebra.")
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
-        step("Bring up mgmtd daemon on R2.")
-        start_router_daemons(tgen, "r2", ["mgmtd"])
+    step("Bring up mgmtd daemon on R2.")
+    start_router_daemons(tgen, "r2", ["mgmtd"])
+
+    for addr_type in ADDR_TYPES:
 
         step("Verify routes are intact in zebra.")
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
-        step("Kill static daemon on R2.")
-        kill_router_daemons(tgen, "r2", ["staticd"])
+    step("Kill static daemon on R2.")
+    kill_router_daemons(tgen, "r2", ["staticd"])
 
+    for addr_type in ADDR_TYPES:
         step("Verify routes are intact in zebra.")
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is not True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
-        step("Bring up staticd daemon on R2.")
-        start_router_daemons(tgen, "r2", ["staticd"])
+    step("Bring up staticd daemon on R2.")
+    start_router_daemons(tgen, "r2", ["staticd"])
 
+    for addr_type in ADDR_TYPES:
         step("Verify routes are intact in zebra.")
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
-        step("Kill zebra daemon on R2.")
-        kill_router_daemons(tgen, "r2", ["zebra"])
+    step("Kill zebra daemon on R2.")
+    kill_router_daemons(tgen, "r2", ["zebra"])
 
+    for addr_type in ADDR_TYPES:
         step("Verify routes are removed from zebra.")
-        result = verify_rib(
-            tgen, addr_type, dut, input_dict_4, protocol=protocol
-        )
+        result = verify_rib(tgen, addr_type, dut, input_dict_4, protocol=protocol)
         assert (
             result is not True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
-
 
     write_test_footer(tc_name)
 
@@ -364,7 +585,6 @@ def test_mgmt_chaos_stop_start_frr(request):
             tc_name, result
         )
 
-
         step("Verify routes are deleted from zebra.")
         result = verify_rib(
             tgen, addr_type, dut, input_dict_4, next_hop=nh, protocol=protocol
@@ -373,13 +593,70 @@ def test_mgmt_chaos_stop_start_frr(request):
             result is not True
         ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
+    write_test_footer(tc_name)
+
+
+def test_show_cli(request):
+    """
+    This is to test all the clis for mgmt.
+    """
+    tc_name = request.node.name
+    write_test_header(tc_name)
+    tgen = get_topogen()
+    # Don't run this test if we have any failure.
+    if tgen.routers_have_failure():
+        pytest.skip(tgen.errors)
+
+    reset_config_on_routers(tgen)
+
+    step("Mgmt cli check")
+    raw_config = {
+        "r1": {
+            "raw_config": [
+                "debug mgmt all"
+                "debug mgmt backend"
+                "debug mgmt database"
+                "debug mgmt frontend"
+                "debug mgmt transaction"
+                "do show mgmt backend-adapter all"
+                "do show mgmt backend-yang-xpath-registry"
+                "do show mgmt commit-history"
+                "do show mgmt database all"
+                "do show mgmt database candidate"
+                "do show mgmt database operational"
+                "do show mgmt database running"
+                "do show mgmt database-contents db-name running"
+                "do show mgmt frontend-adapter all detail"
+                "do show mgmt frontend-adapter all"
+                "do show mgmt get-config running"
+                "do show mgmt get-data running xpath /"
+                "do show mgmt transaction all"
+                "do show mgmt yang-xpath-subscription /"
+                "mgmt commit-abort"
+                "mgmt commit-apply"
+                "mgmt commit-check"
+                "mgmt delete-config xpath WORD"
+                "mgmt load-config file WORD merge"
+                "mgmt load-config file WORD replace"
+                "mgmt lock-database candidate"
+                "mgmt rollback last 2"
+                "mgmt rollback last"
+                "mgmt save-config db-name WORD file WORD"
+                "mgmt set-config xpath WORD value WORD"
+                "mgmt unlock-database candidate"
+            ]
+        }
+    }
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
 
     write_test_footer(tc_name)
 
 
-def test_mgmt_commit_check(request):
+def test_mgmt_rollback(request):
     """
-    Verify mgmt commit check.
+    Verify mgmt rollback functionality.
 
     """
     tc_name = request.node.name
@@ -392,17 +669,62 @@ def test_mgmt_commit_check(request):
     reset_config_on_routers(tgen)
 
     step("Mgmt Commit check")
-    raw_config = {
-        "r1": {
-            "raw_config": [
-                "ip route 1.1.1.1/32 Null0\n"
-                "mgmt commit-check"
-            ]
-        }
-    }
+    raw_config = {"r1": {"raw_config": ["ip route 192.168.1.100/32 Null0"]}}
 
     result = apply_raw_config(tgen, raw_config)
     assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    raw_config = {"r1": {"raw_config": ["ip route 192.168.1.101/32 Null0"]}}
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    raw_config = {"r1": {"raw_config": ["ip route 192.168.1.102/32 Null0"]}}
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    step("verify that the route is not configured, as commit apply not done.")
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.100/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
+
+    step("perform rollback on DUT")
+    raw_config = {"r1": {"raw_config": ["mgmt rollback last"]}}
+
+    result = apply_raw_config(tgen, raw_config)
+    assert result is True, "Testcase {} : Failed Error: {}".format(tc_name, result)
+
+    dut = "r1"
+    protocol = "static"
+    input_dict_4 = {
+        "r2": {
+            "static_routes": [
+                {
+                    "network": "192.168.1.102/32",
+                    "next_hop": "Null0",
+                }
+            ]
+        }
+    }
+    result = verify_rib(tgen, "ipv4", dut, input_dict_4, protocol=protocol)
+    assert (
+        result is not True
+    ), "Testcase {} : Failed" "Error: Routes is missing in RIB".format(tc_name)
 
     write_test_footer(tc_name)
 
