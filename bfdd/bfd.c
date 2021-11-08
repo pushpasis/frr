@@ -315,45 +315,28 @@ int bfd_session_enable(struct bfd_session *bs)
 		vrf = vrf_lookup_by_name(bs->key.vrfname);
 		if (vrf == NULL) {
 			zlog_err(
-				"session-enable: specified VRF doesn't exists.");
+				"session-enable: specified VRF %s doesn't exists.",
+				bs->key.vrfname);
 			return 0;
 		}
+	} else {
+		vrf = vrf_lookup_by_id(VRF_DEFAULT);
 	}
 
-	if (!vrf_is_backend_netns() && vrf && vrf->vrf_id != VRF_DEFAULT
-	    && !if_lookup_by_name(vrf->name, vrf->vrf_id)) {
-		zlog_err("session-enable: vrf interface %s not available yet",
-			 vrf->name);
-		return 0;
-	}
+	assert(vrf);
 
 	if (bs->key.ifname[0]) {
-		if (vrf)
-			ifp = if_lookup_by_name(bs->key.ifname, vrf->vrf_id);
-		else
-			ifp = if_lookup_by_name_all_vrf(bs->key.ifname);
+		ifp = if_lookup_by_name(bs->key.ifname, vrf->vrf_id);
 		if (ifp == NULL) {
 			zlog_err(
 				"session-enable: specified interface %s (VRF %s) doesn't exist.",
-				bs->key.ifname, vrf ? vrf->name : "<all>");
+				bs->key.ifname, vrf->name);
 			return 0;
-		}
-		if (bs->key.ifname[0] && !vrf) {
-			vrf = vrf_lookup_by_id(ifp->vrf_id);
-			if (vrf == NULL) {
-				zlog_err(
-					"session-enable: specified VRF %u doesn't exist.",
-					ifp->vrf_id);
-				return 0;
-			}
 		}
 	}
 
 	/* Assign interface/VRF pointers. */
 	bs->vrf = vrf;
-	if (bs->vrf == NULL)
-		bs->vrf = vrf_lookup_by_id(VRF_DEFAULT);
-	assert(bs->vrf);
 
 	/* Assign interface pointer (if any). */
 	bs->ifp = ifp;
@@ -607,10 +590,10 @@ static struct bfd_session *bfd_find_disc(struct sockaddr_any *sa,
 struct bfd_session *ptm_bfd_sess_find(struct bfd_pkt *cp,
 				      struct sockaddr_any *peer,
 				      struct sockaddr_any *local,
-				      ifindex_t ifindex, vrf_id_t vrfid,
+				      struct interface *ifp,
+				      vrf_id_t vrfid,
 				      bool is_mhop)
 {
-	struct interface *ifp;
 	struct vrf *vrf;
 	struct bfd_key key;
 
@@ -618,21 +601,8 @@ struct bfd_session *ptm_bfd_sess_find(struct bfd_pkt *cp,
 	if (cp->discrs.remote_discr)
 		return bfd_find_disc(peer, ntohl(cp->discrs.remote_discr));
 
-	/*
-	 * Search for session without using discriminator.
-	 *
-	 * XXX: we can't trust `vrfid` because the VRF handling is not
-	 * properly implemented. Meanwhile we should use the interface
-	 * VRF to find out which one it belongs.
-	 */
-	ifp = if_lookup_by_index_all_vrf(ifindex);
-	if (ifp == NULL) {
-		if (vrfid != VRF_DEFAULT)
-			vrf = vrf_lookup_by_id(vrfid);
-		else
-			vrf = NULL;
-	} else
-		vrf = vrf_lookup_by_id(ifp->vrf_id);
+	/* Search for session without using discriminator. */
+	vrf = vrf_lookup_by_id(vrfid);
 
 	gen_bfd_key(&key, peer, local, is_mhop, ifp ? ifp->name : NULL,
 		    vrf ? vrf->name : VRF_DEFAULT_NAME);

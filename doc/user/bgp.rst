@@ -989,6 +989,18 @@ BGP GR Peer Mode Commands
    at the peer level.
 
 
+Long-lived Graceful Restart
+---------------------------
+
+Currently, only restarter mode is supported. This capability is advertised only
+if graceful restart capability is negotiated.
+
+.. clicmd:: bgp long-lived-graceful-restart stale-time (0-4294967295)
+
+   Specifies the maximum time to wait before purging long-lived stale routes for
+   helper routers.
+
+
 .. _bgp-shutdown:
 
 Administrative Shutdown
@@ -1425,24 +1437,12 @@ Configuring Peers
 
    Set description of the peer.
 
-.. clicmd:: neighbor PEER version VERSION
-
-   Set up the neighbor's BGP version. `version` can be `4`, `4+` or `4-`. BGP
-   version `4` is the default value used for BGP peering. BGP version `4+`
-   means that the neighbor supports Multiprotocol Extensions for BGP-4. BGP
-   version `4-` is similar but the neighbor speaks the old Internet-Draft
-   revision 00's Multiprotocol Extensions for BGP-4. Some routing software is
-   still using this version.
-
 .. clicmd:: neighbor PEER interface IFNAME
 
    When you connect to a BGP peer over an IPv6 link-local address, you have to
    specify the IFNAME of the interface used for the connection. To specify
    IPv4 session addresses, see the ``neighbor PEER update-source`` command
    below.
-
-   This command is deprecated and may be removed in a future release. Its use
-   should be avoided.
 
 .. clicmd:: neighbor PEER interface remote-as <internal|external|ASN>
 

@@ -515,7 +515,6 @@ extern void if_update_to_new_vrf(struct interface *, vrf_id_t vrf_id);
 extern struct interface *if_lookup_by_index(ifindex_t, vrf_id_t vrf_id);
 extern struct interface *if_vrf_lookup_by_index_next(ifindex_t ifindex,
 						     vrf_id_t vrf_id);
-extern struct interface *if_lookup_by_index_all_vrf(ifindex_t);
 extern struct interface *if_lookup_exact_address(const void *matchaddr,
 						 int family, vrf_id_t vrf_id);
 extern struct connected *if_lookup_address(const void *matchaddr, int family,
@@ -526,7 +525,6 @@ size_t if_lookup_by_hwaddr(const uint8_t *hw_addr, size_t addrsz,
 			   struct interface ***result, vrf_id_t vrf_id);
 
 struct vrf;
-extern struct interface *if_lookup_by_name_all_vrf(const char *ifname);
 extern struct interface *if_lookup_by_name_vrf(const char *name, struct vrf *vrf);
 extern struct interface *if_lookup_by_name(const char *ifname, vrf_id_t vrf_id);
 extern struct interface *if_get_by_name(const char *ifname, vrf_id_t vrf_id,
@@ -594,6 +592,7 @@ void if_link_params_free(struct interface *);
 /* Northbound. */
 struct vty;
 extern void if_cmd_init(int (*config_write)(struct vty *));
+extern void if_cmd_init_default(void);
 extern void if_zapi_callbacks(int (*create)(struct interface *ifp),
 			      int (*up)(struct interface *ifp),
 			      int (*down)(struct interface *ifp),

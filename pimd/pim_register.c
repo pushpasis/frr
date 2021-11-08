@@ -381,6 +381,16 @@ int pim_register_recv(struct interface *ifp, struct in_addr dest_addr,
 			   pim_str_sg_dump(&sg), src_str, ifp->name, i_am_rp);
 	}
 
+	if (pim_is_grp_ssm(pim_ifp->pim, sg.grp)) {
+		if (sg.src.s_addr == INADDR_ANY) {
+			zlog_warn(
+				"%s: Received Register message for Group(%pI4) is now in SSM, dropping the packet",
+				__func__, &sg.grp);
+			/* Drop Packet Silently */
+			return 0;
+		}
+	}
+
 	if (i_am_rp
 	    && (dest_addr.s_addr
 		== ((RP(pim, sg.grp))->rpf_addr.u.prefix4.s_addr))) {

@@ -1308,7 +1308,8 @@ static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type)
 {
 	ospf6_zebra_redistribute(type, ospf6->vrf_id);
 
-	ospf6_asbr_status_update(ospf6, ++ospf6->redist_count);
+	++ospf6->redist_count;
+	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
 }
 
 static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
@@ -1330,7 +1331,8 @@ static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
 	}
 
 	ospf6_asbr_routemap_unset(red);
-	ospf6_asbr_status_update(ospf6, --ospf6->redist_count);
+	--ospf6->redist_count;
+	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
 }
 
 /* When an area is unstubified, flood all the external LSAs in the area */
@@ -2041,10 +2043,12 @@ ospf6_routemap_rule_match_interface(void *rule, const struct prefix *prefix,
 				    void *object)
 {
 	struct interface *ifp;
+	struct ospf6_route *route;
 	struct ospf6_external_info *ei;
 
-	ei = ((struct ospf6_route *)object)->route_option;
-	ifp = if_lookup_by_name_all_vrf((char *)rule);
+	route = object;
+	ei = route->route_option;
+	ifp = if_lookup_by_name((char *)rule, route->ospf6->vrf_id);
 
 	if (ifp != NULL && ei->ifindex == ifp->ifindex)
 		return RMAP_MATCH;

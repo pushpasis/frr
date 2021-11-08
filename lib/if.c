@@ -48,6 +48,7 @@ DEFINE_MTYPE_STATIC(LIB, IF_LINK_PARAMS, "Informational Link Parameters");
 static void if_set_name(struct interface *ifp, const char *name);
 static struct interface *if_lookup_by_ifindex(ifindex_t ifindex,
 					      vrf_id_t vrf_id);
+static struct interface *if_lookup_by_index_all_vrf(ifindex_t ifindex);
 static int if_cmp_func(const struct interface *, const struct interface *);
 static int if_cmp_index_func(const struct interface *ifp1,
 			     const struct interface *ifp2);
@@ -423,7 +424,7 @@ struct interface *if_lookup_by_name_vrf(const char *name, struct vrf *vrf)
 	return RB_FIND(if_name_head, &vrf->ifaces_by_name, &if_tmp);
 }
 
-struct interface *if_lookup_by_name_all_vrf(const char *name)
+static struct interface *if_lookup_by_name_all_vrf(const char *name)
 {
 	struct vrf *vrf;
 	struct interface *ifp;
@@ -440,7 +441,7 @@ struct interface *if_lookup_by_name_all_vrf(const char *name)
 	return NULL;
 }
 
-struct interface *if_lookup_by_index_all_vrf(ifindex_t ifindex)
+static struct interface *if_lookup_by_index_all_vrf(ifindex_t ifindex)
 {
 	struct vrf *vrf;
 	struct interface *ifp;
@@ -1255,8 +1256,8 @@ DEFPY_YANG (no_interface,
 		ifname, vrf_name);
 }
 
-static void cli_show_interface(struct vty *vty, struct lyd_node *dnode,
-			bool show_defaults)
+static void cli_show_interface(struct vty *vty, const struct lyd_node *dnode,
+			       bool show_defaults)
 {
 	const char *vrf;
 
@@ -1269,7 +1270,8 @@ static void cli_show_interface(struct vty *vty, struct lyd_node *dnode,
 	vty_out(vty, "\n");
 }
 
-static void cli_show_interface_end(struct vty *vty, struct lyd_node *dnode)
+static void cli_show_interface_end(struct vty *vty,
+				   const struct lyd_node *dnode)
 {
 	vty_out(vty, "exit\n");
 }
@@ -1305,8 +1307,9 @@ DEFPY_YANG  (no_interface_desc,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-static void cli_show_interface_desc(struct vty *vty, struct lyd_node *dnode,
-			     bool show_defaults)
+static void cli_show_interface_desc(struct vty *vty,
+				    const struct lyd_node *dnode,
+				    bool show_defaults)
 {
 	vty_out(vty, " description %s\n", yang_dnode_get_string(dnode, NULL));
 }
@@ -1339,6 +1342,20 @@ static struct cmd_node interface_node = {
 	.prompt = "%s(config-if)# ",
 };
 
+static int if_config_write_single(const struct lyd_node *dnode, void *arg)
+{
+	nb_cli_show_dnode_cmds(arg, dnode, false);
+
+	return YANG_ITER_CONTINUE;
+}
+
+static int if_nb_config_write(struct vty *vty)
+{
+	yang_dnode_iterate(if_config_write_single, vty, running_config->dnode,
+			   "/frr-interface:lib/interface");
+	return 1;
+}
+
 void if_cmd_init(int (*config_write)(struct vty *))
 {
 	cmd_variable_handler_register(if_var_handlers);
@@ -1352,6 +1369,11 @@ void if_cmd_init(int (*config_write)(struct vty *))
 	install_default(INTERFACE_NODE);
 	install_element(INTERFACE_NODE, &interface_desc_cmd);
 	install_element(INTERFACE_NODE, &no_interface_desc_cmd);
+}
+
+void if_cmd_init_default(void)
+{
+	if_cmd_init(if_nb_config_write);
 }
 
 void if_zapi_callbacks(int (*create)(struct interface *ifp),

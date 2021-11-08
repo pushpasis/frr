@@ -1688,10 +1688,10 @@ route_match_interface(void *rule, const struct prefix *prefix, void *object)
 
 	path = object;
 
-	if (!path)
+	if (!path || !path->peer || !path->peer->bgp)
 		return RMAP_NOMATCH;
 
-	ifp = if_lookup_by_name_all_vrf((char *)rule);
+	ifp = if_lookup_by_name((char *)rule, path->peer->bgp->vrf_id);
 
 	if (ifp == NULL || ifp->ifindex != path->attr->nh_ifindex)
 		return RMAP_NOMATCH;
@@ -4616,7 +4616,7 @@ DEFUN_YANG (no_match_ip_route_source,
 
 DEFUN_YANG (match_ip_route_source_prefix_list,
 	    match_ip_route_source_prefix_list_cmd,
-	    "match ip route-source prefix-list WORD",
+	    "match ip route-source prefix-list PREFIXLIST_NAME",
 	    MATCH_STR
 	    IP_STR
 	    "Match advertising source address of route\n"
@@ -4640,7 +4640,7 @@ DEFUN_YANG (match_ip_route_source_prefix_list,
 
 DEFUN_YANG (no_match_ip_route_source_prefix_list,
 	    no_match_ip_route_source_prefix_list_cmd,
-	    "no match ip route-source prefix-list [WORD]",
+	    "no match ip route-source prefix-list [PREFIXLIST_NAME]",
 	    NO_STR
 	    MATCH_STR
 	    IP_STR

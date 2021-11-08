@@ -604,8 +604,6 @@ int zsend_redistribute_route(int cmd, struct zserv *client,
 			api_nh->bh_type = nexthop->bh_type;
 			break;
 		case NEXTHOP_TYPE_IPV4:
-			api_nh->gate.ipv4 = nexthop->gate.ipv4;
-			break;
 		case NEXTHOP_TYPE_IPV4_IFINDEX:
 			api_nh->gate.ipv4 = nexthop->gate.ipv4;
 			api_nh->ifindex = nexthop->ifindex;
@@ -614,8 +612,6 @@ int zsend_redistribute_route(int cmd, struct zserv *client,
 			api_nh->ifindex = nexthop->ifindex;
 			break;
 		case NEXTHOP_TYPE_IPV6:
-			api_nh->gate.ipv6 = nexthop->gate.ipv6;
-			break;
 		case NEXTHOP_TYPE_IPV6_IFINDEX:
 			api_nh->gate.ipv6 = nexthop->gate.ipv6;
 			api_nh->ifindex = nexthop->ifindex;
@@ -893,7 +889,7 @@ void zsend_iptable_notify_owner(const struct zebra_dplane_ctx *ctx,
 	s = stream_new(ZEBRA_MAX_PACKET_SIZ);
 
 	zclient_create_header(s, cmd, VRF_DEFAULT);
-	stream_put(s, &note, sizeof(note));
+	stream_putw(s, note);
 	stream_putl(s, ipt.unique);
 	stream_put(s, ipt.ipset_name, ZEBRA_IPSET_NAME_SIZE);
 	stream_putw_at(s, 0, stream_get_endp(s));
@@ -928,7 +924,7 @@ void zsend_ipset_notify_owner(const struct zebra_dplane_ctx *ctx,
 	s = stream_new(ZEBRA_MAX_PACKET_SIZ);
 
 	zclient_create_header(s, cmd, VRF_DEFAULT);
-	stream_put(s, &note, sizeof(note));
+	stream_putw(s, note);
 	stream_putl(s, ipset.unique);
 	stream_put(s, ipset.ipset_name, ZEBRA_IPSET_NAME_SIZE);
 	stream_putw_at(s, 0, stream_get_endp(s));
@@ -966,7 +962,7 @@ void zsend_ipset_entry_notify_owner(const struct zebra_dplane_ctx *ctx,
 	s = stream_new(ZEBRA_MAX_PACKET_SIZ);
 
 	zclient_create_header(s, cmd, VRF_DEFAULT);
-	stream_put(s, &note, sizeof(note));
+	stream_putw(s, note);
 	stream_putl(s, ipent.unique);
 	stream_put(s, ipset.ipset_name, ZEBRA_IPSET_NAME_SIZE);
 	stream_putw_at(s, 0, stream_get_endp(s));
@@ -3190,6 +3186,12 @@ static inline void zread_rule(ZAPI_HANDLER_ARGS)
 		STREAM_GETW(s, zpr.rule.filter.dst_port);
 		STREAM_GETC(s, zpr.rule.filter.dsfield);
 		STREAM_GETL(s, zpr.rule.filter.fwmark);
+
+		STREAM_GETL(s, zpr.rule.action.queue_id);
+		STREAM_GETW(s, zpr.rule.action.vlan_id);
+		STREAM_GETW(s, zpr.rule.action.vlan_flags);
+		STREAM_GETW(s, zpr.rule.action.pcp);
+
 		STREAM_GETL(s, zpr.rule.action.table);
 		STREAM_GET(ifname, s, INTERFACE_NAMSIZ);
 
@@ -3433,6 +3435,7 @@ static inline void zebra_gre_get(ZAPI_HANDLER_ARGS)
 		stream_putl(s, 0);
 		stream_putl(s, IFINDEX_INTERNAL);
 		stream_putl(s, VRF_UNKNOWN);
+		stream_putl(s, 0);
 		stream_putl(s, 0);
 	}
 	/* Write packet size. */
