@@ -48,7 +48,7 @@
 #include "ospf6_gr.h"
 #include "lib/json.h"
 
-DEFINE_MTYPE(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
+DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
 
 DEFINE_HOOK(ospf6_neighbor_change,
 	    (struct ospf6_neighbor * on, int state, int next_state),
@@ -168,6 +168,9 @@ void ospf6_neighbor_delete(struct ospf6_neighbor *on)
 	THREAD_OFF(on->thread_send_lsreq);
 	THREAD_OFF(on->thread_send_lsupdate);
 	THREAD_OFF(on->thread_send_lsack);
+	THREAD_OFF(on->thread_exchange_done);
+	THREAD_OFF(on->thread_adj_ok);
+
 	THREAD_OFF(on->gr_helper_info.t_grace_timer);
 
 	bfd_sess_free(&on->bfd_session);
@@ -603,6 +606,8 @@ int oneway_received(struct thread *thread)
 	THREAD_OFF(on->thread_send_lsreq);
 	THREAD_OFF(on->thread_send_lsupdate);
 	THREAD_OFF(on->thread_send_lsack);
+	THREAD_OFF(on->thread_exchange_done);
+	THREAD_OFF(on->thread_adj_ok);
 
 	return 0;
 }
@@ -1249,7 +1254,6 @@ DEFUN (no_debug_ospf6,
        OSPF6_STR)
 {
 	unsigned int i;
-	struct ospf6_lsa_handler *handler = NULL;
 
 	OSPF6_DEBUG_ABR_OFF();
 	OSPF6_DEBUG_ASBR_OFF();
@@ -1259,13 +1263,7 @@ DEFUN (no_debug_ospf6,
 	OSPF6_DEBUG_FLOODING_OFF();
 	OSPF6_DEBUG_INTERFACE_OFF();
 
-	for (i = 0; i < vector_active(ospf6_lsa_handler_vector); i++) {
-		handler = vector_slot(ospf6_lsa_handler_vector, i);
-
-		if (handler != NULL) {
-			UNSET_FLAG(handler->lh_debug, OSPF6_LSA_DEBUG);
-		}
-	}
+	ospf6_lsa_debug_set_all(false);
 
 	for (i = 0; i < 6; i++)
 		OSPF6_DEBUG_MESSAGE_OFF(i,

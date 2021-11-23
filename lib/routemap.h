@@ -21,6 +21,7 @@
 #ifndef _ZEBRA_ROUTEMAP_H
 #define _ZEBRA_ROUTEMAP_H
 
+#include "typesafe.h"
 #include "prefix.h"
 #include "memory.h"
 #include "qobj.h"
@@ -422,8 +423,37 @@ extern enum rmap_compile_rets
 route_map_delete_set(struct route_map_index *index,
 		     const char *set_name, const char *set_arg);
 
+/* struct route_map_rule_cmd is kept const in order to not have writable
+ * function pointers (which is a security benefit.)  Hence, below struct is
+ * used as proxy for hashing these for by-name lookup.
+ */
+
+PREDECL_HASH(rmap_cmd_name);
+
+struct route_map_rule_cmd_proxy {
+	struct rmap_cmd_name_item itm;
+	const struct route_map_rule_cmd *cmd;
+};
+
+/* ... and just automatically create a proxy struct for each call location
+ * to route_map_install_{match,set} to avoid unnecessarily added boilerplate
+ * for each route-map user
+ */
+
+#define route_map_install_match(c)                                             \
+	do {                                                                   \
+		static struct route_map_rule_cmd_proxy proxy = {.cmd = c};     \
+		_route_map_install_match(&proxy);                              \
+	} while (0)
+
+#define route_map_install_set(c)                                               \
+	do {                                                                   \
+		static struct route_map_rule_cmd_proxy proxy = {.cmd = c};     \
+		_route_map_install_set(&proxy);                                \
+	} while (0)
+
 /* Install rule command to the match list. */
-extern void route_map_install_match(const struct route_map_rule_cmd *cmd);
+extern void _route_map_install_match(struct route_map_rule_cmd_proxy *proxy);
 
 /*
  * Install rule command to the set list.
@@ -434,7 +464,7 @@ extern void route_map_install_match(const struct route_map_rule_cmd *cmd);
  * in the apply command).  See 'set metric' command
  * as it is handled in ripd/ripngd and ospfd.
  */
-extern void route_map_install_set(const struct route_map_rule_cmd *cmd);
+extern void _route_map_install_set(struct route_map_rule_cmd_proxy *proxy);
 
 /* Lookup route map by name. */
 extern struct route_map *route_map_lookup_by_name(const char *name);
@@ -908,25 +938,28 @@ void routemap_hook_context_free(struct routemap_hook_context *rhc);
 extern const struct frr_yang_module_info frr_route_map_info;
 
 /* routemap_cli.c */
-extern int route_map_instance_cmp(struct lyd_node *dnode1,
-				  struct lyd_node *dnode2);
-extern void route_map_instance_show(struct vty *vty, struct lyd_node *dnode,
+extern int route_map_instance_cmp(const struct lyd_node *dnode1,
+				  const struct lyd_node *dnode2);
+extern void route_map_instance_show(struct vty *vty,
+				    const struct lyd_node *dnode,
 				    bool show_defaults);
 extern void route_map_instance_show_end(struct vty *vty,
-					struct lyd_node *dnode);
-extern void route_map_condition_show(struct vty *vty, struct lyd_node *dnode,
+					const struct lyd_node *dnode);
+extern void route_map_condition_show(struct vty *vty,
+				     const struct lyd_node *dnode,
 				     bool show_defaults);
-extern void route_map_action_show(struct vty *vty, struct lyd_node *dnode,
+extern void route_map_action_show(struct vty *vty, const struct lyd_node *dnode,
 				  bool show_defaults);
-extern void route_map_exit_policy_show(struct vty *vty, struct lyd_node *dnode,
+extern void route_map_exit_policy_show(struct vty *vty,
+				       const struct lyd_node *dnode,
 				       bool show_defaults);
-extern void route_map_call_show(struct vty *vty, struct lyd_node *dnode,
+extern void route_map_call_show(struct vty *vty, const struct lyd_node *dnode,
 				bool show_defaults);
 extern void route_map_description_show(struct vty *vty,
-				       struct lyd_node *dnode,
+				       const struct lyd_node *dnode,
 				       bool show_defaults);
 extern void route_map_optimization_disabled_show(struct vty *vty,
-						 struct lyd_node *dnode,
+						 const struct lyd_node *dnode,
 						 bool show_defaults);
 extern void route_map_cli_init(void);
 

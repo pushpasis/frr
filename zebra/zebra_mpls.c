@@ -1037,6 +1037,16 @@ static void lsp_processq_del(struct work_queue *wq, void *data)
 	struct zebra_lsp *lsp;
 	struct hash *lsp_table;
 	struct zebra_nhlfe *nhlfe;
+	bool in_shutdown = false;
+
+	/* If zebra is shutting down, don't delete any structs,
+	 * just ignore this callback. The LSPs will be cleaned up
+	 * during the shutdown processing.
+	 */
+	in_shutdown = atomic_load_explicit(&zrouter.in_shutdown,
+					   memory_order_relaxed);
+	if (in_shutdown)
+		return;
 
 	zvrf = vrf_info_lookup(VRF_DEFAULT);
 	assert(zvrf);
@@ -1504,7 +1514,6 @@ static int mpls_static_lsp_uninstall_all(struct zebra_vrf *zvrf,
 
 static json_object *nhlfe_json(struct zebra_nhlfe *nhlfe)
 {
-	char buf[BUFSIZ];
 	json_object *json_nhlfe = NULL;
 	json_object *json_backups = NULL;
 	json_object *json_label_stack;
@@ -1531,15 +1540,13 @@ static json_object *nhlfe_json(struct zebra_nhlfe *nhlfe)
 	switch (nexthop->type) {
 	case NEXTHOP_TYPE_IPV4:
 	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		json_object_string_add(json_nhlfe, "nexthop",
-				       inet_ntop(AF_INET, &nexthop->gate.ipv4,
-						 buf, sizeof(buf)));
+		json_object_string_addf(json_nhlfe, "nexthop", "%pI4",
+					&nexthop->gate.ipv4);
 		break;
 	case NEXTHOP_TYPE_IPV6:
 	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		json_object_string_add(
-			json_nhlfe, "nexthop",
-			inet_ntop(AF_INET6, &nexthop->gate.ipv6, buf, BUFSIZ));
+		json_object_string_addf(json_nhlfe, "nexthop", "%pI6",
+					&nexthop->gate.ipv6);
 
 		if (nexthop->ifindex)
 			json_object_string_add(json_nhlfe, "interface",

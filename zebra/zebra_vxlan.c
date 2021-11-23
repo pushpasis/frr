@@ -385,10 +385,8 @@ static void zl3vni_print_rmac(struct zebra_mac *zrmac, struct vty *vty,
 		json_object_string_add(
 			json, "routerMac",
 			prefix_mac2str(&zrmac->macaddr, buf1, sizeof(buf1)));
-		json_object_string_add(json, "vtepIp",
-				       inet_ntop(AF_INET,
-						 &zrmac->fwd_info.r_vtep_ip,
-						 buf1, sizeof(buf1)));
+		json_object_string_addf(json, "vtepIp", "%pI4",
+					&zrmac->fwd_info.r_vtep_ip);
 		json_object_int_add(json, "refCount",
 				    rb_host_count(&zrmac->host_rb));
 		RB_FOREACH (hle, host_rb_tree_entry, &zrmac->host_rb)
@@ -680,10 +678,8 @@ static void zl3vni_print_rmac_hash(struct hash_bucket *bucket, void *ctx)
 		json_object_string_add(
 			json_rmac, "routerMac",
 			prefix_mac2str(&zrmac->macaddr, buf, sizeof(buf)));
-		json_object_string_add(json_rmac, "vtepIp",
-				       inet_ntop(AF_INET,
-						 &zrmac->fwd_info.r_vtep_ip,
-						 buf, sizeof(buf)));
+		json_object_string_addf(json_rmac, "vtepIp", "%pI4",
+					&zrmac->fwd_info.r_vtep_ip);
 		json_object_object_add(
 			json, prefix_mac2str(&zrmac->macaddr, buf, sizeof(buf)),
 			json_rmac);
@@ -729,10 +725,8 @@ static void zl3vni_print(struct zebra_l3vni *zl3vni, void **ctx)
 		json_evpn_list = json_object_new_array();
 		json_object_int_add(json, "vni", zl3vni->vni);
 		json_object_string_add(json, "type", "L3");
-		json_object_string_add(
-			json, "localVtepIp",
-			inet_ntop(AF_INET, &zl3vni->local_vtep_ip, buf,
-				  sizeof(buf)));
+		json_object_string_addf(json, "localVtepIp", "%pI4",
+					&zl3vni->local_vtep_ip);
 		json_object_string_add(json, "vxlanIntf",
 				       zl3vni_vxlan_if_name(zl3vni));
 		json_object_string_add(json, "sviIntf",
@@ -4645,6 +4639,11 @@ int zebra_vxlan_svi_down(struct interface *ifp, struct interface *link_if)
 		zevpn = zebra_evpn_from_svi(ifp, link_if);
 
 		if (zevpn) {
+			/* remove from l3-vni list */
+			zl3vni = zl3vni_from_vrf(zevpn->vrf_id);
+			if (zl3vni)
+				listnode_delete(zl3vni->l2vnis, zevpn);
+
 			zevpn->svi_if = NULL;
 			zevpn->vrf_id = VRF_DEFAULT;
 
@@ -4704,6 +4703,10 @@ int zebra_vxlan_svi_up(struct interface *ifp, struct interface *link_if)
 		zevpn->svi_if = ifp;
 		zevpn->vrf_id = ifp->vrf_id;
 
+		zl3vni = zl3vni_from_vrf(zevpn->vrf_id);
+		if (zl3vni)
+			listnode_add_sort_nodup(zl3vni->l2vnis, zevpn);
+
 		if (if_is_operative(zevpn->vxlan_if))
 			zebra_evpn_send_add_to_client(zevpn);
 
@@ -4736,13 +4739,11 @@ void zebra_vxlan_macvlan_down(struct interface *ifp)
 	assert(zif);
 	link_ifp = zif->link;
 	if (!link_ifp) {
-		if (IS_ZEBRA_DEBUG_VXLAN) {
-			struct interface *ifp;
-
-			ifp = if_lookup_by_index_all_vrf(zif->link_ifindex);
-			zlog_debug("macvlan parent link is not found. Parent index %d ifp %s",
-				zif->link_ifindex, ifp ? ifp->name : " ");
-		}
+		if (IS_ZEBRA_DEBUG_VXLAN)
+			zlog_debug(
+				"macvlan parent link is not found. Parent index %d ifp %s",
+				zif->link_ifindex,
+				ifindex2ifname(zif->link_ifindex, ifp->vrf_id));
 		return;
 	}
 	link_zif = link_ifp->info;

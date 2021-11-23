@@ -308,14 +308,12 @@ static void json_object_pim_ifp_add(struct json_object *json,
 				    struct interface *ifp)
 {
 	struct pim_interface *pim_ifp;
-	char buf[PREFIX_STRLEN];
 
 	pim_ifp = ifp->info;
 	json_object_string_add(json, "name", ifp->name);
 	json_object_string_add(json, "state", if_is_up(ifp) ? "up" : "down");
-	json_object_string_add(json, "address",
-			       inet_ntop(AF_INET, &pim_ifp->primary_address,
-					 buf, sizeof(buf)));
+	json_object_string_addf(json, "address", "%pI4",
+				&pim_ifp->primary_address);
 	json_object_int_add(json, "index", ifp->ifindex);
 
 	if (if_is_multicast(ifp))
@@ -489,7 +487,6 @@ static void igmp_show_interfaces(struct pim_instance *pim, struct vty *vty,
 	struct interface *ifp;
 	time_t now;
 	char buf[PREFIX_STRLEN];
-	char quer_buf[PREFIX_STRLEN];
 	json_object *json = NULL;
 	json_object *json_row = NULL;
 
@@ -537,10 +534,9 @@ static void igmp_show_interfaces(struct pim_instance *pim, struct vty *vty,
 							       "queryTimer",
 							       query_hhmmss);
 				}
-				json_object_string_add(
-					json_row, "querierIp",
-					inet_ntop(AF_INET, &igmp->querier_addr,
-						  quer_buf, sizeof(quer_buf)));
+				json_object_string_addf(json_row, "querierIp",
+							"%pI4",
+							&igmp->querier_addr);
 
 				json_object_object_add(json, ifp->name,
 						       json_row);
@@ -584,7 +580,6 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 	struct listnode *sock_node;
 	struct pim_interface *pim_ifp;
 	char uptime[10];
-	char quer_buf[PREFIX_STRLEN];
 	char query_hhmmss[10];
 	char other_hhmmss[10];
 	int found_ifname = 0;
@@ -669,10 +664,9 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 						       igmp->t_igmp_query_timer
 						       ? "local"
 						       : "other");
-				json_object_string_add(
-					json_row, "querierIp",
-					inet_ntop(AF_INET, &igmp->querier_addr,
-						  quer_buf, sizeof(quer_buf)));
+				json_object_string_addf(json_row, "querierIp",
+							"%pI4",
+							&igmp->querier_addr);
 				json_object_int_add(json_row, "queryStartCount",
 						    igmp->startup_query_count);
 				json_object_string_add(json_row,
@@ -928,7 +922,6 @@ static void pim_show_interfaces_single(struct pim_instance *pim,
 	int mloop = 0;
 	int found_ifname = 0;
 	int print_header;
-	char buf[PREFIX_STRLEN];
 	json_object *json = NULL;
 	json_object *json_row = NULL;
 	json_object *json_pim_neighbor = NULL;
@@ -979,11 +972,9 @@ static void pim_show_interfaces_single(struct pim_instance *pim,
 			json_object_pim_ifp_add(json_row, ifp);
 
 			if (pim_ifp->update_source.s_addr != INADDR_ANY) {
-				json_object_string_add(
-					json_row, "useSource",
-					inet_ntop(AF_INET,
-						  &pim_ifp->update_source,
-						  buf, sizeof(buf)));
+				json_object_string_addf(
+					json_row, "useSource", "%pI4",
+					&pim_ifp->update_source);
 			}
 			if (pim_ifp->sec_addr_list) {
 				json_object *sec_list = NULL;
@@ -1407,7 +1398,6 @@ static void pim_show_interfaces(struct pim_instance *pim, struct vty *vty,
 	int fhr = 0;
 	int pim_nbrs = 0;
 	int pim_ifchannels = 0;
-	char buf[PREFIX_STRLEN];
 	json_object *json = NULL;
 	json_object *json_row = NULL;
 	json_object *json_tmp;
@@ -1437,10 +1427,8 @@ static void pim_show_interfaces(struct pim_instance *pim, struct vty *vty,
 		json_object_int_add(json_row, "pimNeighbors", pim_nbrs);
 		json_object_int_add(json_row, "pimIfChannels", pim_ifchannels);
 		json_object_int_add(json_row, "firstHopRouterCount", fhr);
-		json_object_string_add(json_row, "pimDesignatedRouter",
-				       inet_ntop(AF_INET,
-						 &pim_ifp->pim_dr_addr, buf,
-						 sizeof(buf)));
+		json_object_string_addf(json_row, "pimDesignatedRouter", "%pI4",
+					&pim_ifp->pim_dr_addr);
 
 		if (pim_ifp->pim_dr_addr.s_addr
 		    == pim_ifp->primary_address.s_addr)
@@ -2446,8 +2434,6 @@ static const char *pim_reg_state2brief_str(enum pim_reg_state reg_state,
 	case PIM_REG_PRUNE:
 		strlcpy(state_str, "RegP", state_str_len);
 		break;
-	default:
-		strlcpy(state_str, "Unk", state_str_len);
 	}
 	return state_str;
 }
@@ -4053,131 +4039,6 @@ DEFUN (clear_ip_pim_oil,
 	return CMD_SUCCESS;
 }
 
-static void clear_pim_bsr_db(struct pim_instance *pim)
-{
-	struct route_node *rn;
-	struct route_node *rpnode;
-	struct bsgrp_node *bsgrp;
-	struct prefix nht_p;
-	struct prefix g_all;
-	struct rp_info *rp_all;
-	struct pim_upstream *up;
-	struct rp_info *rp_info;
-	bool is_bsr_tracking = true;
-
-	/* Remove next hop tracking for the bsr */
-	nht_p.family = AF_INET;
-	nht_p.prefixlen = IPV4_MAX_BITLEN;
-	nht_p.u.prefix4 = pim->global_scope.current_bsr;
-	if (PIM_DEBUG_BSM) {
-		zlog_debug("%s: Deregister BSR addr %pFX with Zebra NHT",
-			   __func__, &nht_p);
-	}
-	pim_delete_tracked_nexthop(pim, &nht_p, NULL, NULL, is_bsr_tracking);
-
-	/* Reset scope zone data */
-	pim->global_scope.accept_nofwd_bsm = false;
-	pim->global_scope.state = ACCEPT_ANY;
-	pim->global_scope.current_bsr.s_addr = INADDR_ANY;
-	pim->global_scope.current_bsr_prio = 0;
-	pim->global_scope.current_bsr_first_ts = 0;
-	pim->global_scope.current_bsr_last_ts = 0;
-	pim->global_scope.bsm_frag_tag = 0;
-	pim_bsm_frags_free(&pim->global_scope);
-
-	pim_bs_timer_stop(&pim->global_scope);
-
-	for (rn = route_top(pim->global_scope.bsrp_table); rn;
-	     rn = route_next(rn)) {
-		bsgrp = rn->info;
-		if (!bsgrp)
-			continue;
-
-		rpnode = route_node_lookup(pim->rp_table, &bsgrp->group);
-
-		if (!rpnode) {
-			pim_free_bsgrp_node(bsgrp->scope->bsrp_table,
-					    &bsgrp->group);
-			pim_free_bsgrp_data(bsgrp);
-			continue;
-		}
-
-		rp_info = (struct rp_info *)rpnode->info;
-
-		if ((!rp_info) || (rp_info->rp_src != RP_SRC_BSR)) {
-			pim_free_bsgrp_node(bsgrp->scope->bsrp_table,
-					    &bsgrp->group);
-			pim_free_bsgrp_data(bsgrp);
-			continue;
-		}
-
-		/* Deregister addr with Zebra NHT */
-		nht_p.family = AF_INET;
-		nht_p.prefixlen = IPV4_MAX_BITLEN;
-		nht_p.u.prefix4 = rp_info->rp.rpf_addr.u.prefix4;
-
-		if (PIM_DEBUG_PIM_NHT_RP) {
-			zlog_debug("%s: Deregister RP addr %pFX with Zebra ",
-				   __func__, &nht_p);
-		}
-
-		pim_delete_tracked_nexthop(pim, &nht_p, NULL, rp_info, false);
-
-		if (!str2prefix("224.0.0.0/4", &g_all))
-			return;
-
-		rp_all = pim_rp_find_match_group(pim, &g_all);
-
-		if (rp_all == rp_info) {
-			rp_all->rp.rpf_addr.family = AF_INET;
-			rp_all->rp.rpf_addr.u.prefix4.s_addr = INADDR_NONE;
-			rp_all->i_am_rp = 0;
-		} else {
-			/* Delete the rp_info from rp-list */
-			listnode_delete(pim->rp_list, rp_info);
-
-			/* Delete the rp node from rp_table */
-			rpnode->info = NULL;
-			route_unlock_node(rpnode);
-			route_unlock_node(rpnode);
-			XFREE(MTYPE_PIM_RP, rp_info);
-		}
-
-		pim_free_bsgrp_node(bsgrp->scope->bsrp_table, &bsgrp->group);
-		pim_free_bsgrp_data(bsgrp);
-	}
-	pim_rp_refresh_group_to_rp_mapping(pim);
-
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		/* Find the upstream (*, G) whose upstream address is same as
-		 * the RP
-		 */
-		if (up->sg.src.s_addr != INADDR_ANY)
-			continue;
-
-		struct prefix grp;
-		struct rp_info *trp_info;
-
-		grp.family = AF_INET;
-		grp.prefixlen = IPV4_MAX_BITLEN;
-		grp.u.prefix4 = up->sg.grp;
-
-		trp_info = pim_rp_find_match_group(pim, &grp);
-
-		/* RP not found for the group grp */
-		if (pim_rpf_addr_is_inaddr_none(&trp_info->rp)) {
-			pim_upstream_rpf_clear(pim, up);
-			pim_rp_set_upstream_addr(pim, &up->upstream_addr,
-						 up->sg.src, up->sg.grp);
-		} else {
-			/* RP found for the group grp */
-			pim_upstream_update(pim, up);
-		}
-	}
-}
-
-
 DEFUN (clear_ip_pim_bsr_db,
        clear_ip_pim_bsr_db_cmd,
        "clear ip pim [vrf NAME] bsr-data",
@@ -4193,7 +4054,7 @@ DEFUN (clear_ip_pim_bsr_db,
 	if (!vrf)
 		return CMD_WARNING;
 
-	clear_pim_bsr_db(vrf->info);
+	pim_bsm_clear(vrf->info);
 
 	return CMD_SUCCESS;
 }
@@ -5842,10 +5703,8 @@ static void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 			json_object_string_add(json_row, "name", ifp->name);
 			json_object_string_add(json_row, "state",
 					       if_is_up(ifp) ? "up" : "down");
-			json_object_string_add(
-				json_row, "address",
-				inet_ntop(AF_INET, &pim_ifp->primary_address,
-					  buf, sizeof(buf)));
+			json_object_string_addf(json_row, "address", "%pI4",
+						&pim_ifp->primary_address);
 			json_object_int_add(json_row, "ifIndex", ifp->ifindex);
 			json_object_int_add(json_row, "vif",
 					    pim_ifp->mroute_vif_index);

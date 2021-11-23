@@ -1026,7 +1026,7 @@ void if_up(struct interface *ifp)
 
 	zif = ifp->info;
 	zif->up_count++;
-	quagga_timestamp(2, zif->up_last, sizeof(zif->up_last));
+	frr_timestamp(2, zif->up_last, sizeof(zif->up_last));
 
 	/* Notify the protocol daemons. */
 	if (ifp->ptm_enable && (ifp->ptm_status == ZEBRA_PTM_STATUS_DOWN)) {
@@ -1090,7 +1090,7 @@ void if_down(struct interface *ifp)
 
 	zif = ifp->info;
 	zif->down_count++;
-	quagga_timestamp(2, zif->down_last, sizeof(zif->down_last));
+	frr_timestamp(2, zif->down_last, sizeof(zif->down_last));
 
 	if_down_nhg_dependents(ifp);
 
@@ -1616,7 +1616,6 @@ static void if_dump_vty(struct vty *vty, struct interface *ifp)
 	struct listnode *node;
 	struct route_node *rn;
 	struct zebra_if *zebra_if;
-	struct vrf *vrf;
 	char pd_buf[ZEBRA_PROTODOWN_RC_STR_LEN];
 
 	zebra_if = ifp->info;
@@ -1644,8 +1643,7 @@ static void if_dump_vty(struct vty *vty, struct interface *ifp)
 
 	zebra_ptm_show_status(vty, NULL, ifp);
 
-	vrf = vrf_lookup_by_id(ifp->vrf_id);
-	vty_out(vty, "  vrf: %s\n", vrf->name);
+	vty_out(vty, "  vrf: %s\n", ifp->vrf->name);
 
 	if (ifp->desc)
 		vty_out(vty, "  Description: %s\n", ifp->desc);
@@ -1941,7 +1939,6 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
 	struct listnode *node;
 	struct route_node *rn;
 	struct zebra_if *zebra_if;
-	struct vrf *vrf;
 	char pd_buf[ZEBRA_PROTODOWN_RC_STR_LEN];
 	char buf[BUFSIZ];
 	json_object *json_if;
@@ -1979,8 +1976,7 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
 
 	zebra_ptm_show_status(vty, json, ifp);
 
-	vrf = vrf_lookup_by_id(ifp->vrf_id);
-	json_object_string_add(json_if, "vrfName", vrf->name);
+	json_object_string_add(json_if, "vrfName", ifp->vrf->name);
 
 	if (ifp->desc)
 		json_object_string_add(json_if, "description", ifp->desc);
@@ -2066,18 +2062,14 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
 		vxlan_info = &zebra_if->l2info.vxl;
 		json_object_int_add(json_if, "vxlanId", vxlan_info->vni);
 		if (vxlan_info->vtep_ip.s_addr != INADDR_ANY)
-			json_object_string_add(json_if, "vtepIp",
-					       inet_ntop(AF_INET,
-							 &vxlan_info->vtep_ip,
-							 buf, sizeof(buf)));
+			json_object_string_addf(json_if, "vtepIp", "%pI4",
+						&vxlan_info->vtep_ip);
 		if (vxlan_info->access_vlan)
 			json_object_int_add(json_if, "accessVlanId",
 					    vxlan_info->access_vlan);
 		if (vxlan_info->mcast_grp.s_addr != INADDR_ANY)
-			json_object_string_add(json_if, "mcastGroup",
-					       inet_ntop(AF_INET,
-							 &vxlan_info->mcast_grp,
-							 buf, sizeof(buf)));
+			json_object_string_addf(json_if, "mcastGroup", "%pI4",
+						&vxlan_info->mcast_grp);
 		if (vxlan_info->ifindex_link
 		    && (vxlan_info->link_nsid != NS_UNKNOWN)) {
 			struct interface *ifp;
@@ -2094,16 +2086,12 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
 
 		gre_info = &zebra_if->l2info.gre;
 		if (gre_info->vtep_ip.s_addr != INADDR_ANY) {
-			json_object_string_add(json_if, "vtepIp",
-					       inet_ntop(AF_INET,
-							 &gre_info->vtep_ip,
-							 buf, sizeof(buf)));
+			json_object_string_addf(json_if, "vtepIp", "%pI4",
+						&gre_info->vtep_ip);
 			if (gre_info->vtep_ip_remote.s_addr != INADDR_ANY)
-				json_object_string_add(
-					json_if, "vtepRemoteIp",
-					inet_ntop(AF_INET,
-						  &gre_info->vtep_ip_remote,
-						  buf, sizeof(buf)));
+				json_object_string_addf(
+					json_if, "vtepRemoteIp", "%pI4",
+					&gre_info->vtep_ip_remote);
 		}
 		if (gre_info->ifindex_link
 		    && (gre_info->link_nsid != NS_UNKNOWN)) {
@@ -2237,9 +2225,8 @@ static void if_dump_vty_json(struct vty *vty, struct interface *ifp,
 			json_object_double_add(json_te, "utilizedBandwidth",
 					       iflp->use_bw);
 		if (IS_PARAM_SET(iflp, LP_RMT_AS))
-			json_object_string_add(json_te, "neighborAsbrIp",
-					       inet_ntop(AF_INET, &iflp->rmt_ip,
-							 buf, sizeof(buf)));
+			json_object_string_addf(json_te, "neighborAsbrIp",
+						"%pI4", &iflp->rmt_ip);
 		json_object_int_add(json_te, "neighborAsbrAs", iflp->rmt_as);
 	}
 
@@ -2485,17 +2472,40 @@ DEFPY (show_interface_name_vrf_all,
        VRF_ALL_CMD_HELP_STR
        JSON_STR)
 {
-	struct interface *ifp;
+	struct interface *ifp = NULL;
+	struct interface *ifptmp;
+	struct vrf *vrf;
 	json_object *json = NULL;
+	int count = 0;
 
 	interface_update_stats();
 
-	ifp = if_lookup_by_name_all_vrf(ifname);
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		ifptmp = if_lookup_by_name_vrf(ifname, vrf);
+		if (ifptmp) {
+			ifp = ifptmp;
+			count++;
+			if (!vrf_is_backend_netns())
+				break;
+		}
+	}
+
 	if (ifp == NULL) {
 		if (uj)
 			vty_out(vty, "{}\n");
 		else
 			vty_out(vty, "%% Can't find interface %s\n", ifname);
+		return CMD_WARNING;
+	}
+	if (count > 1) {
+		if (uj) {
+			vty_out(vty, "{}\n");
+		} else {
+			vty_out(vty,
+				"%% There are multiple interfaces with name %s\n",
+				ifname);
+			vty_out(vty, "%% You must specify the VRF name\n");
+		}
 		return CMD_WARNING;
 	}
 
@@ -2886,6 +2896,7 @@ struct cmd_node link_params_node = {
 	.node = LINK_PARAMS_NODE,
 	.parent_node = INTERFACE_NODE,
 	.prompt = "%s(config-link-params)# ",
+	.no_xpath = true,
 };
 
 static void link_param_cmd_set_uint32(struct interface *ifp, uint32_t *field,
@@ -4206,21 +4217,19 @@ static int link_params_config_write(struct vty *vty, struct interface *ifp)
 
 static int if_config_write(struct vty *vty)
 {
-	struct vrf *vrf0;
+	struct vrf *vrf;
 	struct interface *ifp;
 
 	zebra_ptm_write(vty);
 
-	RB_FOREACH (vrf0, vrf_name_head, &vrfs_by_name)
-		FOR_ALL_INTERFACES (vrf0, ifp) {
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name)
+		FOR_ALL_INTERFACES (vrf, ifp) {
 			struct zebra_if *if_data;
 			struct listnode *addrnode;
 			struct connected *ifc;
 			struct prefix *p;
-			struct vrf *vrf;
 
 			if_data = ifp->info;
-			vrf = vrf_lookup_by_id(ifp->vrf_id);
 
 			if (ifp->vrf_id == VRF_DEFAULT)
 				vty_frame(vty, "interface %s\n", ifp->name);

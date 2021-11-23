@@ -145,16 +145,17 @@ void ospf6_zebra_import_default_route(struct ospf6 *ospf6, bool unreg)
 	prefix.prefixlen = 0;
 
 	if (unreg)
-		command = ZEBRA_IMPORT_ROUTE_UNREGISTER;
+		command = ZEBRA_NEXTHOP_UNREGISTER;
 	else
-		command = ZEBRA_IMPORT_ROUTE_REGISTER;
+		command = ZEBRA_NEXTHOP_REGISTER;
 
 	if (IS_OSPF6_DEBUG_ZEBRA(SEND))
 		zlog_debug("%s: sending cmd %s for %pFX (vrf %u)", __func__,
 			   zserv_command_string(command), &prefix,
 			   ospf6->vrf_id);
 
-	if (zclient_send_rnh(zclient, command, &prefix, true, ospf6->vrf_id)
+	if (zclient_send_rnh(zclient, command, &prefix, false, true,
+			     ospf6->vrf_id)
 	    == ZCLIENT_SEND_FAILURE)
 		flog_err(EC_LIB_ZAPI_SOCKET, "%s: zclient_send_rnh() failed",
 			 __func__);
@@ -708,19 +709,22 @@ static void ospf6_zebra_connected(struct zclient *zclient)
 	zclient_send_reg_requests(zclient, VRF_DEFAULT);
 }
 
+static zclient_handler *const ospf6_handlers[] = {
+	[ZEBRA_ROUTER_ID_UPDATE] = ospf6_router_id_update_zebra,
+	[ZEBRA_INTERFACE_ADDRESS_ADD] = ospf6_zebra_if_address_update_add,
+	[ZEBRA_INTERFACE_ADDRESS_DELETE] = ospf6_zebra_if_address_update_delete,
+	[ZEBRA_REDISTRIBUTE_ROUTE_ADD] = ospf6_zebra_read_route,
+	[ZEBRA_REDISTRIBUTE_ROUTE_DEL] = ospf6_zebra_read_route,
+	[ZEBRA_NEXTHOP_UPDATE] = ospf6_zebra_import_check_update,
+};
+
 void ospf6_zebra_init(struct thread_master *master)
 {
 	/* Allocate zebra structure. */
-	zclient = zclient_new(master, &zclient_options_default);
+	zclient = zclient_new(master, &zclient_options_default, ospf6_handlers,
+			      array_size(ospf6_handlers));
 	zclient_init(zclient, ZEBRA_ROUTE_OSPF6, 0, &ospf6d_privs);
 	zclient->zebra_connected = ospf6_zebra_connected;
-	zclient->router_id_update = ospf6_router_id_update_zebra;
-	zclient->interface_address_add = ospf6_zebra_if_address_update_add;
-	zclient->interface_address_delete =
-		ospf6_zebra_if_address_update_delete;
-	zclient->redistribute_route_add = ospf6_zebra_read_route;
-	zclient->redistribute_route_del = ospf6_zebra_read_route;
-	zclient->import_check_update = ospf6_zebra_import_check_update;
 
 	/* Install command element for zebra node. */
 	install_element(VIEW_NODE, &show_ospf6_zebra_cmd);

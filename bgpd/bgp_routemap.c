@@ -1688,10 +1688,10 @@ route_match_interface(void *rule, const struct prefix *prefix, void *object)
 
 	path = object;
 
-	if (!path)
+	if (!path || !path->peer || !path->peer->bgp)
 		return RMAP_NOMATCH;
 
-	ifp = if_lookup_by_name_all_vrf((char *)rule);
+	ifp = if_lookup_by_name((char *)rule, path->peer->bgp->vrf_id);
 
 	if (ifp == NULL || ifp->ifindex != path->attr->nh_ifindex)
 		return RMAP_NOMATCH;
@@ -3065,7 +3065,7 @@ static void route_match_ipv6_next_hop_free(void *rule)
 }
 
 static const struct route_map_rule_cmd route_match_ipv6_next_hop_cmd = {
-	"ipv6 next-hop",
+	"ipv6 next-hop address",
 	route_match_ipv6_next_hop,
 	route_match_ipv6_next_hop_compile,
 	route_match_ipv6_next_hop_free
@@ -4004,7 +4004,7 @@ static void bgp_route_map_event(const char *rmap_name)
 
 DEFUN_YANG (match_mac_address,
 	    match_mac_address_cmd,
-	    "match mac address WORD",
+	    "match mac address ACCESSLIST_MAC_NAME",
 	    MATCH_STR
 	    "mac address\n"
 	    "Match address of route\n"
@@ -4024,7 +4024,7 @@ DEFUN_YANG (match_mac_address,
 
 DEFUN_YANG (no_match_mac_address,
 	    no_match_mac_address_cmd,
-	    "no match mac address WORD",
+	    "no match mac address ACCESSLIST_MAC_NAME",
 	    NO_STR
 	    MATCH_STR
 	    "mac\n"
@@ -4576,13 +4576,11 @@ DEFUN_YANG (no_match_probability,
 
 DEFPY_YANG (match_ip_route_source,
        match_ip_route_source_cmd,
-       "match ip route-source <(1-199)|(1300-2699)|WORD>",
+       "match ip route-source ACCESSLIST4_NAME",
        MATCH_STR
        IP_STR
        "Match advertising source address of route\n"
-       "IP access-list number\n"
-       "IP access-list number (expanded range)\n"
-       "IP standard access-list name\n")
+       "IP Access-list name\n")
 {
 	const char *xpath =
 		"./match-condition[condition='frr-bgp-route-map:ip-route-source']";
@@ -4602,14 +4600,12 @@ DEFPY_YANG (match_ip_route_source,
 
 DEFUN_YANG (no_match_ip_route_source,
 	    no_match_ip_route_source_cmd,
-	    "no match ip route-source [<(1-199)|(1300-2699)|WORD>]",
+	    "no match ip route-source [ACCESSLIST4_NAME]",
 	    NO_STR
 	    MATCH_STR
 	    IP_STR
 	    "Match advertising source address of route\n"
-	    "IP access-list number\n"
-	    "IP access-list number (expanded range)\n"
-	    "IP standard access-list name\n")
+	    "IP Access-list name\n")
 {
 	const char *xpath =
 		"./match-condition[condition='frr-bgp-route-map:ip-route-source']";
@@ -4620,7 +4616,7 @@ DEFUN_YANG (no_match_ip_route_source,
 
 DEFUN_YANG (match_ip_route_source_prefix_list,
 	    match_ip_route_source_prefix_list_cmd,
-	    "match ip route-source prefix-list WORD",
+	    "match ip route-source prefix-list PREFIXLIST_NAME",
 	    MATCH_STR
 	    IP_STR
 	    "Match advertising source address of route\n"
@@ -4644,7 +4640,7 @@ DEFUN_YANG (match_ip_route_source_prefix_list,
 
 DEFUN_YANG (no_match_ip_route_source_prefix_list,
 	    no_match_ip_route_source_prefix_list_cmd,
-	    "no match ip route-source prefix-list [WORD]",
+	    "no match ip route-source prefix-list [PREFIXLIST_NAME]",
 	    NO_STR
 	    MATCH_STR
 	    IP_STR
@@ -4765,7 +4761,7 @@ DEFUN_YANG(no_match_alias, no_match_alias_cmd, "no match alias [ALIAS_NAME]",
 
 DEFPY_YANG (match_community,
        match_community_cmd,
-       "match community <(1-99)|(100-500)|WORD> [exact-match]",
+       "match community <(1-99)|(100-500)|COMMUNITY_LIST_NAME> [exact-match]",
        MATCH_STR
        "Match BGP community list\n"
        "Community-list number (standard)\n"
@@ -4808,7 +4804,7 @@ DEFPY_YANG (match_community,
 
 DEFUN_YANG (no_match_community,
 	    no_match_community_cmd,
-	    "no match community [<(1-99)|(100-500)|WORD> [exact-match]]",
+	    "no match community [<(1-99)|(100-500)|COMMUNITY_LIST_NAME> [exact-match]]",
 	    NO_STR
 	    MATCH_STR
 	    "Match BGP community list\n"
@@ -4826,7 +4822,7 @@ DEFUN_YANG (no_match_community,
 
 DEFPY_YANG (match_lcommunity,
 	    match_lcommunity_cmd,
-	    "match large-community <(1-99)|(100-500)|WORD> [exact-match]",
+	    "match large-community <(1-99)|(100-500)|LCOMMUNITY_LIST_NAME> [exact-match]",
 	    MATCH_STR
 	    "Match BGP large community list\n"
 	    "Large Community-list number (standard)\n"
@@ -4869,7 +4865,7 @@ DEFPY_YANG (match_lcommunity,
 
 DEFUN_YANG (no_match_lcommunity,
 	    no_match_lcommunity_cmd,
-	    "no match large-community [<(1-99)|(100-500)|WORD> [exact-match]]",
+	    "no match large-community [<(1-99)|(100-500)|LCOMMUNITY_LIST_NAME> [exact-match]]",
 	    NO_STR
 	    MATCH_STR
 	    "Match BGP large community list\n"
@@ -4887,7 +4883,7 @@ DEFUN_YANG (no_match_lcommunity,
 
 DEFPY_YANG (match_ecommunity,
 	    match_ecommunity_cmd,
-            "match extcommunity <(1-99)|(100-500)|WORD>",
+            "match extcommunity <(1-99)|(100-500)|EXTCOMMUNITY_LIST_NAME>",
 	    MATCH_STR
 	    "Match BGP/VPN extended community list\n"
 	    "Extended community-list number (standard)\n"
@@ -4913,7 +4909,7 @@ DEFPY_YANG (match_ecommunity,
 
 DEFUN_YANG (no_match_ecommunity,
 	    no_match_ecommunity_cmd,
-	    "no match extcommunity [<(1-99)|(100-500)|WORD>]",
+	    "no match extcommunity [<(1-99)|(100-500)|EXTCOMMUNITY_LIST_NAME>]",
 	    NO_STR
 	    MATCH_STR
 	    "Match BGP/VPN extended community list\n"
@@ -4931,7 +4927,7 @@ DEFUN_YANG (no_match_ecommunity,
 
 DEFUN_YANG (match_aspath,
 	    match_aspath_cmd,
-	    "match as-path WORD",
+	    "match as-path AS_PATH_FILTER_NAME",
 	    MATCH_STR
 	    "Match BGP AS path list\n"
 	    "AS path access-list name\n")
@@ -4954,7 +4950,7 @@ DEFUN_YANG (match_aspath,
 
 DEFUN_YANG (no_match_aspath,
 	    no_match_aspath_cmd,
-	    "no match as-path [WORD]",
+	    "no match as-path [AS_PATH_FILTER_NAME]",
 	    NO_STR
 	    MATCH_STR
 	    "Match BGP AS path list\n"
@@ -5526,7 +5522,7 @@ ALIAS_YANG (no_set_community,
 
 DEFPY_YANG (set_community_delete,
        set_community_delete_cmd,
-       "set comm-list <(1-99)|(100-500)|WORD> delete",
+       "set comm-list <(1-99)|(100-500)|COMMUNITY_LIST_NAME> delete",
        SET_STR
        "set BGP community list (for deletion)\n"
        "Community-list number (standard)\n"
@@ -5553,7 +5549,7 @@ DEFPY_YANG (set_community_delete,
 
 DEFUN_YANG (no_set_community_delete,
 	    no_set_community_delete_cmd,
-	    "no set comm-list [<(1-99)|(100-500)|WORD> delete]",
+	    "no set comm-list [<(1-99)|(100-500)|COMMUNITY_LIST_NAME> delete]",
 	    NO_STR
 	    SET_STR
 	    "set BGP community list (for deletion)\n"
@@ -5653,7 +5649,7 @@ ALIAS_YANG (no_set_lcommunity1,
 
 DEFPY_YANG (set_lcommunity_delete,
        set_lcommunity_delete_cmd,
-       "set large-comm-list <(1-99)|(100-500)|WORD> delete",
+       "set large-comm-list <(1-99)|(100-500)|LCOMMUNITY_LIST_NAME> delete",
        SET_STR
        "set BGP large community list (for deletion)\n"
        "Large Community-list number (standard)\n"
@@ -5679,7 +5675,7 @@ DEFPY_YANG (set_lcommunity_delete,
 
 DEFUN_YANG (no_set_lcommunity_delete,
 	    no_set_lcommunity_delete_cmd,
-	    "no set large-comm-list <(1-99)|(100-500)|WORD> [delete]",
+	    "no set large-comm-list <(1-99)|(100-500)|LCOMMUNITY_LIST_NAME> [delete]",
 	    NO_STR
 	    SET_STR
 	    "set BGP large community list (for deletion)\n"
@@ -6051,10 +6047,11 @@ DEFUN_YANG (no_set_aggregator_as,
 
 DEFUN_YANG (match_ipv6_next_hop,
 	    match_ipv6_next_hop_cmd,
-	    "match ipv6 next-hop X:X::X:X",
+	    "match ipv6 next-hop address X:X::X:X",
 	    MATCH_STR
 	    IPV6_STR
 	    "Match IPv6 next-hop address of route\n"
+	    "IPv6 address\n"
 	    "IPv6 address of next hop\n")
 {
 	const char *xpath =
@@ -6065,18 +6062,19 @@ DEFUN_YANG (match_ipv6_next_hop,
 	snprintf(xpath_value, sizeof(xpath_value),
 		 "%s/rmap-match-condition/frr-bgp-route-map:ipv6-address",
 		 xpath);
-	nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY, argv[3]->arg);
+	nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY, argv[argc - 1]->arg);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFUN_YANG (no_match_ipv6_next_hop,
 	    no_match_ipv6_next_hop_cmd,
-	    "no match ipv6 next-hop X:X::X:X",
+	    "no match ipv6 next-hop address X:X::X:X",
 	    NO_STR
 	    MATCH_STR
 	    IPV6_STR
 	    "Match IPv6 next-hop address of route\n"
+	    "IPv6 address\n"
 	    "IPv6 address of next hop\n")
 {
 	const char *xpath =
@@ -6085,6 +6083,23 @@ DEFUN_YANG (no_match_ipv6_next_hop,
 	nb_cli_enqueue_change(vty, xpath, NB_OP_DESTROY, NULL);
 	return nb_cli_apply_changes(vty, NULL);
 }
+
+ALIAS_HIDDEN (match_ipv6_next_hop,
+	      match_ipv6_next_hop_old_cmd,
+	      "match ipv6 next-hop X:X::X:X",
+	      MATCH_STR
+	      IPV6_STR
+	      "Match IPv6 next-hop address of route\n"
+	      "IPv6 address of next hop\n")
+
+ALIAS_HIDDEN (no_match_ipv6_next_hop,
+	      no_match_ipv6_next_hop_old_cmd,
+	      "no match ipv6 next-hop X:X::X:X",
+	      NO_STR
+	      MATCH_STR
+	      IPV6_STR
+	      "Match IPv6 next-hop address of route\n"
+	      "IPv6 address of next hop\n")
 
 DEFPY_YANG (match_ipv4_next_hop,
        match_ipv4_next_hop_cmd,
@@ -6652,6 +6667,8 @@ void bgp_route_map_init(void)
 
 	install_element(RMAP_NODE, &match_ipv6_next_hop_cmd);
 	install_element(RMAP_NODE, &no_match_ipv6_next_hop_cmd);
+	install_element(RMAP_NODE, &match_ipv6_next_hop_old_cmd);
+	install_element(RMAP_NODE, &no_match_ipv6_next_hop_old_cmd);
 	install_element(RMAP_NODE, &match_ipv4_next_hop_cmd);
 	install_element(RMAP_NODE, &no_match_ipv4_next_hop_cmd);
 	install_element(RMAP_NODE, &set_ipv6_nexthop_global_cmd);

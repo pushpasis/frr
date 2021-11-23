@@ -152,12 +152,10 @@ void zebra_evpn_print(struct zebra_evpn *zevpn, void **ctxt)
 			json_object_int_add(json, "sviIfindex",
 					    zevpn->svi_if->ifindex);
 		}
-		json_object_string_add(json, "vtepIp",
-				       inet_ntop(AF_INET, &zevpn->local_vtep_ip,
-						 buf, sizeof(buf)));
-		json_object_string_add(json, "mcastGroup",
-				       inet_ntop(AF_INET, &zevpn->mcast_grp,
-						 buf, sizeof(buf)));
+		json_object_string_addf(json, "vtepIp", "%pI4",
+					&zevpn->local_vtep_ip);
+		json_object_string_addf(json, "mcastGroup", "%pI4",
+					&zevpn->mcast_grp);
 		json_object_string_add(json, "advertiseGatewayMacip",
 				       zevpn->advertise_gw_macip ? "Yes" : "No");
 		json_object_string_add(json, "advertiseSviMacip",
@@ -1423,8 +1421,24 @@ void zebra_evpn_rem_macip_add(vni_t vni, const struct ethaddr *macaddr,
 	 * REMOTE - if ES is not local
 	 */
 	if (flags & ZEBRA_MACIP_TYPE_SYNC_PATH) {
-		zebra_evpn_process_sync_macip_add(zevpn, macaddr, ipa_len,
-						  ipaddr, flags, seq, esi);
+		struct zebra_evpn_es *es;
+
+		es = zebra_evpn_es_find(esi);
+		if (es && (es->flags & ZEBRA_EVPNES_READY_FOR_BGP)) {
+			zebra_evpn_process_sync_macip_add(zevpn, macaddr,
+							  ipa_len, ipaddr,
+							  flags, seq, esi);
+		} else {
+			if (IS_ZEBRA_DEBUG_EVPN_MH_ES) {
+				char esi_str[ESI_STR_LEN];
+
+				esi_to_str(esi, esi_str, sizeof(esi_str));
+				zlog_debug(
+					"Ignore sync-macip add; ES %s is not ready",
+					esi_str);
+			}
+		}
+
 		return;
 	}
 

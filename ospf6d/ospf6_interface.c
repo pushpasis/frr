@@ -127,7 +127,7 @@ static uint8_t ospf6_default_iftype(struct interface *ifp)
 {
 	if (if_is_pointopoint(ifp))
 		return OSPF_IFTYPE_POINTOPOINT;
-	else if (if_is_loopback_or_vrf(ifp))
+	else if (if_is_loopback(ifp))
 		return OSPF_IFTYPE_LOOPBACK;
 	else
 		return OSPF_IFTYPE_BROADCAST;
@@ -387,7 +387,7 @@ void ospf6_interface_state_update(struct interface *ifp)
 
 	if (if_is_operative(ifp)
 	    && (ospf6_interface_get_linklocal_address(oi->interface)
-		|| if_is_loopback_or_vrf(oi->interface)))
+		|| if_is_loopback(oi->interface)))
 		thread_execute(master, interface_up, oi, 0);
 	else
 		thread_execute(master, interface_down, oi, 0);
@@ -675,7 +675,8 @@ uint8_t dr_election(struct ospf6_interface *oi)
 			if (on->state < OSPF6_NEIGHBOR_TWOWAY)
 				continue;
 			/* Schedule AdjOK. */
-			thread_add_event(master, adj_ok, on, 0, NULL);
+			thread_add_event(master, adj_ok, on, 0,
+					 &on->thread_adj_ok);
 		}
 	}
 
@@ -749,7 +750,7 @@ int interface_up(struct thread *thread)
 
 	/* check interface has a link-local address */
 	if (!(ospf6_interface_get_linklocal_address(oi->interface)
-	      || if_is_loopback_or_vrf(oi->interface))) {
+	      || if_is_loopback(oi->interface))) {
 		zlog_warn(
 			"Interface %s has no link local address, can't execute [InterfaceUp]",
 			oi->interface->name);
@@ -818,7 +819,7 @@ int interface_up(struct thread *thread)
 
 	/* Schedule Hello */
 	if (!CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE)
-	    && !if_is_loopback_or_vrf(oi->interface)) {
+	    && !if_is_loopback(oi->interface)) {
 		thread_add_event(master, ospf6_hello_send, oi, 0,
 				 &oi->thread_send_hello);
 	}
@@ -1241,7 +1242,6 @@ struct in6_addr *ospf6_interface_get_global_address(struct interface *ifp)
 {
 	struct listnode *n;
 	struct connected *c;
-	struct in6_addr *l = (struct in6_addr *)NULL;
 
 	/* for each connected address */
 	for (ALL_LIST_ELEMENTS_RO(ifp->connected, n, c)) {
@@ -1250,9 +1250,10 @@ struct in6_addr *ospf6_interface_get_global_address(struct interface *ifp)
 			continue;
 
 		if (!IN6_IS_ADDR_LINKLOCAL(&c->address->u.prefix6))
-			l = &c->address->u.prefix6;
+			return &c->address->u.prefix6;
 	}
-	return l;
+
+	return NULL;
 }
 
 
@@ -2314,7 +2315,7 @@ DEFUN (no_ipv6_ospf6_passive,
 	THREAD_OFF(oi->thread_sso);
 
 	/* don't send hellos over loopback interface */
-	if (!if_is_loopback_or_vrf(oi->interface))
+	if (!if_is_loopback(oi->interface))
 		thread_add_event(master, ospf6_hello_send, oi, 0,
 				 &oi->thread_send_hello);
 
@@ -2739,27 +2740,39 @@ void ospf6_interface_clear(struct interface *ifp)
 /* Clear interface */
 DEFUN (clear_ipv6_ospf6_interface,
        clear_ipv6_ospf6_interface_cmd,
-       "clear ipv6 ospf6 interface [IFNAME]",
+       "clear ipv6 ospf6 [vrf NAME] interface [IFNAME]",
        CLEAR_STR
        IP6_STR
        OSPF6_STR
+       VRF_CMD_HELP_STR
        INTERFACE_STR
        IFNAME_STR
        )
 {
-	struct vrf *vrf = vrf_lookup_by_id(VRF_DEFAULT);
+	struct vrf *vrf;
+	int idx_vrf = 3;
 	int idx_ifname = 4;
 	struct interface *ifp;
+	const char *vrf_name;
 
-	if (argc == 4) /* Clear all the ospfv3 interfaces. */
-	{
+	if (argv_find(argv, argc, "vrf", &idx_vrf))
+		vrf_name = argv[idx_vrf + 1]->arg;
+	else
+		vrf_name = VRF_DEFAULT_NAME;
+	vrf = vrf_lookup_by_name(vrf_name);
+	if (!vrf) {
+		vty_out(vty, "%% VRF %s not found\n", vrf_name);
+		return CMD_WARNING;
+	}
+
+	if (!argv_find(argv, argc, "IFNAME", &idx_ifname)) {
+		/* Clear all the ospfv3 interfaces. */
 		FOR_ALL_INTERFACES (vrf, ifp)
 			ospf6_interface_clear(ifp);
-	} else /* Interface name is specified. */
-	{
-		if ((ifp = if_lookup_by_name(argv[idx_ifname]->arg,
-					     VRF_DEFAULT))
-		    == NULL) {
+	} else {
+		/* Interface name is specified. */
+		ifp = if_lookup_by_name_vrf(argv[idx_ifname]->arg, vrf);
+		if (!ifp) {
 			vty_out(vty, "No such Interface: %s\n",
 				argv[idx_ifname]->arg);
 			return CMD_WARNING;

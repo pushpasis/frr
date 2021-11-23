@@ -432,7 +432,6 @@ static struct ospf6 *ospf6_create(const char *name)
 
 	o->rt_aggr_tbl = route_table_init();
 	o->aggr_delay_interval = OSPF6_EXTL_AGGR_DEFAULT_DELAY;
-	o->t_external_aggr = NULL;
 	o->aggr_action = OSPF6_ROUTE_AGGR_NONE;
 
 	o->fd = -1;
@@ -563,6 +562,8 @@ static void ospf6_disable(struct ospf6 *o)
 		THREAD_OFF(o->t_ospf6_receive);
 		THREAD_OFF(o->t_external_aggr);
 		THREAD_OFF(o->gr_info.t_grace_period);
+		THREAD_OFF(o->t_write);
+		THREAD_OFF(o->t_abr_task);
 	}
 }
 
@@ -583,8 +584,6 @@ static int ospf6_maxage_remover(struct thread *thread)
 	struct ospf6_neighbor *on;
 	struct listnode *i, *j, *k;
 	int reschedule = 0;
-
-	o->maxage_remover = (struct thread *)NULL;
 
 	for (ALL_LIST_ELEMENTS_RO(o->area_list, i, oa)) {
 		for (ALL_LIST_ELEMENTS_RO(oa->if_list, j, oi)) {
@@ -1033,7 +1032,6 @@ DEFUN_HIDDEN (ospf6_interface_area,
 	struct ospf6_area *oa;
 	struct ospf6_interface *oi;
 	struct interface *ifp;
-	vrf_id_t vrf_id = VRF_DEFAULT;
 	uint32_t area_id;
 	int format;
 
@@ -1042,11 +1040,8 @@ DEFUN_HIDDEN (ospf6_interface_area,
 	vty_out(vty,
 		"Please, use \"ipv6 ospf6 area\" on an interface instead.\n");
 
-	if (ospf6->vrf_id != VRF_UNKNOWN)
-		vrf_id = ospf6->vrf_id;
-
 	/* find/create ospf6 interface */
-	ifp = if_get_by_name(argv[idx_ifname]->arg, vrf_id);
+	ifp = if_get_by_name(argv[idx_ifname]->arg, ospf6->vrf_id, ospf6->name);
 	oi = (struct ospf6_interface *)ifp->info;
 	if (oi == NULL)
 		oi = ospf6_interface_create(ifp);
@@ -1108,18 +1103,14 @@ DEFUN_HIDDEN (no_ospf6_interface_area,
 	struct ospf6_area *oa;
 	struct interface *ifp;
 	uint32_t area_id;
-	vrf_id_t vrf_id = VRF_DEFAULT;
 
 	vty_out(vty,
 		"This command is deprecated, because it is not VRF-aware.\n");
 	vty_out(vty,
 		"Please, use \"no ipv6 ospf6 area\" on an interface instead.\n");
 
-	if (ospf6->vrf_id != VRF_UNKNOWN)
-		vrf_id = ospf6->vrf_id;
-
 	/* find/create ospf6 interface */
-	ifp = if_get_by_name(argv[idx_ifname]->arg, vrf_id);
+	ifp = if_get_by_name(argv[idx_ifname]->arg, ospf6->vrf_id, ospf6->name);
 
 	if (ifp == NULL) {
 		vty_out(vty, "No such interface %s\n", argv[idx_ifname]->arg);
@@ -1491,9 +1482,8 @@ DEFUN(show_ipv6_ospf6_vrfs, show_ipv6_ospf6_vrfs_cmd,
 
 		if (uj) {
 			json_object_int_add(json_vrf, "vrfId", vrf_id_ui);
-			json_object_string_add(json_vrf, "routerId",
-					       inet_ntop(AF_INET, &router_id,
-							 buf, sizeof(buf)));
+			json_object_string_addf(json_vrf, "routerId", "%pI4",
+						&router_id);
 			json_object_object_add(json_vrfs, name, json_vrf);
 
 		} else {

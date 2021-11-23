@@ -162,7 +162,7 @@ void zebra_l2_map_slave_to_bond(struct zebra_if *zif, vrf_id_t vrf_id)
 	struct zebra_if *bond_zif;
 	struct zebra_l2info_bondslave *bond_slave = &zif->bondslave_info;
 
-	bond_if = if_lookup_by_index_all_vrf(bond_slave->bond_ifindex);
+	bond_if = if_lookup_by_index(bond_slave->bond_ifindex, vrf_id);
 	if (bond_if == bond_slave->bond_if)
 		return;
 
@@ -431,10 +431,10 @@ void zebra_l2if_update_bridge_slave(struct interface *ifp,
 
 	if (zif->zif_type == ZEBRA_IF_VXLAN
 	    && chgflags != ZEBRA_BRIDGE_NO_ACTION) {
-		if (ZEBRA_BRIDGE_MASTER_MAC_CHANGE)
+		if (chgflags & ZEBRA_BRIDGE_MASTER_MAC_CHANGE)
 			zebra_vxlan_if_update(ifp,
 					      ZEBRA_VXLIF_MASTER_MAC_CHANGE);
-		if (ZEBRA_BRIDGE_MASTER_UP)
+		if (chgflags & ZEBRA_BRIDGE_MASTER_UP)
 			zebra_vxlan_if_update(ifp, ZEBRA_VXLIF_MASTER_CHANGE);
 	}
 	old_bridge_ifindex = zif->brslave_info.bridge_ifindex;

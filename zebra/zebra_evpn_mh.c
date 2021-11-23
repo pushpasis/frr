@@ -186,8 +186,8 @@ static void zebra_evpn_es_evi_free(struct zebra_evpn_es_evi *es_evi)
 }
 
 /* find the ES-EVI in the per-L2-VNI RB tree */
-static struct zebra_evpn_es_evi *
-zebra_evpn_es_evi_find(struct zebra_evpn_es *es, struct zebra_evpn *zevpn)
+struct zebra_evpn_es_evi *zebra_evpn_es_evi_find(struct zebra_evpn_es *es,
+						 struct zebra_evpn *zevpn)
 {
 	struct zebra_evpn_es_evi es_evi;
 
@@ -229,6 +229,34 @@ static void zebra_evpn_local_es_evi_del(struct zebra_evpn_es *es,
 		zebra_evpn_local_es_evi_do_del(es_evi);
 }
 
+/* If there are any existing MAC entries for this es/zevpn we need
+ * to install it in the dataplane.
+ *
+ * Note: primary purpose of this is to handle es del/re-add windows where
+ * sync MAC entries may be added by bgpd before the es-evi membership is
+ * created in the dataplane and in zebra
+ */
+static void zebra_evpn_es_evi_mac_install(struct zebra_evpn_es_evi *es_evi)
+{
+	struct zebra_mac *mac;
+	struct listnode *node;
+	struct zebra_evpn_es *es = es_evi->es;
+
+	if (listcount(es->mac_list) && IS_ZEBRA_DEBUG_EVPN_MH_ES)
+		zlog_debug("dp-mac install on es %s evi %d add", es->esi_str,
+			   es_evi->zevpn->vni);
+
+	for (ALL_LIST_ELEMENTS_RO(es->mac_list, node, mac)) {
+		if (mac->zevpn != es_evi->zevpn)
+			continue;
+
+		if (!CHECK_FLAG(mac->flags, ZEBRA_MAC_LOCAL))
+			continue;
+
+		zebra_evpn_sync_mac_dp_install(mac, false, false, __func__);
+	}
+}
+
 /* Create an ES-EVI if it doesn't already exist and tell BGP */
 static void zebra_evpn_local_es_evi_add(struct zebra_evpn_es *es,
 					struct zebra_evpn *zevpn)
@@ -250,6 +278,8 @@ static void zebra_evpn_local_es_evi_add(struct zebra_evpn_es *es,
 		listnode_add(zevpn->local_es_evi_list, &es_evi->l2vni_listnode);
 
 		zebra_evpn_es_evi_re_eval_send_to_client(es_evi);
+
+		zebra_evpn_es_evi_mac_install(es_evi);
 	}
 }
 
@@ -1050,14 +1080,14 @@ void zebra_evpn_if_cleanup(struct zebra_if *zif)
 	vlanid_t vid;
 	struct zebra_evpn_es *es;
 
-	if (!bf_is_inited(zif->vlan_bitmap))
-		return;
+	if (bf_is_inited(zif->vlan_bitmap)) {
+		bf_for_each_set_bit(zif->vlan_bitmap, vid, IF_VLAN_BITMAP_MAX)
+		{
+			zebra_evpn_vl_mbr_deref(vid, zif);
+		}
 
-	bf_for_each_set_bit(zif->vlan_bitmap, vid, IF_VLAN_BITMAP_MAX) {
-		zebra_evpn_vl_mbr_deref(vid, zif);
+		bf_free(zif->vlan_bitmap);
 	}
-
-	bf_free(zif->vlan_bitmap);
 
 	/* Delete associated Ethernet Segment */
 	es = zif->es_info.es;
@@ -1295,12 +1325,9 @@ static void zebra_evpn_es_l2_nh_show_entry(struct zebra_evpn_l2_nh *nh,
 {
 	if (json_array) {
 		json_object *json = NULL;
-		char ip_buf[INET6_ADDRSTRLEN];
 
 		json = json_object_new_object();
-		json_object_string_add(json, "vtep",
-				       inet_ntop(AF_INET, &nh->vtep_ip, ip_buf,
-						 sizeof(ip_buf)));
+		json_object_string_addf(json, "vtep", "%pI4", &nh->vtep_ip);
 		json_object_int_add(json, "nhId", nh->nh_id);
 		json_object_int_add(json, "refCnt", nh->ref_cnt);
 
@@ -2978,13 +3005,11 @@ static void zebra_evpn_es_json_vtep_fill(struct zebra_evpn_es *es,
 	struct listnode *node;
 	json_object *json_vtep_entry;
 	char alg_buf[EVPN_DF_ALG_STR_LEN];
-	char ip_buf[INET6_ADDRSTRLEN];
 
 	for (ALL_LIST_ELEMENTS_RO(es->es_vtep_list, node, es_vtep)) {
 		json_vtep_entry = json_object_new_object();
-		json_object_string_add(json_vtep_entry, "vtep",
-				       inet_ntop(AF_INET, &es_vtep->vtep_ip,
-						 ip_buf, sizeof(ip_buf)));
+		json_object_string_addf(json_vtep_entry, "vtep", "%pI4",
+					&es_vtep->vtep_ip);
 		if (es_vtep->flags & ZEBRA_EVPNES_VTEP_RXED_ESR) {
 			json_object_string_add(
 				json_vtep_entry, "dfAlgorithm",

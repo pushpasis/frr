@@ -71,7 +71,7 @@ struct thread_master *master;
 /* Route retain mode flag. */
 int retain_mode = 0;
 
-/* Allow non-quagga entities to delete quagga routes */
+/* Allow non-frr entities to delete frr routes */
 int allow_delete = 0;
 
 int graceful_restart;
@@ -182,6 +182,7 @@ static void sigint(void)
 				SET_FLAG(zvrf->flags, ZEBRA_VRF_RETAIN);
 		}
 	}
+
 	if (zrouter.lsp_process_q)
 		work_queue_free_and_null(&zrouter.lsp_process_q);
 
@@ -235,7 +236,7 @@ static void sigusr1(void)
 	zlog_rotate();
 }
 
-struct quagga_signal_t zebra_signals[] = {
+struct frr_signal_t zebra_signals[] = {
 	{
 		.signal = SIGHUP,
 		.handler = &sighup,

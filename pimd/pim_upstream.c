@@ -271,7 +271,7 @@ struct pim_upstream *pim_upstream_del(struct pim_instance *pim,
 			zlog_debug(
 				"%s: Deregister upstream %s addr %pFX with Zebra NHT",
 				__func__, up->sg_str, &nht_p);
-		pim_delete_tracked_nexthop(pim, &nht_p, up, NULL, false);
+		pim_delete_tracked_nexthop(pim, &nht_p, up, NULL);
 	}
 
 	XFREE(MTYPE_PIM_UPSTREAM, up);
@@ -561,7 +561,7 @@ static void forward_off(struct pim_upstream *up)
 	/* scan per-interface (S,G) state */
 	for (ALL_LIST_ELEMENTS(up->ifchannels, chnode, chnextnode, ch)) {
 
-		pim_forward_stop(ch, false);
+		pim_forward_stop(ch);
 
 	} /* scan iface channel list */
 }
@@ -1720,8 +1720,6 @@ const char *pim_reg_state2str(enum pim_reg_state reg_state, char *state_str,
 	case PIM_REG_PRUNE:
 		strlcpy(state_str, "RegPrune", state_str_len);
 		break;
-	default:
-		strlcpy(state_str, "RegUnknown", state_str_len);
 	}
 	return state_str;
 }
@@ -1785,7 +1783,7 @@ static int pim_upstream_register_stop_timer(struct thread *t)
 		}
 		pim_null_register_send(up);
 		break;
-	default:
+	case PIM_REG_NOINFO:
 		break;
 	}
 
@@ -1865,6 +1863,8 @@ int pim_upstream_inherited_olist_decide(struct pim_instance *pim,
 					flag = PIM_OIF_FLAG_PROTO_IGMP;
 				if (PIM_IF_FLAG_TEST_PROTO_PIM(ch->flags))
 					flag |= PIM_OIF_FLAG_PROTO_PIM;
+				if (starch)
+					flag |= PIM_OIF_FLAG_PROTO_STAR;
 			}
 
 			pim_channel_add_oif(up->channel_oil, ifp, flag,

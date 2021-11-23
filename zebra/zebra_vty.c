@@ -59,6 +59,8 @@
 #include "northbound_cli.h"
 #include "zebra/zebra_nb.h"
 #include "zebra/kernel_netlink.h"
+#include "zebra/table_manager.h"
+#include "zebra/zebra_script.h"
 
 extern int allow_delete;
 
@@ -448,6 +450,8 @@ static void zebra_show_ip_route_opaque(struct vty *vty, struct route_entry *re,
 					       bzo.community);
 			json_object_string_add(json, "largeCommunities",
 					       bzo.lcommunity);
+			json_object_string_add(json, "selectionReason",
+					       bzo.selection_reason);
 		} else {
 			vty_out(vty, "    AS-Path          : %s\n", bzo.aspath);
 
@@ -458,6 +462,9 @@ static void zebra_show_ip_route_opaque(struct vty *vty, struct route_entry *re,
 			if (bzo.lcommunity[0] != '\0')
 				vty_out(vty, "    Large-Communities: %s\n",
 					bzo.lcommunity);
+
+			vty_out(vty, "    Selection reason : %s\n",
+				bzo.selection_reason);
 		}
 	}
 	default:
@@ -702,10 +709,8 @@ static void show_nexthop_json_helper(json_object *json_nexthop,
 	switch (nexthop->type) {
 	case NEXTHOP_TYPE_IPV4:
 	case NEXTHOP_TYPE_IPV4_IFINDEX:
-		json_object_string_add(
-			json_nexthop, "ip",
-			inet_ntop(AF_INET, &nexthop->gate.ipv4,
-				  buf, sizeof(buf)));
+		json_object_string_addf(json_nexthop, "ip", "%pI4",
+					&nexthop->gate.ipv4);
 		json_object_string_add(json_nexthop, "afi",
 				       "ipv4");
 
@@ -722,10 +727,8 @@ static void show_nexthop_json_helper(json_object *json_nexthop,
 		break;
 	case NEXTHOP_TYPE_IPV6:
 	case NEXTHOP_TYPE_IPV6_IFINDEX:
-		json_object_string_add(
-			json_nexthop, "ip",
-			inet_ntop(AF_INET6, &nexthop->gate.ipv6,
-				  buf, sizeof(buf)));
+		json_object_string_addf(json_nexthop, "ip", "%pI6",
+					&nexthop->gate.ipv6);
 		json_object_string_add(json_nexthop, "afi",
 				       "ipv6");
 
@@ -774,6 +777,13 @@ static void show_nexthop_json_helper(json_object *json_nexthop,
 		}
 		break;
 	}
+
+	/* This nexthop is a resolver for the parent nexthop.
+	 * Set resolver flag for better clarity and delimiter
+	 * in flat list of nexthops in json.
+	 */
+	if (nexthop->rparent)
+		json_object_boolean_true_add(json_nexthop, "resolver");
 
 	if (nexthop->vrf_id != re->vrf_id)
 		json_object_string_add(json_nexthop, "vrf",
@@ -1331,12 +1341,6 @@ DEFPY (show_ip_nht,
 	afi_t afi = ipv4 ? AFI_IP : AFI_IP6;
 	vrf_id_t vrf_id = VRF_DEFAULT;
 	struct prefix prefix, *p = NULL;
-	enum rnh_type rtype;
-
-	if (strcmp(type, "nht") == 0)
-		rtype = RNH_NEXTHOP_TYPE;
-	else
-		rtype = RNH_IMPORT_CHECK_TYPE;
 
 	if (vrf_all) {
 		struct vrf *vrf;
@@ -1346,7 +1350,7 @@ DEFPY (show_ip_nht,
 			if ((zvrf = vrf->info) != NULL) {
 				vty_out(vty, "\nVRF %s:\n", zvrf_name(zvrf));
 				zebra_print_rnh_table(zvrf_id(zvrf), afi, vty,
-						      rtype, NULL);
+						      NULL);
 			}
 		return CMD_SUCCESS;
 	}
@@ -1360,7 +1364,7 @@ DEFPY (show_ip_nht,
 			return CMD_WARNING;
 	}
 
-	zebra_print_rnh_table(vrf_id, afi, vty, rtype, p);
+	zebra_print_rnh_table(vrf_id, afi, vty, p);
 	return CMD_SUCCESS;
 }
 
@@ -1379,9 +1383,9 @@ DEFUN (ip_nht_default_route,
 	if (zvrf->zebra_rnh_ip_default_route)
 		return CMD_SUCCESS;
 
-	zvrf->zebra_rnh_ip_default_route = 1;
+	zvrf->zebra_rnh_ip_default_route = true;
 
-	zebra_evaluate_rnh(zvrf, AFI_IP, 0, RNH_NEXTHOP_TYPE, NULL);
+	zebra_evaluate_rnh(zvrf, AFI_IP, 0, NULL, SAFI_UNICAST);
 	return CMD_SUCCESS;
 }
 
@@ -1718,8 +1722,8 @@ DEFUN (no_ip_nht_default_route,
 	if (!zvrf->zebra_rnh_ip_default_route)
 		return CMD_SUCCESS;
 
-	zvrf->zebra_rnh_ip_default_route = 0;
-	zebra_evaluate_rnh(zvrf, AFI_IP, 0, RNH_NEXTHOP_TYPE, NULL);
+	zvrf->zebra_rnh_ip_default_route = false;
+	zebra_evaluate_rnh(zvrf, AFI_IP, 0, NULL, SAFI_UNICAST);
 	return CMD_SUCCESS;
 }
 
@@ -1738,8 +1742,8 @@ DEFUN (ipv6_nht_default_route,
 	if (zvrf->zebra_rnh_ipv6_default_route)
 		return CMD_SUCCESS;
 
-	zvrf->zebra_rnh_ipv6_default_route = 1;
-	zebra_evaluate_rnh(zvrf, AFI_IP6, 0, RNH_NEXTHOP_TYPE, NULL);
+	zvrf->zebra_rnh_ipv6_default_route = true;
+	zebra_evaluate_rnh(zvrf, AFI_IP6, 0, NULL, SAFI_UNICAST);
 	return CMD_SUCCESS;
 }
 
@@ -1759,8 +1763,8 @@ DEFUN (no_ipv6_nht_default_route,
 	if (!zvrf->zebra_rnh_ipv6_default_route)
 		return CMD_SUCCESS;
 
-	zvrf->zebra_rnh_ipv6_default_route = 0;
-	zebra_evaluate_rnh(zvrf, AFI_IP6, 0, RNH_NEXTHOP_TYPE, NULL);
+	zvrf->zebra_rnh_ipv6_default_route = false;
+	zebra_evaluate_rnh(zvrf, AFI_IP6, 0, NULL, SAFI_UNICAST);
 	return CMD_SUCCESS;
 }
 
@@ -4291,6 +4295,55 @@ DEFUN_HIDDEN(no_zebra_kernel_netlink_batch_tx_buf,
 
 #endif /* HAVE_NETLINK */
 
+DEFUN(ip_table_range, ip_table_range_cmd,
+      "[no] ip table range (1-4294967295) (1-4294967295)",
+      NO_STR IP_STR
+      "table configuration\n"
+      "Configure table range\n"
+      "Start Routing Table\n"
+      "End Routing Table\n")
+{
+	ZEBRA_DECLVAR_CONTEXT(vrf, zvrf);
+
+	if (!zvrf)
+		return CMD_WARNING;
+
+	if (zvrf_id(zvrf) != VRF_DEFAULT && !vrf_is_backend_netns()) {
+		vty_out(vty,
+			"VRF subcommand does not make any sense in l3mdev based vrf's\n");
+		return CMD_WARNING;
+	}
+
+	if (strmatch(argv[0]->text, "no"))
+		return table_manager_range(vty, false, zvrf, NULL, NULL);
+
+	return table_manager_range(vty, true, zvrf, argv[3]->arg, argv[4]->arg);
+}
+
+#ifdef HAVE_SCRIPTING
+
+DEFUN(zebra_on_rib_process_script, zebra_on_rib_process_script_cmd,
+      "zebra on-rib-process script SCRIPT",
+      ZEBRA_STR
+      "on_rib_process_dplane_results hook call\n"
+      "Set a script\n"
+      "Script name (same as filename in /etc/frr/scripts/, without .lua)\n")
+{
+
+	if (frrscript_names_set_script_name(ZEBRA_ON_RIB_PROCESS_HOOK_CALL,
+					    argv[3]->arg)
+	    == 0) {
+		vty_out(vty, "Successfully added script %s for hook call %s\n",
+			argv[3]->arg, ZEBRA_ON_RIB_PROCESS_HOOK_CALL);
+	} else {
+		vty_out(vty, "Failed to add script %s for hook call %s\n",
+			argv[3]->arg, ZEBRA_ON_RIB_PROCESS_HOOK_CALL);
+	}
+	return CMD_SUCCESS;
+}
+
+#endif /* HAVE_SCRIPTING */
+
 /* IP node for static routes. */
 static int zebra_ip_config(struct vty *vty);
 static struct cmd_node ip_node = {
@@ -4439,10 +4492,17 @@ void zebra_vty_init(void)
 	install_element(CONFIG_NODE, &zebra_dplane_queue_limit_cmd);
 	install_element(CONFIG_NODE, &no_zebra_dplane_queue_limit_cmd);
 
+	install_element(CONFIG_NODE, &ip_table_range_cmd);
+	install_element(VRF_NODE, &ip_table_range_cmd);
+
 #ifdef HAVE_NETLINK
 	install_element(CONFIG_NODE, &zebra_kernel_netlink_batch_tx_buf_cmd);
 	install_element(CONFIG_NODE, &no_zebra_kernel_netlink_batch_tx_buf_cmd);
 #endif /* HAVE_NETLINK */
+
+#ifdef HAVE_SCRIPTING
+	install_element(CONFIG_NODE, &zebra_on_rib_process_script_cmd);
+#endif /* HAVE_SCRIPTING */
 
 	install_element(VIEW_NODE, &zebra_show_routing_tables_summary_cmd);
 }

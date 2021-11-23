@@ -106,19 +106,6 @@ static void zebra_evpn_mac_ifp_new(struct zebra_if *zif)
 	listset_app_node_mem(zif->mac_list);
 }
 
-/* Free up the mac_list if any as a part of the interface del/cleanup */
-void zebra_evpn_mac_ifp_del(struct interface *ifp)
-{
-	struct zebra_if *zif = ifp->info;
-
-	if (zif->mac_list) {
-		if (IS_ZEBRA_DEBUG_EVPN_MH_MAC)
-			zlog_debug("MAC list deleted for ifp %s (%u)",
-				   zif->ifp->name, zif->ifp->ifindex);
-		list_delete(&zif->mac_list);
-	}
-}
-
 /* Unlink local mac from a destination access port */
 static void zebra_evpn_mac_ifp_unlink(struct zebra_mac *zmac)
 {
@@ -137,6 +124,25 @@ static void zebra_evpn_mac_ifp_unlink(struct zebra_mac *zmac)
 	zif = ifp->info;
 	list_delete_node(zif->mac_list, &zmac->ifp_listnode);
 	zmac->ifp = NULL;
+}
+
+/* Free up the mac_list if any as a part of the interface del/cleanup */
+void zebra_evpn_mac_ifp_del(struct interface *ifp)
+{
+	struct zebra_if *zif = ifp->info;
+	struct listnode *node;
+	struct zebra_mac *zmac;
+
+	if (zif->mac_list) {
+		if (IS_ZEBRA_DEBUG_EVPN_MH_MAC)
+			zlog_debug("MAC list deleted for ifp %s (%u)",
+				   zif->ifp->name, zif->ifp->ifindex);
+
+		for (ALL_LIST_ELEMENTS_RO(zif->mac_list, node, zmac)) {
+			zebra_evpn_mac_ifp_unlink(zmac);
+		}
+		list_delete(&zif->mac_list);
+	}
 }
 
 /* Link local mac to destination access port. This is done only if the
@@ -613,7 +619,6 @@ void zebra_evpn_print_mac(struct zebra_mac *mac, void *ctxt, json_object *json)
 	struct listnode *node = NULL;
 	char buf1[ETHER_ADDR_STRLEN];
 	char buf2[INET6_ADDRSTRLEN];
-	char addr_buf[PREFIX_STRLEN];
 	struct zebra_vrf *zvrf;
 	struct timeval detect_start_time = {0, 0};
 	char timebuf[MONOTIME_STRLEN];
@@ -652,10 +657,8 @@ void zebra_evpn_print_mac(struct zebra_mac *mac, void *ctxt, json_object *json)
 				json_object_int_add(json_mac, "vlan", vid);
 		} else if (CHECK_FLAG(mac->flags, ZEBRA_MAC_REMOTE)) {
 			json_object_string_add(json_mac, "type", "remote");
-			json_object_string_add(
-				json_mac, "remoteVtep",
-				inet_ntop(AF_INET, &mac->fwd_info.r_vtep_ip,
-					  addr_buf, sizeof(addr_buf)));
+			json_object_string_addf(json_mac, "remoteVtep", "%pI4",
+						&mac->fwd_info.r_vtep_ip);
 		} else if (CHECK_FLAG(mac->flags, ZEBRA_MAC_AUTO))
 			json_object_string_add(json_mac, "type", "auto");
 
@@ -938,10 +941,8 @@ void zebra_evpn_print_mac_hash(struct hash_bucket *bucket, void *ctxt)
 				"", mac->loc_seq, mac->rem_seq);
 		} else {
 			json_object_string_add(json_mac, "type", "remote");
-			json_object_string_add(
-				json_mac, "remoteVtep",
-				inet_ntop(AF_INET, &mac->fwd_info.r_vtep_ip,
-					  addr_buf, sizeof(addr_buf)));
+			json_object_string_addf(json_mac, "remoteVtep", "%pI4",
+						&mac->fwd_info.r_vtep_ip);
 			json_object_object_add(json_mac_hdr, buf1, json_mac);
 			json_object_int_add(json_mac, "localSequence",
 					    mac->loc_seq);
@@ -1341,6 +1342,25 @@ int zebra_evpn_sync_mac_dp_install(struct zebra_mac *mac, bool set_inactive,
 	vlanid_t vid;
 	struct zebra_if *zif;
 	struct interface *br_ifp;
+
+	/* If the ES-EVI doesn't exist defer install. When the ES-EVI is
+	 * created we will attempt to install the mac entry again
+	 */
+	if (mac->es) {
+		struct zebra_evpn_es_evi *es_evi;
+
+		es_evi = zebra_evpn_es_evi_find(mac->es, mac->zevpn);
+		if (!es_evi) {
+			if (IS_ZEBRA_DEBUG_EVPN_MH_MAC)
+				zlog_debug(
+					"%s: dp-install sync-mac vni %u mac %pEA es %s 0x%x %sskipped, no es-evi",
+					caller, zevpn->vni, &mac->macaddr,
+					mac->es ? mac->es->esi_str : "-",
+					mac->flags,
+					set_inactive ? "inactive " : "");
+			return -1;
+		}
+	}
 
 	/* get the access vlan from the vxlan_device */
 	zebra_evpn_mac_get_access_info(mac, &ifp, &vid);
@@ -2216,7 +2236,7 @@ int zebra_evpn_add_update_local_mac(struct zebra_vrf *zvrf,
 					zlog_debug(
 						"        Add/Update %sMAC %pEA intf %s(%u) VID %u -> VNI %u%s, "
 						"entry exists and has not changed ",
-						sticky ? "sticky " : "", 
+						sticky ? "sticky " : "",
 						macaddr, ifp->name,
 						ifp->ifindex, vid, zevpn->vni,
 						local_inactive

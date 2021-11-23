@@ -357,8 +357,8 @@ static void pim_vxlan_orig_mr_up_add(struct pim_vxlan_sg *vxlan_sg)
 			nht_p.family = AF_INET;
 			nht_p.prefixlen = IPV4_MAX_BITLEN;
 			nht_p.u.prefix4 = up->upstream_addr;
-			pim_delete_tracked_nexthop(vxlan_sg->pim,
-				&nht_p, up, NULL, false);
+			pim_delete_tracked_nexthop(vxlan_sg->pim, &nht_p, up,
+						   NULL);
 		}
 		/* We are acting FHR; clear out use_rpt setting if any */
 		pim_upstream_update_use_rpt(up, false /*update_mroute*/);
@@ -1079,7 +1079,7 @@ void pim_vxlan_add_vif(struct interface *ifp)
 	if (pim->vrf->vrf_id != VRF_DEFAULT)
 		return;
 
-	if (if_is_loopback_or_vrf(ifp))
+	if (if_is_loopback(ifp))
 		pim_vxlan_set_default_iif(pim, ifp);
 
 	if (vxlan_mlag.flags & PIM_VXLAN_MLAGF_ENABLED &&

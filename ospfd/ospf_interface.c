@@ -477,7 +477,7 @@ struct ospf_interface *ospf_if_lookup_recv_if(struct ospf *ospf,
 		if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
 			continue;
 
-		if (if_is_loopback_or_vrf(oi->ifp))
+		if (if_is_loopback(oi->ifp))
 			continue;
 
 		if (CHECK_FLAG(oi->connected->flags, ZEBRA_IFA_UNNUMBERED))
@@ -705,11 +705,11 @@ static int ospf_if_delete_hook(struct interface *ifp)
 	 */
 	ospf_del_if_params(ifp, IF_DEF_PARAMS(ifp));
 
-	route_table_finish(IF_OIFS(ifp));
-
 	for (rn = route_top(IF_OIFS_PARAMS(ifp)); rn; rn = route_next(rn))
 		if (rn->info)
 			ospf_del_if_params(ifp, rn->info);
+
+	route_table_finish(IF_OIFS(ifp));
 	route_table_finish(IF_OIFS_PARAMS(ifp));
 
 	XFREE(MTYPE_OSPF_IF_INFO, ifp->info);
@@ -719,7 +719,7 @@ static int ospf_if_delete_hook(struct interface *ifp)
 
 int ospf_if_is_enable(struct ospf_interface *oi)
 {
-	if (!(if_is_loopback_or_vrf(oi->ifp)))
+	if (!(if_is_loopback(oi->ifp)))
 		if (if_is_up(oi->ifp))
 			return 1;
 
@@ -915,9 +915,9 @@ struct ospf_interface *ospf_vl_new(struct ospf *ospf,
 			ospf->vrf_id);
 
 	snprintf(ifname, sizeof(ifname), "VLINK%u", vlink_count);
-	vi = if_create_name(ifname, ospf->vrf_id);
+	vi = if_get_by_name(ifname, ospf->vrf_id, ospf->name);
 	/*
-	 * if_create_name sets ZEBRA_INTERFACE_LINKDETECTION
+	 * if_get_by_name sets ZEBRA_INTERFACE_LINKDETECTION
 	 * virtual links don't need this.
 	 */
 	UNSET_FLAG(vi->status, ZEBRA_INTERFACE_LINKDETECTION);
@@ -971,11 +971,14 @@ struct ospf_interface *ospf_vl_new(struct ospf *ospf,
 static void ospf_vl_if_delete(struct ospf_vl_data *vl_data)
 {
 	struct interface *ifp = vl_data->vl_oi->ifp;
+	struct vrf *vrf = ifp->vrf;
 
 	vl_data->vl_oi->address->u.prefix4.s_addr = INADDR_ANY;
 	vl_data->vl_oi->address->prefixlen = 0;
 	ospf_if_free(vl_data->vl_oi);
 	if_delete(&ifp);
+	if (!vrf_is_enabled(vrf))
+		vrf_delete(vrf);
 	vlink_count--;
 }
 
@@ -1291,7 +1294,7 @@ uint8_t ospf_default_iftype(struct interface *ifp)
 {
 	if (if_is_pointopoint(ifp))
 		return OSPF_IFTYPE_POINTOPOINT;
-	else if (if_is_loopback_or_vrf(ifp))
+	else if (if_is_loopback(ifp))
 		return OSPF_IFTYPE_LOOPBACK;
 	else
 		return OSPF_IFTYPE_BROADCAST;

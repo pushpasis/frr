@@ -30,6 +30,7 @@
 #include "zebra_mlag.h"
 #include "zebra_nhg.h"
 #include "debug.h"
+#include "zebra_script.h"
 
 DEFINE_MTYPE_STATIC(ZEBRA, RIB_TABLE_INFO, "RIB table info");
 DEFINE_MTYPE_STATIC(ZEBRA, ZEBRA_RT_TABLE, "Zebra VRF table");
@@ -255,6 +256,10 @@ void zebra_router_terminate(void)
 	hash_free(zrouter.ipset_entry_hash);
 	hash_clean(zrouter.iptable_hash, zebra_pbr_iptable_free);
 	hash_free(zrouter.iptable_hash);
+
+#ifdef HAVE_SCRIPTING
+	zebra_script_destroy();
+#endif
 }
 
 bool zebra_router_notify_on_ack(void)
@@ -296,4 +301,8 @@ void zebra_router_init(bool asic_offload, bool notify_on_ack)
 
 	zrouter.asic_offloaded = asic_offload;
 	zrouter.notify_on_ack = notify_on_ack;
+
+#ifdef HAVE_SCRIPTING
+	zebra_script_init();
+#endif
 }
