@@ -31,6 +31,7 @@
  */
 int clear_evpn_dup_addr_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct zebra_vrf *zvrf;
 	int ret = NB_OK;
 	struct yang_data *yang_dup_choice = NULL, *yang_dup_vni = NULL,
@@ -81,6 +82,10 @@ int clear_evpn_dup_addr_rpc(struct nb_cb_rpc_args *args)
 		return NB_ERR;
 
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -88,8 +93,13 @@ int clear_evpn_dup_addr_rpc(struct nb_cb_rpc_args *args)
  */
 int get_route_information_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -97,8 +107,13 @@ int get_route_information_rpc(struct nb_cb_rpc_args *args)
  */
 int get_v6_mroute_info_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -106,8 +121,13 @@ int get_v6_mroute_info_rpc(struct nb_cb_rpc_args *args)
  */
 int get_vrf_info_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -115,8 +135,13 @@ int get_vrf_info_rpc(struct nb_cb_rpc_args *args)
  */
 int get_vrf_vni_info_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -124,8 +149,13 @@ int get_vrf_vni_info_rpc(struct nb_cb_rpc_args *args)
  */
 int get_evpn_info_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -133,8 +163,13 @@ int get_evpn_info_rpc(struct nb_cb_rpc_args *args)
  */
 int get_vni_info_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -142,8 +177,13 @@ int get_vni_info_rpc(struct nb_cb_rpc_args *args)
  */
 int get_evpn_vni_rmac_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -151,8 +191,13 @@ int get_evpn_vni_rmac_rpc(struct nb_cb_rpc_args *args)
  */
 int get_evpn_vni_nexthops_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -160,8 +205,13 @@ int get_evpn_vni_nexthops_rpc(struct nb_cb_rpc_args *args)
  */
 int get_evpn_macs_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -169,8 +219,13 @@ int get_evpn_macs_rpc(struct nb_cb_rpc_args *args)
  */
 int get_evpn_arp_cache_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -178,8 +233,13 @@ int get_evpn_arp_cache_rpc(struct nb_cb_rpc_args *args)
  */
 int get_pbr_ipset_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -187,8 +247,13 @@ int get_pbr_ipset_rpc(struct nb_cb_rpc_args *args)
  */
 int get_pbr_iptable_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -196,6 +261,11 @@ int get_pbr_iptable_rpc(struct nb_cb_rpc_args *args)
  */
 int get_debugs_rpc(struct nb_cb_rpc_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_ERR_NOT_FOUND;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* RPCs are not to be invoked on MGMTD. So always return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }

@@ -191,6 +191,7 @@ static struct mgmt_bcknd_client_ctxt mgmt_bcknd_clntctxt = {0};
 const char *mgmt_bcknd_client_names[MGMTD_CLIENT_NAME_MAX_LEN] = {
 	MGMTD_BCKND_CLIENT_STATICD, /* MGMTD_BCKND_CLIENT_ID_STATICD */
 	MGMTD_BCKND_CLIENT_BGPD,    /* MGMTD_BCKND_CLIENT_ID_BGPDD */
+	MGMTD_BCKND_CLIENT_ZEBRA,    /* MGMTD_BCKND_CLIENT_ID_ZEBRA */
 	"Unknown/Invalid",	  /* MGMTD_BCKND_CLIENT_ID_MAX */
 };
 

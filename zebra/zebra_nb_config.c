@@ -838,7 +838,9 @@ int zebra_debugs_debug_mlag_destroy(struct nb_cb_destroy_args *args)
  */
 int lib_interface_zebra_ip_addrs_create(struct nb_cb_create_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 	struct prefix prefix;
 
 	// addr_family = yang_dnode_get_enum(dnode, "./address-family");
@@ -863,12 +865,14 @@ int lib_interface_zebra_ip_addrs_create(struct nb_cb_create_args *args)
 	case NB_EV_ABORT:
 		break;
 	case NB_EV_APPLY:
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		if (prefix.family == AF_INET)
 			if_ip_address_install(ifp, &prefix, NULL, NULL);
 		else if (prefix.family == AF_INET6)
 			if_ipv6_address_install(ifp, &prefix, NULL);
 
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 		break;
 	}
 
@@ -877,15 +881,18 @@ int lib_interface_zebra_ip_addrs_create(struct nb_cb_create_args *args)
 
 int lib_interface_zebra_ip_addrs_destroy(struct nb_cb_destroy_args *args)
 {
-	struct interface *ifp;
 	struct prefix prefix;
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
+	struct interface *ifp;
 	struct connected *ifc;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	yang_dnode_get_prefix(&prefix, args->dnode, "./ip-prefix");
 	apply_mask(&prefix);
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		ifp = nb_running_get_entry(args->dnode, NULL, false);
 		if (!ifp)
 			return NB_OK;
@@ -925,13 +932,16 @@ int lib_interface_zebra_ip_addrs_destroy(struct nb_cb_destroy_args *args)
 			connected_free(&ifc);
 			return NB_ERR_VALIDATION;
 		}
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 		break;
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
 		break;
 	case NB_EV_APPLY:
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		if_ip_address_uinstall(ifp, &prefix);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 		break;
 	}
 
@@ -1009,11 +1019,13 @@ int lib_interface_zebra_multicast_modify(struct nb_cb_modify_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
 
 	if_multicast_set(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1023,11 +1035,13 @@ int lib_interface_zebra_multicast_destroy(struct nb_cb_destroy_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
 
 	if_multicast_unset(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1040,6 +1054,7 @@ int lib_interface_zebra_link_detect_modify(struct nb_cb_modify_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 	bool link_detect;
 
@@ -1047,6 +1062,7 @@ int lib_interface_zebra_link_detect_modify(struct nb_cb_modify_args *args)
 	link_detect = yang_dnode_get_bool(args->dnode, "./link-detect");
 
 	if_linkdetect(ifp, link_detect);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1056,6 +1072,7 @@ int lib_interface_zebra_link_detect_destroy(struct nb_cb_destroy_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 	bool link_detect;
 
@@ -1063,6 +1080,7 @@ int lib_interface_zebra_link_detect_destroy(struct nb_cb_destroy_args *args)
 	link_detect = yang_dnode_get_bool(args->dnode, "./link-detect");
 
 	if_linkdetect(ifp, link_detect);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1075,11 +1093,13 @@ int lib_interface_zebra_shutdown_modify(struct nb_cb_modify_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
 
 	if_shutdown(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1089,11 +1109,13 @@ int lib_interface_zebra_shutdown_destroy(struct nb_cb_destroy_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
 
 	if_no_shutdown(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1106,6 +1128,7 @@ int lib_interface_zebra_bandwidth_modify(struct nb_cb_modify_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 	uint32_t bandwidth;
 
@@ -1117,6 +1140,7 @@ int lib_interface_zebra_bandwidth_modify(struct nb_cb_modify_args *args)
 	/* force protocols to recalculate routes due to cost change */
 	if (if_is_operative(ifp))
 		zebra_interface_up_update(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1126,6 +1150,7 @@ int lib_interface_zebra_bandwidth_destroy(struct nb_cb_destroy_args *args)
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct interface *ifp;
 
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
@@ -1135,6 +1160,7 @@ int lib_interface_zebra_bandwidth_destroy(struct nb_cb_destroy_args *args)
 	/* force protocols to recalculate routes due to cost change */
 	if (if_is_operative(ifp))
 		zebra_interface_up_update(ifp);
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	return NB_OK;
 }
@@ -1144,6 +1170,7 @@ int lib_interface_zebra_bandwidth_destroy(struct nb_cb_destroy_args *args)
  */
 int lib_vrf_zebra_l3vni_id_modify(struct nb_cb_modify_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct vrf *vrf;
 	struct zebra_vrf *zvrf;
 	vni_t vni = 0;
@@ -1153,12 +1180,14 @@ int lib_vrf_zebra_l3vni_id_modify(struct nb_cb_modify_args *args)
 	bool pfx_only = false;
 	const struct lyd_node *pn_dnode;
 	const char *vrfname;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	switch (args->event) {
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
 		return NB_OK;
 	case NB_EV_VALIDATE:
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		zvrf_evpn = zebra_vrf_get_evpn();
 		if (!zvrf_evpn) {
 			snprintf(args->errmsg, args->errmsg_len,
@@ -1195,10 +1224,12 @@ int lib_vrf_zebra_l3vni_id_modify(struct nb_cb_modify_args *args)
 				 "VNI %u is already configured as L3-VNI", vni);
 			return NB_ERR_VALIDATION;
 		}
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 		break;
 	case NB_EV_APPLY:
 
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		vrf = nb_running_get_entry(args->dnode, NULL, true);
 		zvrf = zebra_vrf_lookup_by_name(vrf->name);
 		vni = yang_dnode_get_uint32(args->dnode, NULL);
@@ -1217,6 +1248,7 @@ int lib_vrf_zebra_l3vni_id_modify(struct nb_cb_modify_args *args)
 					vni, err);
 			return NB_ERR;
 		}
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 		break;
 	}
@@ -1226,11 +1258,13 @@ int lib_vrf_zebra_l3vni_id_modify(struct nb_cb_modify_args *args)
 
 int lib_vrf_zebra_l3vni_id_destroy(struct nb_cb_destroy_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct vrf *vrf;
 	struct zebra_vrf *zvrf;
 	vni_t vni = 0;
 	char err[ERR_STR_SZ];
 	uint8_t filter = 0;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 	switch (args->event) {
 	case NB_EV_PREPARE:
@@ -1238,6 +1272,7 @@ int lib_vrf_zebra_l3vni_id_destroy(struct nb_cb_destroy_args *args)
 	case NB_EV_VALIDATE:
 		return NB_OK;
 	case NB_EV_APPLY:
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 		vrf = nb_running_get_entry(args->dnode, NULL, true);
 		zvrf = zebra_vrf_lookup_by_name(vrf->name);
 		vni = yang_dnode_get_uint32(args->dnode, NULL);
@@ -1264,6 +1299,7 @@ int lib_vrf_zebra_l3vni_id_destroy(struct nb_cb_destroy_args *args)
 					vni, err);
 			return NB_ERR;
 		}
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 
 		break;
 	}

@@ -402,6 +402,10 @@ int main(int argc, char **argv)
 	zebra_ns_init((const char *)vrf_default_name_configured);
 	router_id_cmd_init();
 	zebra_vty_init();
+
+	/* Initialize MGMT backend functionalities */
+	zebra_mgmt_init(zrouter.master);
+
 	access_list_init();
 	prefix_list_init();
 #if defined(HAVE_RTADV)

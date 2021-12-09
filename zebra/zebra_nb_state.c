@@ -32,12 +32,17 @@
 struct yang_data *
 lib_interface_zebra_state_up_count_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 
 	zebra_if = ifp->info;
 
 	return yang_data_new_uint16(args->xpath, zebra_if->up_count);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -46,12 +51,17 @@ lib_interface_zebra_state_up_count_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_down_count_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 
 	zebra_if = ifp->info;
 
 	return yang_data_new_uint16(args->xpath, zebra_if->down_count);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -60,8 +70,13 @@ lib_interface_zebra_state_down_count_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_zif_type_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -70,8 +85,13 @@ lib_interface_zebra_state_zif_type_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_ptm_status_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -80,6 +100,7 @@ lib_interface_zebra_state_ptm_status_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_vlan_id_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 	struct zebra_l2info_vlan *vlan_info;
@@ -91,6 +112,10 @@ lib_interface_zebra_state_vlan_id_get_elem(struct nb_cb_get_elem_args *args)
 	vlan_info = &zebra_if->l2info.vl;
 
 	return yang_data_new_uint16(args->xpath, vlan_info->vid);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -99,6 +124,7 @@ lib_interface_zebra_state_vlan_id_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_vni_id_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 	struct zebra_l2info_vxlan *vxlan_info;
@@ -110,6 +136,10 @@ lib_interface_zebra_state_vni_id_get_elem(struct nb_cb_get_elem_args *args)
 	vxlan_info = &zebra_if->l2info.vxl;
 
 	return yang_data_new_uint32(args->xpath, vxlan_info->vni);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -118,6 +148,7 @@ lib_interface_zebra_state_vni_id_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_remote_vtep_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 	struct zebra_l2info_vxlan *vxlan_info;
@@ -129,6 +160,10 @@ lib_interface_zebra_state_remote_vtep_get_elem(struct nb_cb_get_elem_args *args)
 	vxlan_info = &zebra_if->l2info.vxl;
 
 	return yang_data_new_ipv4(args->xpath, &vxlan_info->vtep_ip);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -137,6 +172,7 @@ lib_interface_zebra_state_remote_vtep_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_interface_zebra_state_mcast_group_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct interface *ifp = args->list_entry;
 	struct zebra_if *zebra_if;
 	struct zebra_l2info_vxlan *vxlan_info;
@@ -148,10 +184,15 @@ lib_interface_zebra_state_mcast_group_get_elem(struct nb_cb_get_elem_args *args)
 	vxlan_info = &zebra_if->l2info.vxl;
 
 	return yang_data_new_ipv4(args->xpath, &vxlan_info->mcast_grp);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *lib_vrf_zebra_ribs_rib_get_next(struct nb_cb_get_next_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct vrf *vrf = (struct vrf *)args->parent_list_entry;
 	struct zebra_router_table *zrt =
 		(struct zebra_router_table *)args->list_entry;
@@ -177,10 +218,15 @@ const void *lib_vrf_zebra_ribs_rib_get_next(struct nb_cb_get_next_args *args)
 	}
 
 	return zrt;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 int lib_vrf_zebra_ribs_rib_get_keys(struct nb_cb_get_keys_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct zebra_router_table *zrt = args->list_entry;
 
 	args->keys->num = 2;
@@ -191,11 +237,16 @@ int lib_vrf_zebra_ribs_rib_get_keys(struct nb_cb_get_keys_args *args)
 		   zrt->tableid);
 
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *
 lib_vrf_zebra_ribs_rib_lookup_entry(struct nb_cb_lookup_entry_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct vrf *vrf = (struct vrf *)args->parent_list_entry;
 	struct zebra_vrf *zvrf;
 	afi_t afi;
@@ -211,6 +262,10 @@ lib_vrf_zebra_ribs_rib_lookup_entry(struct nb_cb_lookup_entry_args *args)
 		table_id = zvrf->table_id;
 
 	return zebra_router_find_zrt(zvrf, table_id, afi, safi);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -219,10 +274,15 @@ lib_vrf_zebra_ribs_rib_lookup_entry(struct nb_cb_lookup_entry_args *args)
 struct yang_data *
 lib_vrf_zebra_ribs_rib_afi_safi_name_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct zebra_router_table *zrt = args->list_entry;
 
 	return yang_data_new_string(args->xpath,
 		yang_afi_safi_value2identity(zrt->afi, zrt->safi));
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -231,9 +291,14 @@ lib_vrf_zebra_ribs_rib_afi_safi_name_get_elem(struct nb_cb_get_elem_args *args)
 struct yang_data *
 lib_vrf_zebra_ribs_rib_table_id_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct zebra_router_table *zrt = args->list_entry;
 
 	return yang_data_new_uint32(args->xpath, zrt->tableid);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -242,6 +307,7 @@ lib_vrf_zebra_ribs_rib_table_id_get_elem(struct nb_cb_get_elem_args *args)
 const void *
 lib_vrf_zebra_ribs_rib_route_get_next(struct nb_cb_get_next_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct zebra_router_table *zrt = args->parent_list_entry;
 	struct route_node *rn = (struct route_node *)args->list_entry;
 
@@ -259,21 +325,31 @@ lib_vrf_zebra_ribs_rib_route_get_next(struct nb_cb_get_next_args *args)
 		return NULL;
 
 	return rn;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 int lib_vrf_zebra_ribs_rib_route_get_keys(struct nb_cb_get_keys_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct route_node *rn = args->list_entry;
 
 	args->keys->num = 1;
 	prefix2str(&rn->p, args->keys->key[0], sizeof(args->keys->key[0]));
 
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *
 lib_vrf_zebra_ribs_rib_route_lookup_entry(struct nb_cb_lookup_entry_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct zebra_router_table *zrt = args->parent_list_entry;
 	struct prefix p;
 	struct route_node *rn;
@@ -288,6 +364,10 @@ lib_vrf_zebra_ribs_rib_route_lookup_entry(struct nb_cb_lookup_entry_args *args)
 	route_unlock_node(rn);
 
 	return rn;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -296,9 +376,14 @@ lib_vrf_zebra_ribs_rib_route_lookup_entry(struct nb_cb_lookup_entry_args *args)
 struct yang_data *
 lib_vrf_zebra_ribs_rib_route_prefix_get_elem(struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	const struct route_node *rn = args->list_entry;
 
 	return yang_data_new_prefix(args->xpath, &rn->p);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -307,6 +392,7 @@ lib_vrf_zebra_ribs_rib_route_prefix_get_elem(struct nb_cb_get_elem_args *args)
 const void *lib_vrf_zebra_ribs_rib_route_route_entry_get_next(
 	struct nb_cb_get_next_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 	struct route_node *rn = (struct route_node *)args->parent_list_entry;
 
@@ -316,11 +402,16 @@ const void *lib_vrf_zebra_ribs_rib_route_route_entry_get_next(
 		RNODE_NEXT_RE(rn, re);
 
 	return re;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 int lib_vrf_zebra_ribs_rib_route_route_entry_get_keys(
 	struct nb_cb_get_keys_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	args->keys->num = 1;
@@ -329,11 +420,16 @@ int lib_vrf_zebra_ribs_rib_route_route_entry_get_keys(
 		sizeof(args->keys->key[0]));
 
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *lib_vrf_zebra_ribs_rib_route_route_entry_lookup_entry(
 	struct nb_cb_lookup_entry_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_node *rn = (struct route_node *)args->parent_list_entry;
 	struct route_entry *re = NULL;
 	int proto_type = 0;
@@ -348,6 +444,10 @@ const void *lib_vrf_zebra_ribs_rib_route_route_entry_lookup_entry(
 	}
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -356,9 +456,14 @@ const void *lib_vrf_zebra_ribs_rib_route_route_entry_lookup_entry(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_protocol_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	return yang_data_new_enum(args->xpath, re->type);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -367,12 +472,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_protocol_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_instance_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (re->instance)
 		return yang_data_new_uint16(args->xpath, re->instance);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -381,9 +491,14 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_instance_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_distance_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	return yang_data_new_uint8(args->xpath, re->distance);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -392,9 +507,14 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_distance_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_metric_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	return yang_data_new_uint32(args->xpath, re->metric);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -403,12 +523,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_metric_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_tag_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (re->tag)
 		return yang_data_new_uint32(args->xpath, re->tag);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -417,12 +542,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_tag_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_selected_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (CHECK_FLAG(re->flags, ZEBRA_FLAG_SELECTED))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -431,12 +561,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_selected_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_installed_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (CHECK_FLAG(re->status, ROUTE_ENTRY_INSTALLED))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -445,12 +580,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_installed_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_failed_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (CHECK_FLAG(re->status, ROUTE_ENTRY_FAILED))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -459,12 +599,17 @@ struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_failed_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_queued_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (CHECK_FLAG(re->status, ROUTE_ENTRY_QUEUED))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -475,12 +620,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_internal_flags_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (re->flags)
 		return yang_data_new_int32(args->xpath, re->flags);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -491,12 +641,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_internal_status_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	if (re->status)
 		return yang_data_new_int32(args->xpath, re->status);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -505,9 +660,14 @@ lib_vrf_zebra_ribs_rib_route_route_entry_internal_status_get_elem(
 struct yang_data *lib_vrf_zebra_ribs_rib_route_route_entry_uptime_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	return yang_data_new_date_and_time(args->xpath, re->uptime);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -518,9 +678,14 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_id_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct route_entry *re = (struct route_entry *)args->list_entry;
 
 	return yang_data_new_uint32(args->xpath, re->nhe->id);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -531,6 +696,7 @@ const void *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_get_next(
 	struct nb_cb_get_next_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 	struct route_entry *re = (struct route_entry *)args->parent_list_entry;
 	struct nhg_hash_entry *nhe = re->nhe;
@@ -541,11 +707,16 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_get_next(
 		nexthop = nexthop_next(nexthop);
 
 	return nexthop;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 int lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_get_keys(
 	struct nb_cb_get_keys_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	args->keys->num = 4;
@@ -605,12 +776,17 @@ int lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_get_keys(
 	}
 
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_lookup_entry(
 	struct nb_cb_lookup_entry_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nhg_hash_entry *nhe;
 	struct nexthop nexthop_lookup = {};
 	struct nexthop *nexthop;
@@ -678,6 +854,10 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_lookup_entry(
 	}
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -688,6 +868,7 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_nh_type_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	switch (nexthop->type) {
@@ -711,6 +892,10 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_nh_type_get_elem(
 	}
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -721,10 +906,15 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_vrf_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	return yang_data_new_string(args->xpath,
 				    vrf_id_to_name(nexthop->vrf_id));
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -735,6 +925,7 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_gateway_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 	struct ipaddr addr;
 
@@ -761,6 +952,10 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_gateway_get_elem(
 	}
 
 	return yang_data_new_ip(args->xpath, &addr);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -771,6 +966,7 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_interface_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (nexthop->ifindex)
@@ -779,6 +975,10 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_interface_get_ele
 			ifindex2ifname(nexthop->ifindex, nexthop->vrf_id));
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -789,6 +989,7 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_bh_type_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 	const char *type_str = "";
 
@@ -811,6 +1012,10 @@ lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_bh_type_get_elem(
 	}
 
 	return yang_data_new_string(args->xpath, type_str);
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -821,12 +1026,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_onlink_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_ONLINK))
 		return yang_data_new_bool(args->xpath, true);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -837,12 +1047,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_color_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_SRTE))
 		return yang_data_new_uint32(args->xpath, nexthop->srte_color);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -853,23 +1068,38 @@ const void *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_get_next(
 	struct nb_cb_get_next_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 int lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_get_keys(
 	struct nb_cb_get_keys_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NB_OK;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NB_ERR_NOT_FOUND;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 const void *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_lookup_entry(
 	struct nb_cb_lookup_entry_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -880,8 +1110,13 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_id_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -892,8 +1127,13 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_label_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -904,8 +1144,13 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_ttl_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -916,8 +1161,13 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_mpls_label_stack_entry_traffic_class_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	/* TODO: implement me. */
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -928,12 +1178,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_duplicate_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_DUPLICATE))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -944,12 +1199,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_recursive_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_RECURSIVE))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -960,12 +1220,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_active_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_ACTIVE))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -976,12 +1241,17 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_fib_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_FIB))
 		return yang_data_new_empty(args->xpath);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }
 
 /*
@@ -992,10 +1262,15 @@ struct yang_data *
 lib_vrf_zebra_ribs_rib_route_route_entry_nexthop_group_nexthop_weight_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
+#ifndef INCLUDE_MGMTD_VALIDATE_ONLY
 	struct nexthop *nexthop = (struct nexthop *)args->list_entry;
 
 	if (nexthop->weight)
 		return yang_data_new_uint8(args->xpath, nexthop->weight);
 
 	return NULL;
+#else /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
+	/* GET-DATA are not to be invoked on MGMTD. So return failure. */
+	return NULL;
+#endif /* ifndef INCLUDE_MGMTD_VALIDATE_ONLY */
 }

@@ -62,6 +62,8 @@
 #include "zebra/table_manager.h"
 #include "zebra/zebra_script.h"
 
+#include "mgmt_bcknd_client.h"
+
 extern int allow_delete;
 
 /* context to manage dumps in multiple tables or vrfs */
@@ -4378,6 +4380,71 @@ static struct cmd_node forwarding_node = {
 	.prompt = "",
 	.config_write = config_write_forwarding,
 };
+
+#ifndef INCLUDE_MGMTD_CMDDEFS_ONLY
+/*
+ * The following set of functions will take care of initializing the
+ * MGMT Backend lib within the context of the staticd process.
+ */
+
+uintptr_t mgmt_lib_hndl;
+
+static void zebra_mgmt_bcknd_client_connect(uintptr_t lib_hndl,
+					    uintptr_t usr_data, bool connected)
+{
+	(void)usr_data;
+
+	assert(lib_hndl == mgmt_lib_hndl);
+
+	zlog_debug("Got %s %s MGMTD Backend Client Server",
+		   connected ? "connected" : "disconnected",
+		   connected ? "to" : "from");
+
+	if (connected)
+		(void)mgmt_bcknd_subscribe_yang_data(mgmt_lib_hndl, NULL, 0);
+}
+
+static void
+zebra_mgmt_trxn_notify(uintptr_t lib_hndl, uintptr_t usr_data,
+		       struct mgmt_bcknd_client_trxn_ctxt *trxn_ctxt,
+		       bool destroyed)
+{
+	zlog_debug("Got Trxn %s Notify from MGMTD server",
+		   destroyed ? "DESTROY" : "CREATE");
+
+	if (!destroyed) {
+		/*
+		 * TODO: Allocate and install a private scratchpad for this
+		 * transaction if required
+		 */
+	} else {
+		/*
+		 * TODO: Uninstall and deallocate the private scratchpad for
+		 * this transaction if installed earlier.
+		 */
+	}
+}
+
+static struct mgmt_bcknd_client_params mgmt_params = {
+	.name = MGMTD_BCKND_CLIENT_ZEBRA,
+	.conn_retry_intvl_sec = 3,
+	.client_connect_notify = zebra_mgmt_bcknd_client_connect,
+	.trxn_notify = zebra_mgmt_trxn_notify};
+
+void zebra_mgmt_init(struct thread_master *master)
+{
+	mgmt_lib_hndl = mgmt_bcknd_client_lib_init(&mgmt_params, master);
+	if (!mgmt_lib_hndl) {
+		zlog_err("Failed to initialize MGMTD Backend Client library!");
+		exit(-1);
+	}
+}
+
+void zebra_mgmt_destroy(void)
+{
+	mgmt_bcknd_client_lib_destroy(mgmt_lib_hndl);
+}
+#endif /* ifndef INCLUDE_MGMTD_CMDDEFS_ONLY */
 
 /* Route VTY.  */
 void zebra_vty_init(void)

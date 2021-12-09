@@ -26,6 +26,10 @@ nodist_mgmtd_libmgmt_bcknd_nb_la_SOURCES = \
 	staticd/static_vty.c \
 	staticd/static_nb.c \
 	staticd/static_nb_config.c \
+	zebra/zebra_nb.c \
+	zebra/zebra_nb_config.c \
+	zebra/zebra_nb_state.c \
+	zebra/zebra_nb_rpcs.c \
 	# end
 mgmtd_libmgmt_bcknd_nb_la_CFLAGS = $(AM_CFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY -DINCLUDE_MGMTD_VALIDATE_ONLY
 mgmtd_libmgmt_bcknd_nb_la_CPPFLAGS = $(AM_CPPFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY -DINCLUDE_MGMTD_VALIDATE_ONLY

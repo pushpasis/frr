@@ -105,6 +105,18 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-bgp:bgp'][name='bgp'][vrf='*']/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
+	},
+	{.xpath_regexp = "/frr-interface:lib/interface/frr-zebra:zebra/*",
+	 .num_clients = 1,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_ZEBRA}
+	},
+	{.xpath_regexp = "/frr-zebra:zebra/*",
+	 .num_clients = 1,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_ZEBRA}
+	},
+	{.xpath_regexp = "/frr-vrf:lib/vrf/frr-zebra:zebra/*",
+	 .num_clients = 1,
+	 .bcknd_clients = {MGMTD_BCKND_CLIENT_ZEBRA}
 	}
 };
 
