@@ -87,7 +87,7 @@ struct mgmt_frntnd_client_ctxt {
 #define FOREACH_SESSN_IN_LIST(clntctxt, sessn)                                 \
 	frr_each_safe(mgmt_session_list, &(clntctxt)->client_sessions, (sessn))
 
-static bool mgmt_debug_frntnd_clnt;
+static bool mgmt_debug_frntnd_clnt = true;
 
 static struct mgmt_frntnd_client_ctxt mgmt_frntnd_clntctxt = {0};
 

@@ -24,6 +24,7 @@
 #include "network.h"
 #include "libfrr.h"
 #include "mgmt_pb.h"
+#include "mgmt_util.h"
 #include "mgmtd/mgmt.h"
 #include "mgmtd/mgmt_memory.h"
 #include "mgmt_bcknd_client.h"
@@ -70,7 +71,7 @@ struct mgmt_bcknd_xpath_map_reg {
 
 struct mgmt_bcknd_xpath_regexp_map {
 	const char *xpath_regexp;
-	struct mgmt_bcknd_client_subscr_info bcknd_subscrs;
+	union mgmt_data_subscr_info bcknd_subscrs[MGMTD_BCKND_CLIENT_ID_MAX];
 };
 
 struct mgmt_bcknd_get_adptr_config_params {
@@ -96,12 +97,12 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 			   MGMTD_BCKND_CLIENT_BGPD}
 	},
 	{.xpath_regexp =
-		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='default']/frr-staticd:staticd/*",
+		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-staticd:staticd'][name='staticd'][vrf='*']/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_STATICD}
 	},
 	{.xpath_regexp =
-		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-bgp:bgp'][name='bgp'][vrf='default']/frr-bgp:bgp/*",
+		 "/frr-routing:routing/control-plane-protocols/control-plane-protocol[type='frr-bgp:bgp'][name='bgp'][vrf='*']/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_BGPD}
 	}
@@ -184,13 +185,13 @@ static void mgmt_bcknd_xpath_map_init(void)
 				id);
 			if (id < MGMTD_BCKND_CLIENT_ID_MAX) {
 				mgmt_xpath_map[indx]
-					.bcknd_subscrs.xpath_subscr[id]
+					.bcknd_subscrs[id]
 					.validate_config = 1;
 				mgmt_xpath_map[indx]
-					.bcknd_subscrs.xpath_subscr[id]
+					.bcknd_subscrs[id]
 					.notify_config = 1;
 				mgmt_xpath_map[indx]
-					.bcknd_subscrs.xpath_subscr[id]
+					.bcknd_subscrs[id]
 					.own_oper_data = 1;
 			}
 		}
@@ -200,14 +201,18 @@ static void mgmt_bcknd_xpath_map_init(void)
 	MGMTD_BCKND_ADPTR_DBG("Total XPath Maps: %u", mgmt_num_xpath_maps);
 }
 
+#if 0
 static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
-					const char *xpath)
+					const char *xpath,
+					bool get_match_xpath,
+					char **xpath_match)
 {
 	int match_len = 0, re_indx = 0, xp_indx = 0;
 	int rexp_len, xpath_len;
 	bool match = true, re_wild = false, xp_wild = false;
 	bool delim = false, enter_wild_match = false;
 	char wild_delim = 0;
+	char *xp_next = NULL;
 
 	rexp_len = strlen(xpath_regexp);
 	xpath_len = strlen(xpath);
@@ -222,6 +227,16 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 
 	if (!rexp_len || !xpath_len)
 		return 0;
+
+	if (get_match_xpath) {
+		/*
+		 * Allocate a new Xpath if not provided.
+		 */
+		if (!*xpath_match)
+			*xpath_match = calloc(1, MGMTD_MAX_XPATH_LEN);
+		xp_next = *xpath_match;
+		*xp_next = '\0';
+	}
 
 	for (re_indx = 0, xp_indx = 0;
 	     match && re_indx < rexp_len && xp_indx < xpath_len;) {
@@ -305,6 +320,17 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 			delim = false;
 		}
 
+		if (get_match_xpath) {
+			/*
+			 * Copy the next character for the xpath match
+			 * from the appropriate Xpath.
+			 */
+			if (xp_wild)
+				*xp_next++ = xpath_regexp[re_indx];
+			else
+				*xp_next++ = xpath[xp_indx];
+		}
+
 		/*
 		 * Proceed to the next character in the RE/XP string as
 		 * necessary.
@@ -319,13 +345,26 @@ static int mgmt_bcknd_eval_regexp_match(const char *xpath_regexp,
 	 * If we finished matching and the last token was a full match
 	 * increment the match count appropriately.
 	 */
-	if (match && !delim &&
-		(xpath_regexp[re_indx] == '/'
-		 || xpath_regexp[re_indx] == ']'))
+	if (match && !delim)
 		match_len++;
+
+	if (get_match_xpath) {
+		/*
+		 * Copy rest of the XPath length from the bigger XPath.
+		 */
+		if ((rexp_len - re_indx) > (xpath_len - xp_indx)) {
+			for (; re_indx < rexp_len; re_indx++)
+				*xp_next++ = xpath_regexp[re_indx];
+		} else if ((xpath_len - xp_indx) > (rexp_len - re_indx)) {
+			for (; xp_indx < xpath_len; xp_indx++)
+				*xp_next++ = xpath[xp_indx];
+		}
+		*xp_next++ = '\0';
+	}
 
 	return match_len;
 }
+#endif
 
 static void
 mgmt_bcknd_adapter_disconnect(struct mgmt_bcknd_client_adapter *adptr)
@@ -488,6 +527,23 @@ mgmt_bcknd_adapter_handle_msg(struct mgmt_bcknd_client_adapter *adptr,
 			bcknd_msg->cfg_apply_reply->error_if_any, adptr);
 		break;
 	case MGMTD__BCKND_MESSAGE__MESSAGE_GET_REPLY:
+		MGMTD_BCKND_ADPTR_DBG(
+			"Got %s GET_REPLY Msg from '%s' for Trxn-Id 0x%llx Batch-Id 0x%llx with Err:'%s'",
+			bcknd_msg->get_reply->success ? "successful" : "failed",
+			adptr->name, bcknd_msg->get_reply->trxn_id,
+			bcknd_msg->get_reply->batch_id,
+			bcknd_msg->get_reply->error
+				? bcknd_msg->get_reply->error
+				: "None");
+		/*
+		 * Forward the GET_REPLY reply to trxn module.
+		 */
+		mgmt_trxn_notify_bcknd_get_req_reply(
+			bcknd_msg->get_reply->trxn_id,
+			bcknd_msg->get_reply->success,
+			bcknd_msg->get_reply->batch_id,
+			bcknd_msg->get_reply->data,
+			bcknd_msg->get_reply->error, adptr);
 	case MGMTD__BCKND_MESSAGE__MESSAGE_CFG_CMD_REPLY:
 	case MGMTD__BCKND_MESSAGE__MESSAGE_SHOW_CMD_REPLY:
 	case MGMTD__BCKND_MESSAGE__MESSAGE_NOTIFY_DATA:
@@ -672,6 +728,31 @@ static int mgmt_bcknd_send_cfgapply_req(struct mgmt_bcknd_client_adapter *adptr,
 	MGMTD_BCKND_ADPTR_DBG(
 		"Sending CFG_APPLY_REQ message to Backend client '%s' for Trxn-Id 0x%llx",
 		adptr->name, (unsigned long long)trxn_id);
+
+	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
+}
+
+static int mgmt_bcknd_send_get_req(struct mgmt_bcknd_client_adapter *adptr,
+				   uint64_t trxn_id,  uint64_t batch_id,
+				   size_t num_batches,
+				   Mgmtd__YangGetDataReq **getdata_reqs)
+{
+	Mgmtd__BckndMessage bcknd_msg;
+	Mgmtd__BckndOperDataGetReq get_req;
+
+	mgmtd__bcknd_oper_data_get_req__init(&get_req);
+	get_req.trxn_id = trxn_id;
+	get_req.batch_id = batch_id;
+	get_req.n_data = num_batches;
+	get_req.data = getdata_reqs;
+
+	mgmtd__bcknd_message__init(&bcknd_msg);
+	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_GET_REQ;
+	bcknd_msg.get_req = &get_req;
+
+	MGMTD_BCKND_ADPTR_DBG(
+		"Sending GET_REQ message to Backend client '%s' for Trxn-Id 0x%llx",
+		adptr->name, trxn_id);
 
 	return mgmt_bcknd_adapter_send_msg(adptr, &bcknd_msg);
 }
@@ -938,6 +1019,7 @@ static void mgmt_bcknd_iter_and_get_cfg(struct mgmt_db_ctxt *db_ctxt,
 	struct mgmt_bcknd_client_adapter *adptr;
 	struct nb_config_cbs *root;
 	uint32_t *seq;
+	bool subscribed;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr_info) != 0) {
 		MGMTD_BCKND_ADPTR_ERR(
@@ -946,9 +1028,10 @@ static void mgmt_bcknd_iter_and_get_cfg(struct mgmt_db_ctxt *db_ctxt,
 	}
 
 	parms = (struct mgmt_bcknd_get_adptr_config_params *)ctxt;
-
 	adptr = parms->adptr;
-	if (!subscr_info.xpath_subscr[adptr->id].subscribed)
+	subscribed = subscr_info.xpath_subscr[adptr->id].subscr_info.subscribed;
+	mgmt_bcknd_cleanup_xpath_map(&subscr_info);
+	if (!subscribed)
 		return;
 
 	root = parms->cfg_chgs;
@@ -1198,17 +1281,31 @@ mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
 	return mgmt_bcknd_send_cfgapply_req(adptr, trxn_id);
 }
 
+extern int
+mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
+			     uint64_t trxn_id, uint64_t batch_id,
+			     struct mgmt_bcknd_datareq *data_req)
+{
+	return mgmt_bcknd_send_get_req(adptr, trxn_id, batch_id, 
+				       data_req->num_reqs,
+				       data_req->getdata_reqs);
+}
+
 /*
- * This function maps a YANG dtata Xpath to one or more
+ * This function maps a YANG data Xpath to one or more
  * Backend Clients that should be contacted for various purposes.
+ * Note - Caller should de-allocate xp_map
  */
 int mgmt_bcknd_get_subscr_info_for_xpath(
 	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info)
 {
-	int indx, match, max_match = 0, num_reg;
+	int indx, indx1, match, max_match = 0, num_reg;
 	enum mgmt_bcknd_client_id id;
-	struct mgmt_bcknd_client_subscr_info
-		*reg_maps[array_size(mgmt_xpath_map)] = {0};
+	struct mgmt_bcknd_xpath_regexp_map
+		*reg_maps[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
+	char *xp_matches[MGMTD_BCKND_MAX_NUM_XPATH_MAP] = {0};
+	char *xp_match = NULL;
+	struct mgmt_xpath_entry *xp_map = NULL;
 	bool root_xp = false;
 
 	if (!subscr_info)
@@ -1216,6 +1313,11 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 
 	num_reg = 0;
 	memset(subscr_info, 0, sizeof(*subscr_info));
+	FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
+		mgmt_xpath_list_init(
+			&subscr_info->xpath_subscr[id]
+					.xpath_list);
+	}
 
 	if (strlen(xpath) <= 2 && xpath[0] == '/'
 		&& (!xpath[1] || xpath[1] == '*')) {
@@ -1224,41 +1326,110 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 
 	MGMTD_BCKND_ADPTR_DBG("XPATH: %s", xpath);
 	for (indx = 0; indx < mgmt_num_xpath_maps; indx++) {
+		xp_match = NULL;
 		/*
 		 * For Xpaths: '/' and '/ *' all xpath maps should match
 		 * the given xpath.
 		 */
 		if (!root_xp) {
-			match = mgmt_bcknd_eval_regexp_match(
-				mgmt_xpath_map[indx].xpath_regexp, xpath);
+			match = mgmt_xpath_eval_regexp_match(
+				mgmt_xpath_map[indx].xpath_regexp, xpath,
+				true, &xp_match, NULL, true);
 
-			if (!match || match < max_match)
+			if (!match || match < max_match) {
+				free (xp_match);
 				continue;
+			}
 
 			if (match > max_match) {
+				for (indx1 = 0; indx1 < num_reg; indx1++) {
+					if (xp_matches[indx1]) {
+						free(xp_matches[indx1]);
+						xp_matches[indx1] = NULL;
+					}
+				}
 				num_reg = 0;
 				max_match = match;
 			}
+		} else {
+			xp_match = strdup(mgmt_xpath_map[indx].xpath_regexp);
 		}
 
-		reg_maps[num_reg] = &mgmt_xpath_map[indx].bcknd_subscrs;
+		reg_maps[num_reg] = &mgmt_xpath_map[indx];
+		xp_matches[num_reg] = xp_match;
+		xp_match = NULL;
 		num_reg++;
+	}
+	
+	MGMTD_BCKND_ADPTR_DBG("Mapped regex...");
+	for (indx = 0; indx < num_reg; indx++) {
+		MGMTD_BCKND_ADPTR_DBG("%d : %s", indx, reg_maps[indx]->xpath_regexp);
 	}
 
 	for (indx = 0; indx < num_reg; indx++) {
 		FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
-			if (reg_maps[indx]->xpath_subscr[id].subscribed) {
-				MGMTD_BCKND_ADPTR_DBG(
-					"Cient: %s",
-					mgmt_bknd_client_id2name(id));
-				memcpy(&subscr_info->xpath_subscr[id],
-				       &reg_maps[indx]->xpath_subscr[id],
-				       sizeof(subscr_info->xpath_subscr[id]));
+			if (reg_maps[indx]->bcknd_subscrs[id].subscribed) {
+				// MGMTD_BCKND_ADPTR_DBG(
+				// 	"Cient: %s",
+				// 	mgmt_bknd_client_id2name(id));
+				if (!subscr_info->xpath_subscr[id]
+					     .subscr_info.subscribed) {
+					mgmt_xpath_list_init(
+						&subscr_info->xpath_subscr[id]
+							 .xpath_list);
+					subscr_info->xpath_subscr[id]
+						.subscr_info.subscribed |=
+						reg_maps[indx]
+							->bcknd_subscrs[id]
+							.subscribed;
+				}
+
+				/*
+				 * Generate xp_map
+				 */
+				xp_map = XCALLOC(
+					MTYPE_MGMTD_XPATH_MAP,
+					sizeof(struct mgmt_xpath_entry));
+				assert(xp_map);
+				xp_map->subscr_info =
+					reg_maps[indx]->bcknd_subscrs[id];
+				xp_map->xpath = strdup(xp_matches[indx]);
+				mgmt_xpath_list_add_tail(
+					&subscr_info->xpath_subscr[id]
+						 .xpath_list,
+					xp_map);
 			}
 		}
 	}
 
+	for (indx = 0; indx < (int)array_size(xp_matches); indx++) {
+		if (xp_matches[indx]) {
+			free(xp_matches[indx]);
+			xp_matches[indx] = NULL;
+		}
+	}
+
 	return 0;
+}
+
+void mgmt_bcknd_cleanup_xpath_map(
+	struct mgmt_bcknd_client_subscr_info *subscr)
+{
+	enum mgmt_bcknd_client_id id;
+	struct mgmt_xpath_entry *xp_map = NULL;
+
+	FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
+		if (!subscr->xpath_subscr[id].subscr_info.subscribed)
+			continue;
+		FOREACH_XPATH_IN_XPMAP (subscr, id, xp_map) {
+			if (xp_map->xpath)
+				free((char *)xp_map->xpath);
+			mgmt_xpath_list_del(
+					&subscr->xpath_subscr[id].xpath_list,
+					xp_map);
+			XFREE(MTYPE_MGMTD_XPATH_MAP, xp_map);
+		}
+	}
 }
 
 void mgmt_bcknd_adapter_status_write(struct vty *vty)
@@ -1291,27 +1462,22 @@ void mgmt_bcknd_xpath_register_write(struct vty *vty)
 		vty_out(vty, " - XPATH: '%s'\n",
 			mgmt_xpath_map[indx].xpath_regexp);
 		FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
-			if (mgmt_xpath_map[indx]
-				    .bcknd_subscrs.xpath_subscr[id]
-				    .subscribed) {
+			if (mgmt_xpath_map[indx].bcknd_subscrs[id].subscribed) {
 				vty_out(vty,
 					"   -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
 					mgmt_bknd_client_id2name(id),
 					mgmt_xpath_map[indx]
-							.bcknd_subscrs
-							.xpath_subscr[id]
+							.bcknd_subscrs[id]
 							.validate_config
 						? "T"
 						: "F",
 					mgmt_xpath_map[indx]
-							.bcknd_subscrs
-							.xpath_subscr[id]
+							.bcknd_subscrs[id]
 							.notify_config
 						? "T"
 						: "F",
 					mgmt_xpath_map[indx]
-							.bcknd_subscrs
-							.xpath_subscr[id]
+							.bcknd_subscrs[id]
 							.own_oper_data
 						? "T"
 						: "F");
@@ -1332,6 +1498,7 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 	struct mgmt_bcknd_client_subscr_info subscr;
 	enum mgmt_bcknd_client_id id;
 	struct mgmt_bcknd_client_adapter *adptr;
+	struct mgmt_xpath_entry *xp_map = NULL;
 
 	if (mgmt_bcknd_get_subscr_info_for_xpath(xpath, &subscr) != 0) {
 		vty_out(vty, "ERROR: Failed to get subscriber for '%s'\n",
@@ -1341,19 +1508,31 @@ void mgmt_bcknd_xpath_subscr_info_write(struct vty *vty, const char *xpath)
 
 	vty_out(vty, "XPath: '%s'\n", xpath);
 	FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
-		if (subscr.xpath_subscr[id].subscribed) {
-			vty_out(vty,
-				"  -- Client: '%s' \t Validate:%s, Notify:%s, Own:%s\n",
-				mgmt_bknd_client_id2name(id),
-				subscr.xpath_subscr[id].validate_config ? "T"
-									: "F",
-				subscr.xpath_subscr[id].notify_config ? "T"
-								      : "F",
-				subscr.xpath_subscr[id].own_oper_data ? "T"
-								      : "F");
+		if (subscr.xpath_subscr[id].subscr_info.subscribed) {
+			vty_out(vty, "  -- Client: '%s'\n",
+				mgmt_bknd_client_id2name(id));
 			adptr = mgmt_bcknd_get_adapter_by_id(id);
 			if (adptr)
 				vty_out(vty, "    -- Adapter: %p\n", adptr);
+			else
+				vty_out(vty, "    -- Adapter: Not created\n");
+
+			FOREACH_XPATH_IN_LIST (&subscr.xpath_subscr[id].xpath_list, xp_map) {
+				vty_out(vty, "     -- %s\n", xp_map->xpath);
+				vty_out(vty,
+					"       -- Validate:%s, Notify:%s, Own:%s\n",
+					xp_map->subscr_info.validate_config
+						? "T"
+						: "F",
+					xp_map->subscr_info.notify_config ? "T"
+									  : "F",
+					xp_map->subscr_info.own_oper_data
+						? "T"
+						: "F");
+			}
 		}
 	}
+
+	// Cleanup xpath_map
+	mgmt_bcknd_cleanup_xpath_map(&subscr);
 }

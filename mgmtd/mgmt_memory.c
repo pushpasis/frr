@@ -43,5 +43,7 @@ DEFINE_MTYPE(MGMTD, MGMTD_TRXN_GETDATA_REQ,
 	     "MGMTD Transaction Get-Data Requests");
 DEFINE_MTYPE(MGMTD, MGMTD_TRXN_GETDATA_REPLY,
 	     "MGMTD Transaction Get-Data Replies");
-DEFINE_MTYPE(MGMTD, MGMTD_TRXN_CFG_BATCH, "MGMTD Transaction Gonfig Batches");
+DEFINE_MTYPE(MGMTD, MGMTD_TRXN_CFG_BATCH, "MGMTD Transaction Config Batches");
+DEFINE_MTYPE(MGMTD, MGMTD_TRXN_DATA_BATCH, "MGMTD Transaction Data Batches");
 DEFINE_MTYPE(MGMTD, MGMTD_CMT_INFO, "MGMTD commit info for tracking commits");
+DEFINE_MTYPE(MGMTD, MGMTD_XPATH_MAP, "MGMTD Xpath Map");

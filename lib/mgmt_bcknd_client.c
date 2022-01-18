@@ -57,9 +57,29 @@ struct mgmt_bcknd_set_cfg_req {
 	uint16_t num_cfg_changes;
 };
 
+struct mgmt_bcknd_get_data_reply {
+	/* Buffer space for preparing data reply */
+	int num_reply;
+	int last_batch;
+	Mgmtd__YangDataReply data_reply;
+	Mgmtd__YangData reply_data[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangData * reply_datap[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	Mgmtd__YangDataValue reply_value[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+	char *reply_xpathp[MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH];
+};
+
 struct mgmt_bcknd_get_data_req {
 	char *xpaths[MGMTD_MAX_NUM_DATA_REQ_IN_BATCH];
 	uint16_t num_xpaths;
+
+	/*
+	 * Buffer space for preparing reply.
+	 * NOTE: Should only be malloc-ed on demand to reduce
+	 * memory footprint. Freed up via mgmt_trx_req_free()
+	 */
+	struct mgmt_bcknd_get_data_reply *reply;
+
+	int total_reply;
 };
 
 struct mgmt_bcknd_trxn_req {
@@ -70,10 +90,16 @@ struct mgmt_bcknd_trxn_req {
 	} req;
 };
 
+struct mgmt_bcknd_client_ctxt;
+
 PREDECL_LIST(mgmt_bcknd_batch_list);
 struct mgmt_bcknd_batch_ctxt {
 	/* Batch-Id as assigned by MGMTD */
 	uint64_t batch_id;
+
+	uint64_t trxn_id;
+
+	struct mgmt_bcknd_client_ctxt *clnt_ctxt;
 
 	struct mgmt_bcknd_trxn_req trxn_req;
 
@@ -99,6 +125,7 @@ struct mgmt_bcknd_trxn_ctxt {
 	/* List of batches belonging to this transaction */
 	struct mgmt_bcknd_batch_list_head cfg_batches;
 	struct mgmt_bcknd_batch_list_head apply_cfgs;
+	struct mgmt_bcknd_batch_list_head get_data;
 
 	struct mgmt_bcknd_trxn_list_item list_linkage;
 
@@ -114,6 +141,9 @@ DECLARE_LIST(mgmt_bcknd_trxn_list, struct mgmt_bcknd_trxn_ctxt, list_linkage);
 
 #define FOREACH_BCKND_APPLY_BATCH_IN_LIST(trxn, batch)                         \
 	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->apply_cfgs, (batch))
+
+#define FOREACH_BCKND_GETDATA_BATCH_IN_LIST(trxn, batch)                         \
+	frr_each_safe(mgmt_bcknd_batch_list, &(trxn)->get_data, (batch))
 
 struct mgmt_bcknd_client_ctxt {
 	int conn_fd;
@@ -154,7 +184,7 @@ struct mgmt_bcknd_client_ctxt {
 #define FOREACH_BCKND_TRXN_IN_LIST(clntctxt, trxn)                             \
 	frr_each_safe(mgmt_bcknd_trxn_list, &(clntctxt)->trxn_head, (trxn))
 
-static bool mgmt_debug_bcknd_clnt;
+static bool mgmt_debug_bcknd_clnt = true;
 
 static struct mgmt_bcknd_client_ctxt mgmt_bcknd_clntctxt = {0};
 
@@ -211,22 +241,31 @@ mgmt_bcknd_find_batch_by_id(struct mgmt_bcknd_trxn_ctxt *trxn,
 }
 
 static struct mgmt_bcknd_batch_ctxt *
-mgmt_bcknd_batch_create(struct mgmt_bcknd_trxn_ctxt *trxn, uint64_t batch_id)
+mgmt_bcknd_batch_alloc(struct mgmt_bcknd_trxn_ctxt *trxn, uint64_t batch_id, enum mgmt_bcknd_trxn_event event)
 {
 	struct mgmt_bcknd_batch_ctxt *batch = NULL;
 
-	batch = mgmt_bcknd_find_batch_by_id(trxn, batch_id);
-	if (!batch) {
-		batch = XCALLOC(MTYPE_MGMTD_BCKND_BATCH,
-				sizeof(struct mgmt_bcknd_batch_ctxt));
-		assert(batch);
+	batch = XCALLOC(MTYPE_MGMTD_BCKND_BATCH,
+			sizeof(struct mgmt_bcknd_batch_ctxt));
+	assert(batch);
 
-		batch->batch_id = batch_id;
+	batch->batch_id = batch_id;
+	batch->trxn_id = trxn->trxn_id;
+	batch->clnt_ctxt = trxn->clnt_ctxt;
+
+	switch (event) {
+	case MGMTD_BCKND_TRXN_PROC_SETCFG:
 		mgmt_bcknd_batch_list_add_tail(&trxn->cfg_batches, batch);
-
-		MGMTD_BCKND_CLNT_DBG("Added new batch 0x%llx to transaction",
-				     (unsigned long long)batch_id);
+		break;
+	case MGMTD_BCKND_TRXN_PROC_GETDATA:
+		mgmt_bcknd_batch_list_add_tail(&trxn->get_data, batch);
+	default:
+		break;
 	}
+
+	batch->trxn_req.event = event;
+	MGMTD_BCKND_CLNT_DBG("Added new batch 0x%llx to transaction",
+					batch_id);
 
 	return batch;
 }
@@ -299,6 +338,7 @@ mgmt_bcknd_trxn_create(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 		trxn->clnt_ctxt = clnt_ctxt;
 		mgmt_bcknd_batch_list_init(&trxn->cfg_batches);
 		mgmt_bcknd_batch_list_init(&trxn->apply_cfgs);
+		mgmt_bcknd_batch_list_init(&trxn->get_data);
 		mgmt_bcknd_trxn_list_add_tail(&clnt_ctxt->trxn_head, trxn);
 
 		MGMTD_BCKND_CLNT_DBG("Added new transaction 0x%llx",
@@ -614,7 +654,10 @@ mgmt_bcknd_update_setcfg_in_batch(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 	int index;
 	struct nb_cfg_change *cfg_chg;
 
-	batch = mgmt_bcknd_batch_create(trxn, batch_id);
+	batch = mgmt_bcknd_find_batch_by_id(trxn, batch_id);
+	if (!batch)
+		batch = mgmt_bcknd_batch_alloc(trxn, batch_id, MGMTD_BCKND_TRXN_PROC_SETCFG);
+
 	if (!batch) {
 		MGMTD_BCKND_CLNT_ERR("Batch create failed!");
 		return -1;
@@ -925,6 +968,143 @@ mgmt_bcknd_process_cfg_apply(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 	return 0;
 }
 
+static void mgmt_bcknd_init_get_data_reply(struct mgmt_bcknd_get_data_reply *get_reply)
+{
+	size_t indx;
+
+	for (indx = 0; indx < array_size(get_reply->reply_data); indx++)
+		get_reply->reply_datap[indx] = &get_reply->reply_data[indx];
+}
+
+static void mgmt_bcknd_reset_get_data_reply(struct mgmt_bcknd_get_data_reply *get_reply)
+{
+	int indx;
+
+	for (indx = 0; indx < get_reply->num_reply; indx++) {
+		if (get_reply->reply_xpathp[indx]) {
+			free(get_reply->reply_xpathp[indx]);
+			get_reply->reply_xpathp[indx] = 0;
+		}
+		if (get_reply->reply_data[indx].xpath) {
+			zlog_debug("%s free xpath %p", __func__,
+				   get_reply->reply_data[indx].xpath);
+			free(get_reply->reply_data[indx].xpath);
+			get_reply->reply_data[indx].xpath = 0;
+		}
+	}
+
+	get_reply->num_reply = 0;
+	memset(&get_reply->data_reply, 0, sizeof(get_reply->data_reply));
+	memset(&get_reply->reply_data, 0, sizeof(get_reply->reply_data));
+	memset(&get_reply->reply_datap, 0, sizeof(get_reply->reply_datap));
+
+	memset(&get_reply->reply_value, 0, sizeof(get_reply->reply_value));
+
+	mgmt_bcknd_init_get_data_reply(get_reply);
+}
+
+static void mgmt_bcknd_reset_get_data_reply_buf(struct mgmt_bcknd_get_data_req *get_data)
+{
+	if (get_data->reply)
+		mgmt_bcknd_reset_get_data_reply(get_data->reply);
+}
+
+static void mgmt_bcknd_send_get_data_reply(uint64_t trxn_id, struct mgmt_bcknd_get_data_req *get_req, struct mgmt_bcknd_batch_ctxt *batch)
+{
+	struct mgmt_bcknd_get_data_reply *get_reply;
+	Mgmtd__BckndMessage bcknd_msg;
+	Mgmtd__BckndOperDataGetReply data_reply;
+
+	get_reply = get_req->reply;
+	data_reply.data = &get_reply->data_reply;
+
+	mgmt_yang_data_reply_init(data_reply.data);
+	mgmtd__bcknd_oper_data_get_reply__init(&data_reply);
+
+	data_reply.trxn_id = batch->trxn_id;
+	data_reply.batch_id = batch->batch_id;
+	data_reply.data->n_data = get_reply->num_reply;
+	data_reply.data->next_indx =
+		(!get_reply->last_batch ? get_req->total_reply : -1);
+
+	mgmtd__bcknd_message__init(&bcknd_msg);
+	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_GET_REPLY;
+	bcknd_msg.get_reply = &data_reply;
+
+	mgmt_bcknd_client_send_msg(batch->clnt_ctxt, &bcknd_msg);
+
+	/*
+	 * Reset reply buffer for next reply.
+	 */
+	mgmt_bcknd_reset_get_data_reply_buf(get_req);
+}
+
+static int mgmt_bcknd_oper_data_callback(const struct lysc_node *snode, struct yang_translator *translator, struct yang_data *y_data, void *arg)
+{
+	struct mgmt_bcknd_batch_ctxt *batch = (struct mgmt_bcknd_batch_ctxt *)arg;
+	struct mgmt_bcknd_get_data_req *get_req;
+	struct mgmt_bcknd_get_data_reply *get_reply;
+	Mgmtd__YangData *data;
+	Mgmtd__YangDataValue *data_value;
+
+	get_req = &batch->trxn_req.req.get_data;
+	assert(get_req);
+	get_reply = get_req->reply;
+	data = &get_reply->reply_data[get_reply->num_reply];
+	data_value = &get_reply->reply_value[get_reply->num_reply];
+
+	mgmt_yang_data_init(data);
+	data->xpath = y_data->xpath;
+	mgmt_yang_data_value_init(data_value);
+	data_value->value_case = MGMTD__YANG_DATA_VALUE__VALUE_ENCODED_STR_VAL;
+	data_value->encoded_str_val = y_data->value;
+	data->value = data_value;
+
+	get_reply->num_reply++;
+	get_req->total_reply++;
+
+	if (get_reply->num_reply == MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH)
+		mgmt_bcknd_send_get_data_reply(batch->trxn_id, get_req, batch);
+	
+	return 0;
+}
+
+static int mgmt_bcknd_process_get_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
+				      _uint64_t trxn_id, _uint64_t batch_id,
+				      Mgmtd__YangGetDataReq * get_data_req[],
+				      int num_req)
+{
+	struct mgmt_bcknd_trxn_ctxt *trxn;
+	struct mgmt_bcknd_batch_ctxt *batch;
+	int index;
+	char *root_xpath;
+
+	trxn = mgmt_bcknd_find_trxn_by_id(clnt_ctxt, trxn_id);
+
+	if (!trxn)
+		trxn = mgmt_bcknd_trxn_create(clnt_ctxt, trxn_id);
+
+	batch = mgmt_bcknd_batch_alloc(trxn, batch_id, MGMTD_BCKND_TRXN_PROC_GETDATA);
+	if (!batch)
+		return -1;
+
+	MGMTD_BCKND_CLNT_DBG("Received Xpaths:");
+	for (index = 0; index < num_req; index++) {
+		MGMTD_BCKND_CLNT_DBG("%d: %s", index, get_data_req[index]->data->xpath);
+		// mgmt_bcknd_init_get_data_reply(batch->trxn_req.req.get_data.reply);
+		// root_xpath = get_data_req[index]->data->xpath;
+
+		// if (nb_oper_data_iterate(root_xpath, NULL, 0, mgmt_bcknd_oper_data_callback, batch) != NB_OK) {
+		// 	return -1;
+		// }
+
+		// batch->trxn_req.req.get_data.reply->last_batch = true;
+		// mgmt_bcknd_send_get_data_reply(trxn_id, &batch->trxn_req.req.get_data, batch);
+	}
+
+	return 0;
+}
+
 static int
 mgmt_bcknd_client_handle_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 			     Mgmtd__BckndMessage *bcknd_msg)
@@ -959,6 +1139,11 @@ mgmt_bcknd_client_handle_msg(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 			clnt_ctxt, (uint64_t)bcknd_msg->cfg_apply_req->trxn_id);
 		break;
 	case MGMTD__BCKND_MESSAGE__MESSAGE_GET_REQ:
+		mgmt_bcknd_process_get_req(clnt_ctxt,
+                        (uint64_t)bcknd_msg->get_req->trxn_id,
+                        (uint64_t)bcknd_msg->get_req->batch_id,
+                        bcknd_msg->get_req->data, bcknd_msg->get_req->n_data);
+		break;
 	case MGMTD__BCKND_MESSAGE__MESSAGE_SUBSCR_REQ:
 	case MGMTD__BCKND_MESSAGE__MESSAGE_CFG_CMD_REQ:
 	case MGMTD__BCKND_MESSAGE__MESSAGE_SHOW_CMD_REQ:

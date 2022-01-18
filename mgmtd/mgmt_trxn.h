@@ -34,6 +34,7 @@
 #define MGMTD_TRXN_SEND_CFGVALIDATE_DELAY_MSEC 100
 #define MGMTD_TRXN_SEND_CFGAPPLY_DELAY_MSEC 100
 #define MGMTD_TRXN_CFG_COMMIT_MAX_DELAY_MSEC 30000 /* 30 seconds */
+#define MGMTD_TRXN_GET_DATA_MAX_DELAY_MSEC 30000 /* 30 seconds */
 
 #define MGMTD_TRXN_CLEANUP_DELAY_MSEC 100
 #define MGMTD_TRXN_CLEANUP_DELAY_USEC 10
@@ -247,7 +248,7 @@ mgmt_trxn_notify_bcknd_cfgdata_reply(uint64_t trxn_id, uint64_t batch_id,
 				     struct mgmt_bcknd_client_adapter *adptr);
 
 /*
- * Reply to backend adapater with config data validate request.
+ * Reply to backend adapter with config data validate request.
  */
 extern int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 	uint64_t trxn_id, bool success, uint64_t batch_ids[],
@@ -255,13 +256,23 @@ extern int mgmt_trxn_notify_bcknd_cfg_validate_reply(
 	struct mgmt_bcknd_client_adapter *adptr);
 
 /*
- * Reply to backend adapater with config data apply request.
+ * Reply to backend adapter with config data apply request.
  */
 extern int
 mgmt_trxn_notify_bcknd_cfg_apply_reply(uint64_t trxn_id, bool success,
 				       uint64_t batch_ids[],
 				       size_t num_batch_ids, char *error_if_any,
 				       struct mgmt_bcknd_client_adapter *adptr);
+
+/*
+ * Notify trxn with get data request reply.
+ */
+extern int
+mgmt_trxn_notify_bcknd_get_req_reply(uint64_t trxn_id, bool success,
+				     uint64_t batch_id,
+				     Mgmtd__YangDataReply *data,
+				     char *error_if_any,
+				     struct mgmt_bcknd_client_adapter *adptr);
 
 /*
  * Dump transaction status to vty.

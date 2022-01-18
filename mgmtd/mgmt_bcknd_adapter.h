@@ -107,7 +107,7 @@ DECLARE_LIST(mgmt_bcknd_adptr_list, struct mgmt_bcknd_client_adapter,
 DECLARE_LIST(mgmt_trxn_badptr_list, struct mgmt_bcknd_client_adapter,
 	     trxn_list_linkage);
 
-union mgmt_bcknd_xpath_subscr_info {
+union mgmt_data_subscr_info {
 	uint8_t subscribed;
 	struct {
 		uint8_t validate_config : 1;
@@ -116,10 +116,29 @@ union mgmt_bcknd_xpath_subscr_info {
 	};
 };
 
+PREDECL_LIST(mgmt_xpath_list);
+struct mgmt_xpath_entry {
+	const char *xpath;
+	union mgmt_data_subscr_info subscr_info;
+	struct mgmt_xpath_list_item xpath_list_linkage;
+};
+DECLARE_LIST(mgmt_xpath_list, struct mgmt_xpath_entry, xpath_list_linkage);
+
+struct mgmt_bcknd_xpath_subscr_info {
+	union mgmt_data_subscr_info subscr_info;
+	struct mgmt_xpath_list_head xpath_list;
+};
+
 struct mgmt_bcknd_client_subscr_info {
-	union mgmt_bcknd_xpath_subscr_info
+	struct mgmt_bcknd_xpath_subscr_info
 		xpath_subscr[MGMTD_BCKND_CLIENT_ID_MAX];
 };
+
+#define FOREACH_XPATH_IN_LIST(list, xp)						\
+	frr_each_safe(mgmt_xpath_list, (list), (xp))
+
+#define FOREACH_XPATH_IN_XPMAP(subscr, id, xp)					\
+	FOREACH_XPATH_IN_LIST(&(subscr)->xpath_subscr[(id)].xpath_list, (xp))
 
 /* Initialise backend adapter module. */
 extern int mgmt_bcknd_adapter_init(struct thread_master *tm);
@@ -223,6 +242,11 @@ extern int
 mgmt_bcknd_send_cfg_apply_req(struct mgmt_bcknd_client_adapter *adptr,
 			      uint64_t trxn_id);
 
+extern int
+mgmt_bcknd_send_get_data_req(struct mgmt_bcknd_client_adapter *adptr,
+			     uint64_t trxn_id, uint64_t batch_id,
+			     struct mgmt_bcknd_datareq *data_req);
+
 /*
  * Dump backend adapter status to vty.
  */
@@ -234,11 +258,17 @@ extern void mgmt_bcknd_adapter_status_write(struct vty *vty);
 extern void mgmt_bcknd_xpath_register_write(struct vty *vty);
 
 /*
- * Maps a YANG dtata Xpath to one or more
+ * Maps a YANG data Xpath to one or more
  * backend clients that should be contacted for various purposes.
  */
 extern int mgmt_bcknd_get_subscr_info_for_xpath(
 	const char *xpath, struct mgmt_bcknd_client_subscr_info *subscr_info);
+
+/*
+ * Cleanup xpath map
+ */
+extern void mgmt_bcknd_cleanup_xpath_map(
+	struct mgmt_bcknd_client_subscr_info *subscr);
 
 /*
  * Dump backend client information for a given xpath to vty.

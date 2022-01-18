@@ -69,6 +69,7 @@ lib_libfrr_la_SOURCES = \
 	lib/northbound_db.c \
 	lib/mgmt_bcknd_client.c \
 	lib/mgmt_frntnd_client.c \
+	lib/mgmt_util.c \
 	lib/ntop.c \
 	lib/openbsd-tree.c \
 	lib/pid_output.c \
@@ -200,6 +201,7 @@ pkginclude_HEADERS += \
 	lib/mlag.h \
 	lib/mgmt_bcknd_client.h \
 	lib/mgmt_frntnd_client.h \
+	lib/mgmt_util.h \
 	lib/mgmt.pb-c.h \
 	lib/mgmt_pb.h \
 	lib/command.h \
