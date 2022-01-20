@@ -37,7 +37,7 @@ int mgmt_xpath_eval_regexp_match(const char *xpath_regexp,
 
 	rexp_len = strlen(xpath_regexp);
 	xpath_len = strlen(xpath);
-	zlog_debug("RE: %s / %d, XP: %s / %d\n", xpath_regexp, rexp_len, xpath, xpath_len);
+	// zlog_debug("RE: %s / %d, XP: %s / %d\n", xpath_regexp, rexp_len, xpath, xpath_len);
 
 	/*
 	 * Remove the trailing wildcard from the regexp and Xpath.
@@ -158,9 +158,9 @@ int mgmt_xpath_eval_regexp_match(const char *xpath_regexp,
 				(*xpath_match_len)++;
 		}
 
-		zlog_debug("RE %c [indx: %d/%d, w: %d] XP %c [indx: %d/%d, w: %d] XM:%c W: %d Match: %d Len: %d\n", 
-			xpath_regexp[re_indx], re_indx, rexp_len, re_wild, xpath[xp_indx],
-			xp_indx, xpath_len, xp_wild, *(xp_next-1), enter_wild_match, match, match_len);
+		// zlog_debug("RE %c [indx: %d/%d, w: %d] XP %c [indx: %d/%d, w: %d] XM:%c W: %d Match: %d Len: %d\n", 
+		// 	xpath_regexp[re_indx], re_indx, rexp_len, re_wild, xpath[xp_indx],
+		// 	xp_indx, xpath_len, xp_wild, *(xp_next-1), enter_wild_match, match, match_len);
 
 		/*
 		 * Proceed to the next character in the RE/XP string as
@@ -271,7 +271,7 @@ int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 						     char *child_xpath[],
 						     void *child_ctxt[],
 						     int *num_child,
-						     void *ctxt),
+						     void *ctxt, char* xpath_key),
 				int (*iter_fn)(char *child_xpath,
 						void *child_ctxt,
 						void *ctxt),
@@ -294,8 +294,11 @@ int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 
 	if (wc_key_start < 0) {
 		ret = 0;
-		if (iter_fn)
+		if (iter_fn) {
+			zlog_debug("start of one db_iter \n\n\n");
 			ret = (*iter_fn)(xpath, NULL, ctxt);
+		}
+		zlog_debug("End of one xpath \n\n\n\n\n\n\n");
 		return ret;
 	}
 
@@ -312,7 +315,7 @@ int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 		xpath[start_indx + wc_key_start - 1] = '\0';
 	}
 	num_child = array_size(chld_xpath);
-	(*get_child_fn)(xpath, chld_xpath, chld_ctxt, &num_child, ctxt);
+	(*get_child_fn)(xpath, chld_xpath, chld_ctxt, &num_child, ctxt, xpath_key);
 	if (wc_key_start >= 0)
 		xpath[start_indx + wc_key_start - 1] = orig;
 
@@ -325,9 +328,9 @@ int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 		match = mgmt_xpath_eval_regexp_match(xpath_key, chld_xpath[indx],
 						     true, &xp_matched[num_dn_match],
 						     &xp_match_len, true);
-		zlog_debug("%s: [%d] -- DNODE: %s, Match: %d/%d/%d, %s\n",
-			   __func__, level, chld_xpath[indx], match, max_match,
-			   xp_match_len, xp_matched[num_dn_match]);
+		// zlog_debug("%s: [%d] -- DNODE: %s, Match: %d/%d/%d, %s\n",
+		// 	   __func__, level, chld_xpath[indx], match, max_match,
+		// 	   xp_match_len, xp_matched[num_dn_match]);
 		if (!match || match < max_match) {
 			free(chld_xpath[indx]);
 			continue;
@@ -354,29 +357,33 @@ int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 
 		dnode_matched[num_dn_match] = chld_xpath[indx];
 		dnode_ctxt[num_dn_match] = chld_ctxt[indx];
-		zlog_debug("%s: [%d], XP_MATCH: %s\n", __func__, num_dn_match+1,
-			   xp_matched[num_dn_match]);
+		// zlog_debug("%s: [%d], XP_MATCH: %s\n", __func__, num_dn_match+1,
+		// 	   xp_matched[num_dn_match]);
 		num_dn_match++;
 	}
 
 	ret = 0;
 	for (indx = 0; indx < num_dn_match; indx++) {
 		if (wc_key_start >= 0 && wc_key_end >= 0) {
-			zlog_debug("%s: [%d] --- Merge XPATH: [%s] + [%s]\n",
-				   __func__, level, xp_matched[indx],
-				   &xpath[start_indx+wc_key_end+1]);
+			int len = strlen(xp_matched[indx]);
+			// zlog_debug("%s: [%d] --- Merge XPATH: [%s] + [%s]\n",
+			// 	   __func__, level, xp_matched[indx],
+			// 	   &xpath[start_indx+wc_key_end+1]);
 			strncat(xp_matched[indx], &xpath[start_indx+wc_key_end], MGMTD_MAX_XPATH_LEN - xp_match_len);
-			zlog_debug("%s: [%d] --- Next XPATH: %s\n",
-				   __func__, level, xp_matched[indx]);
-			mgmt_xpath_resolve_wildcard(xp_matched[indx], xp_match_len,
+			// zlog_debug("%s: [%d] --- Next XPATH: %s\n",
+			// 	   __func__, level, xp_matched[indx]);
+			mgmt_xpath_resolve_wildcard(xp_matched[indx], len,
 						    get_child_fn, iter_fn, ctxt, level+1);
 		} else {
-			zlog_debug("%s: [%d] ===> XPATH: %s\n", __func__, level,
-				   dnode_matched[indx]);
+			// zlog_debug("%s: [%d] ===> XPATH: %s\n", __func__, level,
+			// 	   dnode_matched[indx]);
 
-			if (!ret && iter_fn)
+			if (!ret && iter_fn) {
+				zlog_debug("start of second db_iter \n\n\n");
 				ret = (*iter_fn)(dnode_matched[indx],
 						 dnode_ctxt[indx], ctxt);
+				zlog_debug("End of second xpath \n\n\n\n\n\n\n");
+			}
 		}
 
 		free(xp_matched[indx]);

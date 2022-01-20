@@ -114,7 +114,7 @@ static const struct mgmt_bcknd_xpath_map_reg xpath_static_map_reg[] = {
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_ZEBRA}
 	},
-	{.xpath_regexp = "/frr-vrf:lib/vrf/frr-zebra:zebra/*",
+	{.xpath_regexp = "/frr-vrf:lib/vrf[name='*']/frr-zebra:zebra/*",
 	 .num_clients = 1,
 	 .bcknd_clients = {MGMTD_BCKND_CLIENT_ZEBRA}
 	}
@@ -1373,11 +1373,12 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 		num_reg++;
 	}
 	
-	MGMTD_BCKND_ADPTR_DBG("Mapped regex...");
+	MGMTD_BCKND_ADPTR_DBG("Mapped regex... numreg %d", num_reg);
 	for (indx = 0; indx < num_reg; indx++) {
 		MGMTD_BCKND_ADPTR_DBG("%d : %s", indx, reg_maps[indx]->xpath_regexp);
 	}
 
+	MGMTD_BCKND_ADPTR_DBG("After loop..");
 	for (indx = 0; indx < num_reg; indx++) {
 		FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
 			if (reg_maps[indx]->bcknd_subscrs[id].subscribed) {
@@ -1414,6 +1415,7 @@ int mgmt_bcknd_get_subscr_info_for_xpath(
 		}
 	}
 
+	MGMTD_BCKND_ADPTR_DBG("After after loop..");
 	for (indx = 0; indx < (int)array_size(xp_matches); indx++) {
 		if (xp_matches[indx]) {
 			free(xp_matches[indx]);

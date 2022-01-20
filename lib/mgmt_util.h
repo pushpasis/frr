@@ -151,6 +151,18 @@ static inline void mgmt_xpath_remove_trail_wildcard(char *xpath,
 	}
 }
 
+static inline int mgmt_xpath_find_character(char *xpath, int s, char c)
+{
+	int i = s;
+
+	while (xpath[i] != '\0') {
+		if (xpath[i] == c)
+			return i;
+		i++;
+	}
+	return -1;
+}
+
 extern int mgmt_xpath_eval_regexp_match(const char *xpath_regexp,
 					const char *xpath,
 					bool get_match_xpath,
@@ -165,7 +177,7 @@ extern int mgmt_xpath_resolve_wildcard(char *xpath, int start_indx,
 							char *child_xpath[],
 						        void *child_ctxt[],
 							int *num_child,
-							void *ctxt),
+							void *ctxt, char* xpath_key),
 				       int (*iter_fn)(char *child_xpath,
 						      void *child_ctxt,
 						      void *ctxt),

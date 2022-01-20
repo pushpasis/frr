@@ -277,7 +277,7 @@ static void mgmt_db_collect_child_node(struct mgmt_db_ctxt *db_ctxt, char *xpath
 
 static void mgmt_db_get_child_nodes(char *base_xpath, char *child_xpath[],
 				    void *child_ctxt[], int *num_child,
-				    void *ctxt)
+				    void *ctxt, char *xpath_key)
 {
 	struct mgmt_db_iter_ctxt *iter_ctxt;
 	struct mgmt_db_ctxt *db_ctxt;

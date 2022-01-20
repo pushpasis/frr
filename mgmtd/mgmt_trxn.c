@@ -591,13 +591,13 @@ static void mgmt_trxn_databatch_hash_free(void *data)
 }
 
 static inline struct mgmt_trxn_bcknd_data_batch *
-mgmt_trxn_databatch_id2ctxt(struct mgmt_trxn_ctxt *trxn, uint64_t batch_id)
+mgmt_trxn_databatch_id2ctxt(struct mgmt_trxn_ctxt *trxn, uint64_t batch_id, bool search_pending)
 {
 	struct mgmt_trxn_req *trxn_req;
 	struct mgmt_trxn_bcknd_data_batch key = {0};
 	struct mgmt_trxn_bcknd_data_batch *batch = NULL;
 
-	FOREACH_TRXN_REQ_IN_LIST (&trxn->get_data_reqs, trxn_req) {
+	FOREACH_TRXN_REQ_IN_LIST (search_pending ? &trxn->pending_get_datas : &trxn->get_data_reqs, trxn_req) {
 		if (!trxn_req->req.get_data)
 			continue;
 		key.batch_id = batch_id;
@@ -2470,6 +2470,19 @@ static int mgmt_trxn_get_data(struct mgmt_trxn_ctxt *trxn,
 
 	get_data = trxn_req->req.get_data;
 
+	if (!get_data->reply) {
+		get_data->reply = XCALLOC(MTYPE_MGMTD_TRXN_GETDATA_REPLY,
+					  sizeof(struct mgmt_get_data_reply));
+		if (!get_data->reply) {
+			mgmt_frntnd_send_get_data_reply(
+				trxn->session_id, trxn->trxn_id,
+				get_data->db_id, trxn_req->req_id,
+				MGMTD_INTERNAL_ERROR, NULL,
+				"Internal error: Unable to allocate reply buffers!");
+			goto mgmt_trxn_get_data_failed;
+		}
+	}
+
 	for (indx = 0; indx < get_data->num_xpaths; indx++) {
 		MGMTD_TRXN_DBG("Trying to get all data under '%s'",
 			       get_data->xpaths[indx]);
@@ -3435,20 +3448,26 @@ int mgmt_trxn_send_commit_config_reply(uint64_t trxn_id,
 extern int
 mgmt_trxn_notify_bcknd_get_req_reply(uint64_t trxn_id, bool success,
 				     uint64_t batch_id,
-				     Mgmtd__YangDataReply *data,
+				     Mgmtd__YangDataReply *data_reply,
 				     char *error_if_any,
 				     struct mgmt_bcknd_client_adapter *adptr)
 {
 	struct mgmt_trxn_ctxt *trxn;
 	struct mgmt_trxn_req *trxn_req;
 	struct mgmt_trxn_bcknd_data_batch *batch;
-	struct mgmt_get_data_req *getdata_req = NULL;
+	struct mgmt_get_data_req *get_req = NULL;
+	struct mgmt_get_data_reply *get_reply;
+	Mgmtd__YangData *data;
+	Mgmtd__YangDataValue *data_value;
+	size_t indx;
+	enum mgmt_bcknd_client_id id;
+	bool last_batch = false;
 
 	trxn = mgmt_trxn_id2ctxt(trxn_id);
 	if (!trxn || trxn->type != MGMTD_TRXN_TYPE_SHOW)
 		return -1;
 
-	batch = mgmt_trxn_databatch_id2ctxt(trxn, batch_id);
+	batch = mgmt_trxn_databatch_id2ctxt(trxn, batch_id, true);
 	if (!batch)
 		return -1;
 
@@ -3465,18 +3484,46 @@ mgmt_trxn_notify_bcknd_get_req_reply(uint64_t trxn_id, bool success,
 		return 0;
 	}
 
-	getdata_req->reply->num_reply = data->n_data;
-	getdata_req->reply->data_reply = *data;
-	getdata_req->reply->last_batch = trxn_req->req.get_data->reply->last_batch;
-	if (!data->next_indx) {
+	trxn_req = batch->trxn_req;
+	get_req = batch->trxn_req->req.get_data;
+	get_reply = get_req->reply;
+	mgmt_init_get_data_reply(get_reply);
+	get_reply->num_reply = data_reply->n_data;
+	if (data_reply->next_indx == -1) {
+		last_batch = true;
+		mgmt_trxn_data_batch_free(&batch);
+		FOREACH_MGMTD_BCKND_CLIENT_ID (id) {
+			zlog_debug("%s batch list size of client %d is %lu", __func__, id, mgmt_trxn_data_batch_list_count(&get_req->batch_list[id]));
+			if (mgmt_trxn_data_batch_list_count(&get_req->batch_list[id])) {
+				last_batch = false;
+				break;
+			}
+		}
+	}
+
+	get_reply->last_batch = last_batch;
+
+	for (indx=0; indx < data_reply->n_data; indx++) {
+		data = &get_reply->reply_data[indx];
+		data_value = &get_reply->reply_value[indx];
+		mgmt_yang_data_init(data);
+		data->xpath = strndup(data_reply->data[indx]->xpath, MGMTD_MAX_XPATH_LEN);
+		mgmt_yang_data_value_init(data_value);
+		data_value->value_case = data_reply->data[indx]->value->value_case;
+		data_value->encoded_str_val = data_reply->data[indx]->value->encoded_str_val;
+		data->value = data_value;
+	}
+
+	mgmt_trxn_send_getcfg_reply_data(trxn_req, get_req);
+	if (get_reply->last_batch) {
 		/*
 		 * All data from the specific backend has been replied.
 		 * Send TRXN-DELETE to wrap up the transaction for this backend.
 		 */
 		SET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_CFG_SYNCED);
-		mgmt_trxn_send_bcknd_trxn_delete(trxn_req, adptr);
+		mgmt_trxn_req_free(&trxn_req);
+		// mgmt_trxn_send_bcknd_trxn_delete(trxn_req, adptr);
 	}
-	mgmt_trxn_send_getcfg_reply_data(trxn_req, getdata_req);
 
 	return 0;
 }
