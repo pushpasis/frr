@@ -3471,20 +3471,18 @@ mgmt_trxn_notify_bcknd_get_req_reply(uint64_t trxn_id, bool success,
 	if (!batch)
 		return -1;
 
+	trxn_req = batch->trxn_req;
+
 	if (!success) {
 		MGMTD_TRXN_ERR(
 			"CFGDATA_APPLY_REQ sent to '%s' failed for Trxn %p, Batch [0x%llx], Err: %s",
 			adptr->name, trxn, (unsigned long long)batch_id,
 			error_if_any ? error_if_any : "None");
-		FOREACH_TRXN_REQ_IN_LIST (&trxn->get_data_reqs, trxn_req) {
-			mgmt_trxn_send_get_data_reply(
-				trxn_req, MGMTD_INTERNAL_ERROR,
-				"Internal error! Failed to apply config data on backend!");
-		}
+		mgmt_trxn_send_get_data_reply(trxn_req, MGMTD_INTERNAL_ERROR,
+			"Internal error! Failed to apply config data on backend!");
 		return 0;
 	}
 
-	trxn_req = batch->trxn_req;
 	get_req = batch->trxn_req->req.get_data;
 	get_reply = get_req->reply;
 	mgmt_init_get_data_reply(get_reply);
@@ -3522,7 +3520,6 @@ mgmt_trxn_notify_bcknd_get_req_reply(uint64_t trxn_id, bool success,
 		 */
 		SET_FLAG(adptr->flags, MGMTD_BCKND_ADPTR_FLAGS_CFG_SYNCED);
 		mgmt_trxn_req_free(&trxn_req);
-		// mgmt_trxn_send_bcknd_trxn_delete(trxn_req, adptr);
 	}
 
 	return 0;

@@ -275,7 +275,7 @@ static void mgmt_db_collect_child_node(struct mgmt_db_ctxt *db_ctxt, char *xpath
 	coll_ctxt->num_child++;
 }
 
-static void mgmt_db_get_child_nodes(char *base_xpath, char *child_xpath[],
+static int mgmt_db_get_child_nodes(char *base_xpath, char *child_xpath[],
 				    void *child_ctxt[], int *num_child,
 				    void *ctxt, char *xpath_key)
 {
@@ -295,6 +295,7 @@ static void mgmt_db_get_child_nodes(char *base_xpath, char *child_xpath[],
 			   mgmt_db_collect_child_node, &coll_ctxt,
 			   NULL, NULL, 1, true, false);
 	*num_child = coll_ctxt.num_child;
+	return 0;
 }
 
 static int mgmt_db_iter_data_nodes(char *node_xpath, void *node_ctxt,

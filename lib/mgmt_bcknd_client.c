@@ -1019,7 +1019,8 @@ static void mgmt_bcknd_reset_get_data_reply_buf(struct mgmt_bcknd_get_data_req *
 		mgmt_bcknd_reset_get_data_reply(get_data->reply);
 }
 
-static void mgmt_bcknd_send_get_data_reply(uint64_t trxn_id, struct mgmt_bcknd_get_data_req *get_req, struct mgmt_bcknd_batch_ctxt *batch)
+static void mgmt_bcknd_send_get_data_reply(uint64_t trxn_id, struct mgmt_bcknd_get_data_req *get_req, struct mgmt_bcknd_batch_ctxt *batch,
+											bool success, const char *error_if_any)
 {
 	struct mgmt_bcknd_get_data_reply *get_reply;
 	Mgmtd__BckndMessage bcknd_msg;
@@ -1038,8 +1039,8 @@ static void mgmt_bcknd_send_get_data_reply(uint64_t trxn_id, struct mgmt_bcknd_g
 	data_reply.data->data = get_reply->reply_datap;
 	data_reply.data->next_indx =
 		(!get_reply->last_batch ? get_req->total_reply : -1);
-	data_reply.success = true;
-	data_reply.error = NULL;
+	data_reply.success = success;
+	data_reply.error = (char *)error_if_any;
 
 	mgmtd__bcknd_message__init(&bcknd_msg);
 	bcknd_msg.message_case = MGMTD__BCKND_MESSAGE__MESSAGE_GET_REPLY;
@@ -1080,7 +1081,7 @@ static int mgmt_bcknd_oper_data_callback(const struct lysc_node *snode, struct y
 	get_req->total_reply++;
 
 	if (get_reply->num_reply == MGMTD_MAX_NUM_DATA_REPLY_IN_BATCH)
-		mgmt_bcknd_send_get_data_reply(batch->trxn_id, get_req, batch);
+		mgmt_bcknd_send_get_data_reply(batch->trxn_id, get_req, batch, true, NULL);
 	
 	return 0;
 }
@@ -1164,7 +1165,7 @@ static const void *mgmt_bcknd_get_list_entry(const char *xpath, struct nb_node *
 	return list_entry;
 }
 
-static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void *child_ctxt[], int *num_child, void *ctxt, char *xpath_key)
+static int mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void *child_ctxt[], int *num_child, void *ctxt, char *xpath_key)
 {
 	struct nb_node *nb_node;
 	const struct lysc_node *snode;
@@ -1178,18 +1179,18 @@ static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void 
 	zlog_debug("%s started for xpath %s", __func__, base_xpath);
 	nb_index = mgmt_xpath_find_character(xpath_key, strlen(base_xpath), '[');
 	if (nb_index == -1)
-		return;
+		return -1;
 	strlcpy(nb_xpath, xpath_key, (nb_index + 1));
 
 	nb_node = nb_node_find(nb_xpath);
 	if (!nb_node) {
 		zlog_debug("%s nb_node not found", __func__);
-		return;
+		return -1;
 	}
 	parent_list_entry = mgmt_bcknd_get_list_entry(base_xpath, nb_node);
 	if (!parent_list_entry) {
 		zlog_debug("%s did not get parent list entry for nb_node %s", __func__, nb_node->snode->name);
-		return;
+		return -1;
 	}
 	snode = nb_node->snode;
 
@@ -1197,7 +1198,7 @@ static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void 
 
 	if (CHECK_FLAG(nb_node->flags, F_NB_NODE_CONFIG_ONLY)) {
 		zlog_debug("%s nb_node is config only", __func__);
-		return;
+		return -1;
 	}
 
 	/* Iterate over all list entries. */
@@ -1209,8 +1210,8 @@ static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void 
 		/* Obtain list entry. */
 		list_entry = nb_callback_get_next(nb_node, parent_list_entry,
 						  list_entry);
+		/* End of the list. */
 		if (!list_entry)
-			/* End of the list. */
 			break;
 		
 		xpath = calloc(1, MGMTD_MAX_XPATH_LEN);
@@ -1220,8 +1221,8 @@ static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void 
 			if (nb_callback_get_keys(nb_node, list_entry,
 						 &list_keys)
 			    != NB_OK) {
-
-				return;
+				free(xpath);
+				return -1;
 			}
 
 			/* Build XPath of the list entry. */
@@ -1250,6 +1251,7 @@ static void mgmt_bcknd_get_children(char *base_xpath, char *child_xpath[], void 
 
 	} while (list_entry);
 
+	return 0;
 }
 
 static int mgmt_bcknd_iterate_oper_db(char *xpath, void *node_ctxt, void *ctxt)
@@ -1271,8 +1273,6 @@ static int mgmt_bcknd_resolve_wildcard(char *xpath, struct mgmt_bcknd_batch_ctxt
 
 	iter_ctxt.db_iter_fn = mgmt_bcknd_oper_data_callback;
 	iter_ctxt.usr_ctxt = (void *)batch;
-
-	zlog_debug("%s part 2", __func__);
 
 	ret = mgmt_xpath_resolve_wildcard(xpath, 0, mgmt_bcknd_get_children, mgmt_bcknd_iterate_oper_db, (void *)&iter_ctxt, 0);
 
@@ -1310,11 +1310,13 @@ static int mgmt_bcknd_process_get_req(struct mgmt_bcknd_client_ctxt *clnt_ctxt,
 		root_xpath = get_data_req[index]->data->xpath;
 
 		if (mgmt_bcknd_resolve_wildcard(root_xpath, batch) != NB_OK) {
+			zlog_debug("%s not able to resolve xpath %s", __func__, root_xpath);
+			mgmt_bcknd_send_get_data_reply(trxn_id, &batch->trxn_req.req.get_data, batch, false, "Unable to resolve Wildcard");
 			return -1;
 		}
 
 		batch->trxn_req.req.get_data.reply->last_batch = true;
-		mgmt_bcknd_send_get_data_reply(trxn_id, &batch->trxn_req.req.get_data, batch);
+		mgmt_bcknd_send_get_data_reply(trxn_id, &batch->trxn_req.req.get_data, batch, true, NULL);
 	}
 
 	return 0;
