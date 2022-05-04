@@ -295,7 +295,6 @@ struct interface {
 	struct route_node *node;
 
 	struct vrf *vrf;
-	vrf_id_t vrf_id;
 
 	/*
 	 * Has the end users entered `interface XXXX` from the cli in some
@@ -312,56 +311,56 @@ RB_HEAD(if_index_head, interface);
 RB_PROTOTYPE(if_index_head, interface, index_entry, if_cmp_index_func)
 DECLARE_QOBJ_TYPE(interface);
 
-#define IFNAME_RB_INSERT(vrf, ifp)                                                    \
+#define IFNAME_RB_INSERT(v, ifp)                                                      \
 	({                                                                            \
 		struct interface *_iz =                                               \
-			RB_INSERT(if_name_head, &vrf->ifaces_by_name, (ifp));         \
+			RB_INSERT(if_name_head, &v->ifaces_by_name, (ifp));           \
 		if (_iz)                                                              \
 			flog_err(                                                     \
 				EC_LIB_INTERFACE,                                     \
 				"%s(%s): corruption detected -- interface with this " \
-				"name exists already in VRF %u!",                     \
-				__func__, (ifp)->name, (ifp)->vrf_id);                \
+				"name exists already in VRF %s!",                     \
+				__func__, (ifp)->name, (ifp)->vrf->name);             \
 		_iz;                                                                  \
 	})
 
-#define IFNAME_RB_REMOVE(vrf, ifp)                                                    \
+#define IFNAME_RB_REMOVE(v, ifp)                                                      \
 	({                                                                            \
 		struct interface *_iz =                                               \
-			RB_REMOVE(if_name_head, &vrf->ifaces_by_name, (ifp));         \
+			RB_REMOVE(if_name_head, &v->ifaces_by_name, (ifp));           \
 		if (_iz == NULL)                                                      \
 			flog_err(                                                     \
 				EC_LIB_INTERFACE,                                     \
 				"%s(%s): corruption detected -- interface with this " \
-				"name doesn't exist in VRF %u!",                      \
-				__func__, (ifp)->name, (ifp)->vrf_id);                \
+				"name doesn't exist in VRF %s!",                      \
+				__func__, (ifp)->name, (ifp)->vrf->name);             \
 		_iz;                                                                  \
 	})
 
 
-#define IFINDEX_RB_INSERT(vrf, ifp)                                                   \
+#define IFINDEX_RB_INSERT(v, ifp)                                                     \
 	({                                                                            \
-		struct interface *_iz = RB_INSERT(                                    \
-			if_index_head, &vrf->ifaces_by_index, (ifp));                 \
+		struct interface *_iz =                                               \
+			RB_INSERT(if_index_head, &v->ifaces_by_index, (ifp));         \
 		if (_iz)                                                              \
 			flog_err(                                                     \
 				EC_LIB_INTERFACE,                                     \
 				"%s(%u): corruption detected -- interface with this " \
-				"ifindex exists already in VRF %u!",                  \
-				__func__, (ifp)->ifindex, (ifp)->vrf_id);             \
+				"ifindex exists already in VRF %s!",                  \
+				__func__, (ifp)->ifindex, (ifp)->vrf->name);          \
 		_iz;                                                                  \
 	})
 
-#define IFINDEX_RB_REMOVE(vrf, ifp)                                                   \
+#define IFINDEX_RB_REMOVE(v, ifp)                                                     \
 	({                                                                            \
-		struct interface *_iz = RB_REMOVE(                                    \
-			if_index_head, &vrf->ifaces_by_index, (ifp));                 \
+		struct interface *_iz =                                               \
+			RB_REMOVE(if_index_head, &v->ifaces_by_index, (ifp));         \
 		if (_iz == NULL)                                                      \
 			flog_err(                                                     \
 				EC_LIB_INTERFACE,                                     \
 				"%s(%u): corruption detected -- interface with this " \
-				"ifindex doesn't exist in VRF %u!",                   \
-				__func__, (ifp)->ifindex, (ifp)->vrf_id);             \
+				"ifindex doesn't exist in VRF %s!",                   \
+				__func__, (ifp)->ifindex, (ifp)->vrf->name);          \
 		_iz;                                                                  \
 	})
 
@@ -593,6 +592,8 @@ void if_link_params_free(struct interface *);
 
 /* Northbound. */
 struct vty;
+extern void if_vty_config_start(struct vty *vty, struct interface *ifp);
+extern void if_vty_config_end(struct vty *vty);
 extern void if_cmd_init(int (*config_write)(struct vty *));
 extern void if_cmd_init_default(void);
 extern void if_zapi_callbacks(int (*create)(struct interface *ifp),

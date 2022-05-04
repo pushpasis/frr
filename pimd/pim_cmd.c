@@ -67,6 +67,8 @@
 #include "lib/northbound_cli.h"
 #include "pim_errors.h"
 #include "pim_nb.h"
+#include "pim_addr.h"
+#include "pim_cmd_common.h"
 
 #ifndef VTYSH_EXTRACT_PL
 #include "pimd/pim_cmd_clippy.c"
@@ -100,8 +102,6 @@ static void pim_show_assert_helper(struct vty *vty,
 				   struct pim_interface *pim_ifp,
 				   struct pim_ifchannel *ch, time_t now)
 {
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
 	char winner_str[INET_ADDRSTRLEN];
 	struct in_addr ifaddr;
 	char uptime[10];
@@ -110,18 +110,16 @@ static void pim_show_assert_helper(struct vty *vty,
 
 	ifaddr = pim_ifp->primary_address;
 
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
 	pim_inet4_dump("<assrt_win?>", ch->ifassert_winner, winner_str,
 		       sizeof(winner_str));
 
 	pim_time_uptime(uptime, sizeof(uptime), now - ch->ifassert_creation);
 	pim_time_timer_to_mmss(timer, sizeof(timer), ch->t_ifassert_timer);
 
-	vty_out(vty, "%-16s %-15s %-15s %-15s %-6s %-15s %-8s %-5s\n",
+	vty_out(vty, "%-16s %-15s %-15pPAs %-15pPAs %-6s %-15s %-8s %-5s\n",
 		ch->interface->name,
-		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), ch_src_str,
-		ch_grp_str, pim_ifchannel_ifassert_name(ch->ifassert_state),
+		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), &ch->sg.src,
+		&ch->sg.grp, pim_ifchannel_ifassert_name(ch->ifassert_state),
 		winner_str, uptime, timer);
 }
 
@@ -143,6 +141,9 @@ static void pim_show_assert(struct pim_instance *pim, struct vty *vty)
 			continue;
 
 		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
+			if (ch->ifassert_state == PIM_IFASSERT_NOINFO)
+				continue;
+
 			pim_show_assert_helper(vty, pim_ifp, ch, now);
 		} /* scan interface channels */
 	}
@@ -152,19 +153,15 @@ static void pim_show_assert_internal_helper(struct vty *vty,
 					    struct pim_interface *pim_ifp,
 					    struct pim_ifchannel *ch)
 {
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
 	struct in_addr ifaddr;
 	char buf[PREFIX_STRLEN];
 
 	ifaddr = pim_ifp->primary_address;
 
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
-	vty_out(vty, "%-16s %-15s %-15s %-15s %-3s %-3s %-3s %-4s\n",
+	vty_out(vty, "%-16s %-15s %-15pPAs %-15pPAs %-3s %-3s %-3s %-4s\n",
 		ch->interface->name,
-		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)),
-		ch_src_str, ch_grp_str,
+		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), &ch->sg.src,
+		&ch->sg.grp,
 		PIM_IF_FLAG_TEST_COULD_ASSERT(ch->flags) ? "yes" : "no",
 		pim_macro_ch_could_assert_eval(ch) ? "yes" : "no",
 		PIM_IF_FLAG_TEST_ASSERT_TRACKING_DESIRED(ch->flags) ? "yes"
@@ -201,8 +198,6 @@ static void pim_show_assert_metric_helper(struct vty *vty,
 					  struct pim_interface *pim_ifp,
 					  struct pim_ifchannel *ch)
 {
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
 	char addr_str[INET_ADDRSTRLEN];
 	struct pim_assert_metric am;
 	struct in_addr ifaddr;
@@ -213,14 +208,12 @@ static void pim_show_assert_metric_helper(struct vty *vty,
 	am = pim_macro_spt_assert_metric(&ch->upstream->rpf,
 					 pim_ifp->primary_address);
 
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
 	pim_inet4_dump("<addr?>", am.ip_address, addr_str, sizeof(addr_str));
 
-	vty_out(vty, "%-16s %-15s %-15s %-15s %-3s %4u %6u %-15s\n",
+	vty_out(vty, "%-16s %-15s %-15pPAs %-15pPAs %-3s %4u %6u %-15s\n",
 		ch->interface->name,
-		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)),
-		ch_src_str, ch_grp_str,	am.rpt_bit_flag ? "yes" : "no",
+		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), &ch->sg.src,
+		&ch->sg.grp, am.rpt_bit_flag ? "yes" : "no",
 		am.metric_preference, am.route_metric, addr_str);
 }
 
@@ -248,8 +241,6 @@ static void pim_show_assert_winner_metric_helper(struct vty *vty,
 						 struct pim_interface *pim_ifp,
 						 struct pim_ifchannel *ch)
 {
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
 	char addr_str[INET_ADDRSTRLEN];
 	struct pim_assert_metric *am;
 	struct in_addr ifaddr;
@@ -261,8 +252,6 @@ static void pim_show_assert_winner_metric_helper(struct vty *vty,
 
 	am = &ch->ifassert_winner_metric;
 
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
 	pim_inet4_dump("<addr?>", am->ip_address, addr_str, sizeof(addr_str));
 
 	if (am->metric_preference == PIM_ASSERT_METRIC_PREFERENCE_MAX)
@@ -276,11 +265,11 @@ static void pim_show_assert_winner_metric_helper(struct vty *vty,
 	else
 		snprintf(metr_str, sizeof(metr_str), "%6u", am->route_metric);
 
-	vty_out(vty, "%-16s %-15s %-15s %-15s %-3s %-4s %-6s %-15s\n",
+	vty_out(vty, "%-16s %-15s %-15pPAs %-15pPAs %-3s %-4s %-6s %-15s\n",
 		ch->interface->name,
-		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), ch_src_str,
-		ch_grp_str, am->rpt_bit_flag ? "yes" : "no", pref_str, metr_str,
-		addr_str);
+		inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)), &ch->sg.src,
+		&ch->sg.grp, am->rpt_bit_flag ? "yes" : "no", pref_str,
+		metr_str, addr_str);
 }
 
 static void pim_show_assert_winner_metric(struct pim_instance *pim,
@@ -304,183 +293,6 @@ static void pim_show_assert_winner_metric(struct pim_instance *pim,
 	}
 }
 
-static void json_object_pim_ifp_add(struct json_object *json,
-				    struct interface *ifp)
-{
-	struct pim_interface *pim_ifp;
-
-	pim_ifp = ifp->info;
-	json_object_string_add(json, "name", ifp->name);
-	json_object_string_add(json, "state", if_is_up(ifp) ? "up" : "down");
-	json_object_string_addf(json, "address", "%pI4",
-				&pim_ifp->primary_address);
-	json_object_int_add(json, "index", ifp->ifindex);
-
-	if (if_is_multicast(ifp))
-		json_object_boolean_true_add(json, "flagMulticast");
-
-	if (if_is_broadcast(ifp))
-		json_object_boolean_true_add(json, "flagBroadcast");
-
-	if (ifp->flags & IFF_ALLMULTI)
-		json_object_boolean_true_add(json, "flagAllMulticast");
-
-	if (ifp->flags & IFF_PROMISC)
-		json_object_boolean_true_add(json, "flagPromiscuous");
-
-	if (PIM_IF_IS_DELETED(ifp))
-		json_object_boolean_true_add(json, "flagDeleted");
-
-	if (pim_if_lan_delay_enabled(ifp))
-		json_object_boolean_true_add(json, "lanDelayEnabled");
-}
-
-static void pim_show_membership_helper(struct vty *vty,
-				       struct pim_interface *pim_ifp,
-				       struct pim_ifchannel *ch,
-				       struct json_object *json)
-{
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
-	json_object *json_iface = NULL;
-	json_object *json_row = NULL;
-
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
-
-	json_object_object_get_ex(json, ch->interface->name, &json_iface);
-	if (!json_iface) {
-		json_iface = json_object_new_object();
-		json_object_pim_ifp_add(json_iface, ch->interface);
-		json_object_object_add(json, ch->interface->name, json_iface);
-	}
-
-	json_row = json_object_new_object();
-	json_object_string_add(json_row, "source", ch_src_str);
-	json_object_string_add(json_row, "group", ch_grp_str);
-	json_object_string_add(json_row, "localMembership",
-			       ch->local_ifmembership == PIM_IFMEMBERSHIP_NOINFO
-			       ? "NOINFO"
-			       : "INCLUDE");
-	json_object_object_add(json_iface, ch_grp_str, json_row);
-}
-static void pim_show_membership(struct pim_instance *pim, struct vty *vty,
-				bool uj)
-{
-	struct pim_interface *pim_ifp;
-	struct pim_ifchannel *ch;
-	struct interface *ifp;
-	enum json_type type;
-	json_object *json = NULL;
-	json_object *json_tmp = NULL;
-
-	json = json_object_new_object();
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-		if (!pim_ifp)
-			continue;
-
-		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
-			pim_show_membership_helper(vty, pim_ifp, ch, json);
-		} /* scan interface channels */
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-	} else {
-		vty_out(vty,
-			"Interface         Address          Source           Group            Membership\n");
-
-		/*
-		 * Example of the json data we are traversing
-		 *
-		 * {
-		 *   "swp3":{
-		 *     "name":"swp3",
-		 *     "state":"up",
-		 *     "address":"10.1.20.1",
-		 *     "index":5,
-		 *     "flagMulticast":true,
-		 *     "flagBroadcast":true,
-		 *     "lanDelayEnabled":true,
-		 *     "226.10.10.10":{
-		 *       "source":"*",
-		 *       "group":"226.10.10.10",
-		 *       "localMembership":"INCLUDE"
-		 *     }
-		 *   }
-		 * }
-		 */
-
-		/* foreach interface */
-		json_object_object_foreach(json, key, val)
-		{
-
-			/* Find all of the keys where the val is an object. In
-			 * the example
-			 * above the only one is 226.10.10.10
-			 */
-			json_object_object_foreach(val, if_field_key,
-						   if_field_val)
-			{
-				type = json_object_get_type(if_field_val);
-
-				if (type == json_type_object) {
-					vty_out(vty, "%-16s  ", key);
-
-					json_object_object_get_ex(
-						val, "address", &json_tmp);
-					vty_out(vty, "%-15s  ",
-						json_object_get_string(
-							json_tmp));
-
-					json_object_object_get_ex(if_field_val,
-								  "source",
-								  &json_tmp);
-					vty_out(vty, "%-15s  ",
-						json_object_get_string(
-							json_tmp));
-
-					/* Group */
-					vty_out(vty, "%-15s  ", if_field_key);
-
-					json_object_object_get_ex(
-						if_field_val, "localMembership",
-						&json_tmp);
-					vty_out(vty, "%-10s\n",
-						json_object_get_string(
-							json_tmp));
-				}
-			}
-		}
-	}
-
-	json_object_free(json);
-}
-
-static void pim_print_ifp_flags(struct vty *vty, struct interface *ifp,
-				int mloop)
-{
-	vty_out(vty, "Flags\n");
-	vty_out(vty, "-----\n");
-	vty_out(vty, "All Multicast   : %s\n",
-		(ifp->flags & IFF_ALLMULTI) ? "yes" : "no");
-	vty_out(vty, "Broadcast       : %s\n",
-		if_is_broadcast(ifp) ? "yes" : "no");
-	vty_out(vty, "Deleted         : %s\n",
-		PIM_IF_IS_DELETED(ifp) ? "yes" : "no");
-	vty_out(vty, "Interface Index : %d\n", ifp->ifindex);
-	vty_out(vty, "Multicast       : %s\n",
-		if_is_multicast(ifp) ? "yes" : "no");
-	vty_out(vty, "Multicast Loop  : %d\n", mloop);
-	vty_out(vty, "Promiscuous     : %s\n",
-		(ifp->flags & IFF_PROMISC) ? "yes" : "no");
-	vty_out(vty, "\n");
-	vty_out(vty, "\n");
-}
-
 static void igmp_show_interfaces(struct pim_instance *pim, struct vty *vty,
 				 bool uj)
 {
@@ -501,14 +313,14 @@ static void igmp_show_interfaces(struct pim_instance *pim, struct vty *vty,
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp;
 		struct listnode *sock_node;
-		struct igmp_sock *igmp;
+		struct gm_sock *igmp;
 
 		pim_ifp = ifp->info;
 
 		if (!pim_ifp)
 			continue;
 
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_socket_list, sock_node,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_socket_list, sock_node,
 					  igmp)) {
 			char uptime[10];
 			char query_hhmmss[10];
@@ -564,18 +376,15 @@ static void igmp_show_interfaces(struct pim_instance *pim, struct vty *vty,
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void igmp_show_interfaces_single(struct pim_instance *pim,
 					struct vty *vty, const char *ifname,
 					bool uj)
 {
-	struct igmp_sock *igmp;
+	struct gm_sock *igmp;
 	struct interface *ifp;
 	struct listnode *sock_node;
 	struct pim_interface *pim_ifp;
@@ -584,7 +393,6 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 	char other_hhmmss[10];
 	int found_ifname = 0;
 	int sqi;
-	int mloop = 0;
 	long gmi_msec; /* Group Membership Interval */
 	long lmqt_msec;
 	long ohpi_msec;
@@ -610,7 +418,7 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 		if (strcmp(ifname, "detail") && strcmp(ifname, ifp->name))
 			continue;
 
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_socket_list, sock_node,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_socket_list, sock_node,
 					  igmp)) {
 			found_ifname = 1;
 			pim_time_uptime(uptime, sizeof(uptime),
@@ -625,35 +433,29 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 			gmi_msec = PIM_IGMP_GMI_MSEC(
 				igmp->querier_robustness_variable,
 				igmp->querier_query_interval,
-				pim_ifp->igmp_query_max_response_time_dsec);
+				pim_ifp->gm_query_max_response_time_dsec);
 
-			sqi = PIM_IGMP_SQI(
-				pim_ifp->igmp_default_query_interval);
+			sqi = PIM_IGMP_SQI(pim_ifp->gm_default_query_interval);
 
 			oqpi_msec = PIM_IGMP_OQPI_MSEC(
 				igmp->querier_robustness_variable,
 				igmp->querier_query_interval,
-				pim_ifp->igmp_query_max_response_time_dsec);
+				pim_ifp->gm_query_max_response_time_dsec);
 
 			lmqt_msec = PIM_IGMP_LMQT_MSEC(
-				pim_ifp->igmp_specific_query_max_response_time_dsec,
-				pim_ifp->igmp_last_member_query_count);
+				pim_ifp->gm_specific_query_max_response_time_dsec,
+				pim_ifp->gm_last_member_query_count);
 
 			ohpi_msec =
 				PIM_IGMP_OHPI_DSEC(
 					igmp->querier_robustness_variable,
 					igmp->querier_query_interval,
-					pim_ifp->igmp_query_max_response_time_dsec)
-				* 100;
+					pim_ifp->gm_query_max_response_time_dsec) *
+				100;
 
-			qri_msec = pim_ifp->igmp_query_max_response_time_dsec
-				* 100;
-			if (pim_ifp->pim_sock_fd >= 0)
-				mloop = pim_socket_mcastloop_get(
-					pim_ifp->pim_sock_fd);
-			else
-				mloop = 0;
-			lmqc = pim_ifp->igmp_last_member_query_count;
+			qri_msec =
+				pim_ifp->gm_query_max_response_time_dsec * 100;
+			lmqc = pim_ifp->gm_last_member_query_count;
 
 			if (uj) {
 				json_row = json_object_new_object();
@@ -785,19 +587,15 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 				vty_out(vty, "\n");
 				vty_out(vty, "\n");
 
-				pim_print_ifp_flags(vty, ifp, mloop);
+				pim_print_ifp_flags(vty, ifp);
 			}
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else {
-		if (!found_ifname)
-			vty_out(vty, "%% No such interface\n");
-	}
+	if (uj)
+		vty_json(vty, json);
+	else if (!found_ifname)
+		vty_out(vty, "%% No such interface\n");
 }
 
 static void igmp_show_interface_join(struct pim_instance *pim, struct vty *vty,
@@ -824,7 +622,7 @@ static void igmp_show_interface_join(struct pim_instance *pim, struct vty *vty,
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp;
 		struct listnode *join_node;
-		struct igmp_join *ij;
+		struct gm_join *ij;
 		struct in_addr pri_addr;
 		char pri_addr_str[INET_ADDRSTRLEN];
 
@@ -833,14 +631,14 @@ static void igmp_show_interface_join(struct pim_instance *pim, struct vty *vty,
 		if (!pim_ifp)
 			continue;
 
-		if (!pim_ifp->igmp_join_list)
+		if (!pim_ifp->gm_join_list)
 			continue;
 
 		pri_addr = pim_find_primary_addr(ifp);
 		pim_inet4_dump("<pri?>", pri_addr, pri_addr_str,
 			       sizeof(pri_addr_str));
 
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_join_list, join_node,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_join_list, join_node,
 					  ij)) {
 			char group_str[INET_ADDRSTRLEN];
 			char source_str[INET_ADDRSTRLEN];
@@ -887,450 +685,33 @@ static void igmp_show_interface_join(struct pim_instance *pim, struct vty *vty,
 					ifp->name, pri_addr_str, source_str,
 					group_str, ij->sock_fd, uptime);
 			}
-		} /* for (pim_ifp->igmp_join_list) */
+		} /* for (pim_ifp->gm_join_list) */
 
 	} /* for (iflist) */
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_interfaces_single(struct pim_instance *pim,
-				       struct vty *vty, const char *ifname,
-				       bool mlag, bool uj)
-{
-	struct in_addr ifaddr;
-	struct interface *ifp;
-	struct listnode *neighnode;
-	struct pim_interface *pim_ifp;
-	struct pim_neighbor *neigh;
-	struct pim_upstream *up;
-	time_t now;
-	char dr_str[INET_ADDRSTRLEN];
-	char dr_uptime[10];
-	char expire[10];
-	char grp_str[INET_ADDRSTRLEN];
-	char hello_period[10];
-	char hello_timer[10];
-	char neigh_src_str[INET_ADDRSTRLEN];
-	char src_str[INET_ADDRSTRLEN];
-	char stat_uptime[10];
-	char uptime[10];
-	int mloop = 0;
-	int found_ifname = 0;
-	int print_header;
-	json_object *json = NULL;
-	json_object *json_row = NULL;
-	json_object *json_pim_neighbor = NULL;
-	json_object *json_pim_neighbors = NULL;
-	json_object *json_group = NULL;
-	json_object *json_group_source = NULL;
-	json_object *json_fhr_sources = NULL;
-	struct pim_secondary_addr *sec_addr;
-	struct listnode *sec_node;
-
-	now = pim_time_monotonic_sec();
-
 	if (uj)
-		json = json_object_new_object();
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		if (mlag == true && pim_ifp->activeactive == false)
-			continue;
-
-		if (strcmp(ifname, "detail") && strcmp(ifname, ifp->name))
-			continue;
-
-		found_ifname = 1;
-		ifaddr = pim_ifp->primary_address;
-		pim_inet4_dump("<dr?>", pim_ifp->pim_dr_addr, dr_str,
-			       sizeof(dr_str));
-		pim_time_uptime_begin(dr_uptime, sizeof(dr_uptime), now,
-				      pim_ifp->pim_dr_election_last);
-		pim_time_timer_to_hhmmss(hello_timer, sizeof(hello_timer),
-					 pim_ifp->t_pim_hello_timer);
-		pim_time_mmss(hello_period, sizeof(hello_period),
-			      pim_ifp->pim_hello_period);
-		pim_time_uptime(stat_uptime, sizeof(stat_uptime),
-				now - pim_ifp->pim_ifstat_start);
-		if (pim_ifp->pim_sock_fd >= 0)
-			mloop = pim_socket_mcastloop_get(pim_ifp->pim_sock_fd);
-		else
-			mloop = 0;
-
-		if (uj) {
-			char pbuf[PREFIX2STR_BUFFER];
-			json_row = json_object_new_object();
-			json_object_pim_ifp_add(json_row, ifp);
-
-			if (pim_ifp->update_source.s_addr != INADDR_ANY) {
-				json_object_string_addf(
-					json_row, "useSource", "%pI4",
-					&pim_ifp->update_source);
-			}
-			if (pim_ifp->sec_addr_list) {
-				json_object *sec_list = NULL;
-
-				sec_list = json_object_new_array();
-				for (ALL_LIST_ELEMENTS_RO(
-					     pim_ifp->sec_addr_list, sec_node,
-					     sec_addr)) {
-					json_object_array_add(
-						sec_list,
-						json_object_new_string(
-							prefix2str(
-								&sec_addr->addr,
-								pbuf,
-								sizeof(pbuf))));
-				}
-				json_object_object_add(json_row,
-						       "secondaryAddressList",
-						       sec_list);
-			}
-
-			// PIM neighbors
-			if (pim_ifp->pim_neighbor_list->count) {
-				json_pim_neighbors = json_object_new_object();
-
-				for (ALL_LIST_ELEMENTS_RO(
-					     pim_ifp->pim_neighbor_list,
-					     neighnode, neigh)) {
-					json_pim_neighbor =
-						json_object_new_object();
-					pim_inet4_dump("<src?>",
-						       neigh->source_addr,
-						       neigh_src_str,
-						       sizeof(neigh_src_str));
-					pim_time_uptime(uptime, sizeof(uptime),
-							now - neigh->creation);
-					pim_time_timer_to_hhmmss(
-						expire, sizeof(expire),
-						neigh->t_expire_timer);
-
-					json_object_string_add(
-						json_pim_neighbor, "address",
-						neigh_src_str);
-					json_object_string_add(
-						json_pim_neighbor, "upTime",
-						uptime);
-					json_object_string_add(
-						json_pim_neighbor, "holdtime",
-						expire);
-
-					json_object_object_add(
-						json_pim_neighbors,
-						neigh_src_str,
-						json_pim_neighbor);
-				}
-
-				json_object_object_add(json_row, "neighbors",
-						       json_pim_neighbors);
-			}
-
-			json_object_string_add(json_row, "drAddress", dr_str);
-			json_object_int_add(json_row, "drPriority",
-					    pim_ifp->pim_dr_priority);
-			json_object_string_add(json_row, "drUptime", dr_uptime);
-			json_object_int_add(json_row, "drElections",
-					    pim_ifp->pim_dr_election_count);
-			json_object_int_add(json_row, "drChanges",
-					    pim_ifp->pim_dr_election_changes);
-
-			// FHR
-			frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-				if (ifp != up->rpf.source_nexthop.interface)
-					continue;
-
-				if (!(up->flags & PIM_UPSTREAM_FLAG_MASK_FHR))
-					continue;
-
-				if (!json_fhr_sources)
-					json_fhr_sources =
-						json_object_new_object();
-
-				pim_inet4_dump("<src?>", up->sg.src, src_str,
-					       sizeof(src_str));
-				pim_inet4_dump("<grp?>", up->sg.grp, grp_str,
-					       sizeof(grp_str));
-				pim_time_uptime(uptime, sizeof(uptime),
-						now - up->state_transition);
-
-				/*
-				 * Does this group live in json_fhr_sources?
-				 * If not create it.
-				 */
-				json_object_object_get_ex(json_fhr_sources,
-							  grp_str, &json_group);
-
-				if (!json_group) {
-					json_group = json_object_new_object();
-					json_object_object_add(json_fhr_sources,
-							       grp_str,
-							       json_group);
-				}
-
-				json_group_source = json_object_new_object();
-				json_object_string_add(json_group_source,
-						       "source", src_str);
-				json_object_string_add(json_group_source,
-						       "group", grp_str);
-				json_object_string_add(json_group_source,
-						       "upTime", uptime);
-				json_object_object_add(json_group, src_str,
-						       json_group_source);
-			}
-
-			if (json_fhr_sources) {
-				json_object_object_add(json_row,
-						       "firstHopRouter",
-						       json_fhr_sources);
-			}
-
-			json_object_int_add(json_row, "helloPeriod",
-					    pim_ifp->pim_hello_period);
-			json_object_int_add(json_row, "holdTime",
-					    PIM_IF_DEFAULT_HOLDTIME(pim_ifp));
-			json_object_string_add(json_row, "helloTimer",
-					       hello_timer);
-			json_object_string_add(json_row, "helloStatStart",
-					       stat_uptime);
-			json_object_int_add(json_row, "helloReceived",
-					    pim_ifp->pim_ifstat_hello_recv);
-			json_object_int_add(json_row, "helloReceivedFailed",
-					    pim_ifp->pim_ifstat_hello_recvfail);
-			json_object_int_add(json_row, "helloSend",
-					    pim_ifp->pim_ifstat_hello_sent);
-			json_object_int_add(json_row, "hellosendFailed",
-					    pim_ifp->pim_ifstat_hello_sendfail);
-			json_object_int_add(json_row, "helloGenerationId",
-					    pim_ifp->pim_generation_id);
-			json_object_int_add(json_row, "flagMulticastLoop",
-					    mloop);
-
-			json_object_int_add(
-				json_row, "effectivePropagationDelay",
-				pim_if_effective_propagation_delay_msec(ifp));
-			json_object_int_add(
-				json_row, "effectiveOverrideInterval",
-				pim_if_effective_override_interval_msec(ifp));
-			json_object_int_add(
-				json_row, "joinPruneOverrideInterval",
-				pim_if_jp_override_interval_msec(ifp));
-
-			json_object_int_add(
-				json_row, "propagationDelay",
-				pim_ifp->pim_propagation_delay_msec);
-			json_object_int_add(
-				json_row, "propagationDelayHighest",
-				pim_ifp->pim_neighbors_highest_propagation_delay_msec);
-			json_object_int_add(
-				json_row, "overrideInterval",
-				pim_ifp->pim_override_interval_msec);
-			json_object_int_add(
-				json_row, "overrideIntervalHighest",
-				pim_ifp->pim_neighbors_highest_override_interval_msec);
-			if (pim_ifp->bsm_enable)
-				json_object_boolean_true_add(json_row,
-							     "bsmEnabled");
-			if (pim_ifp->ucast_bsm_accept)
-				json_object_boolean_true_add(json_row,
-							     "ucastBsmEnabled");
-			json_object_object_add(json, ifp->name, json_row);
-
-		} else {
-			vty_out(vty, "Interface  : %s\n", ifp->name);
-			vty_out(vty, "State      : %s\n",
-				if_is_up(ifp) ? "up" : "down");
-			if (pim_ifp->update_source.s_addr != INADDR_ANY) {
-				vty_out(vty, "Use Source : %pI4\n",
-					&pim_ifp->update_source);
-			}
-			if (pim_ifp->sec_addr_list) {
-				vty_out(vty, "Address    : %pI4 (primary)\n",
-					&ifaddr);
-				for (ALL_LIST_ELEMENTS_RO(
-					     pim_ifp->sec_addr_list, sec_node,
-					     sec_addr))
-					vty_out(vty, "             %pFX\n",
-						&sec_addr->addr);
-			} else {
-				vty_out(vty, "Address    : %pI4\n",
-					&ifaddr);
-			}
-			vty_out(vty, "\n");
-
-			// PIM neighbors
-			print_header = 1;
-
-			for (ALL_LIST_ELEMENTS_RO(pim_ifp->pim_neighbor_list,
-						  neighnode, neigh)) {
-
-				if (print_header) {
-					vty_out(vty, "PIM Neighbors\n");
-					vty_out(vty, "-------------\n");
-					print_header = 0;
-				}
-
-				pim_inet4_dump("<src?>", neigh->source_addr,
-					       neigh_src_str,
-					       sizeof(neigh_src_str));
-				pim_time_uptime(uptime, sizeof(uptime),
-						now - neigh->creation);
-				pim_time_timer_to_hhmmss(expire, sizeof(expire),
-							 neigh->t_expire_timer);
-				vty_out(vty,
-					"%-15s : up for %s, holdtime expires in %s\n",
-					neigh_src_str, uptime, expire);
-			}
-
-			if (!print_header) {
-				vty_out(vty, "\n");
-				vty_out(vty, "\n");
-			}
-
-			vty_out(vty, "Designated Router\n");
-			vty_out(vty, "-----------------\n");
-			vty_out(vty, "Address   : %s\n", dr_str);
-			vty_out(vty, "Priority  : %u(%d)\n",
-				pim_ifp->pim_dr_priority,
-				pim_ifp->pim_dr_num_nondrpri_neighbors);
-			vty_out(vty, "Uptime    : %s\n", dr_uptime);
-			vty_out(vty, "Elections : %d\n",
-				pim_ifp->pim_dr_election_count);
-			vty_out(vty, "Changes   : %d\n",
-				pim_ifp->pim_dr_election_changes);
-			vty_out(vty, "\n");
-			vty_out(vty, "\n");
-
-			// FHR
-			print_header = 1;
-			frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-				if (!up->rpf.source_nexthop.interface)
-					continue;
-
-				if (strcmp(ifp->name,
-					   up->rpf.source_nexthop
-					   .interface->name)
-				    != 0)
-					continue;
-
-				if (!(up->flags & PIM_UPSTREAM_FLAG_MASK_FHR))
-					continue;
-
-				if (print_header) {
-					vty_out(vty,
-						"FHR - First Hop Router\n");
-					vty_out(vty,
-						"----------------------\n");
-					print_header = 0;
-				}
-
-				pim_inet4_dump("<src?>", up->sg.src, src_str,
-					       sizeof(src_str));
-				pim_inet4_dump("<grp?>", up->sg.grp, grp_str,
-					       sizeof(grp_str));
-				pim_time_uptime(uptime, sizeof(uptime),
-						now - up->state_transition);
-				vty_out(vty,
-					"%s : %s is a source, uptime is %s\n",
-					grp_str, src_str, uptime);
-			}
-
-			if (!print_header) {
-				vty_out(vty, "\n");
-				vty_out(vty, "\n");
-			}
-
-			vty_out(vty, "Hellos\n");
-			vty_out(vty, "------\n");
-			vty_out(vty, "Period         : %d\n",
-				pim_ifp->pim_hello_period);
-			vty_out(vty, "HoldTime       : %d\n",
-				PIM_IF_DEFAULT_HOLDTIME(pim_ifp));
-			vty_out(vty, "Timer          : %s\n", hello_timer);
-			vty_out(vty, "StatStart      : %s\n", stat_uptime);
-			vty_out(vty, "Receive        : %d\n",
-				pim_ifp->pim_ifstat_hello_recv);
-			vty_out(vty, "Receive Failed : %d\n",
-				pim_ifp->pim_ifstat_hello_recvfail);
-			vty_out(vty, "Send           : %d\n",
-				pim_ifp->pim_ifstat_hello_sent);
-			vty_out(vty, "Send Failed    : %d\n",
-				pim_ifp->pim_ifstat_hello_sendfail);
-			vty_out(vty, "Generation ID  : %08x\n",
-				pim_ifp->pim_generation_id);
-			vty_out(vty, "\n");
-			vty_out(vty, "\n");
-
-			pim_print_ifp_flags(vty, ifp, mloop);
-
-			vty_out(vty, "Join Prune Interval\n");
-			vty_out(vty, "-------------------\n");
-			vty_out(vty, "LAN Delay                    : %s\n",
-				pim_if_lan_delay_enabled(ifp) ? "yes" : "no");
-			vty_out(vty, "Effective Propagation Delay  : %d msec\n",
-				pim_if_effective_propagation_delay_msec(ifp));
-			vty_out(vty, "Effective Override Interval  : %d msec\n",
-				pim_if_effective_override_interval_msec(ifp));
-			vty_out(vty, "Join Prune Override Interval : %d msec\n",
-				pim_if_jp_override_interval_msec(ifp));
-			vty_out(vty, "\n");
-			vty_out(vty, "\n");
-
-			vty_out(vty, "LAN Prune Delay\n");
-			vty_out(vty, "---------------\n");
-			vty_out(vty, "Propagation Delay           : %d msec\n",
-				pim_ifp->pim_propagation_delay_msec);
-			vty_out(vty, "Propagation Delay (Highest) : %d msec\n",
-				pim_ifp->pim_neighbors_highest_propagation_delay_msec);
-			vty_out(vty, "Override Interval           : %d msec\n",
-				pim_ifp->pim_override_interval_msec);
-			vty_out(vty, "Override Interval (Highest) : %d msec\n",
-				pim_ifp->pim_neighbors_highest_override_interval_msec);
-			vty_out(vty, "\n");
-			vty_out(vty, "\n");
-
-			vty_out(vty, "BSM Status\n");
-			vty_out(vty, "----------\n");
-			vty_out(vty, "Bsm Enabled          : %s\n",
-				pim_ifp->bsm_enable ? "yes" : "no");
-			vty_out(vty, "Unicast Bsm Enabled  : %s\n",
-				pim_ifp->ucast_bsm_accept ? "yes" : "no");
-			vty_out(vty, "\n");
-			vty_out(vty, "\n");
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else {
-		if (!found_ifname)
-			vty_out(vty, "%% No such interface\n");
-	}
+		vty_json(vty, json);
 }
 
 static void igmp_show_statistics(struct pim_instance *pim, struct vty *vty,
 				 const char *ifname, bool uj)
 {
 	struct interface *ifp;
-	struct igmp_stats rx_stats;
+	struct igmp_stats igmp_stats;
+	bool found_ifname = false;
+	json_object *json = NULL;
 
-	igmp_stats_init(&rx_stats);
+	igmp_stats_init(&igmp_stats);
+
+	if (uj)
+		json = json_object_new_object();
 
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp;
-		struct listnode *sock_node;
-		struct igmp_sock *igmp;
+		struct listnode *sock_node, *source_node, *group_node;
+		struct gm_sock *igmp;
+		struct gm_group *group;
+		struct gm_source *src;
 
 		pim_ifp = ifp->info;
 
@@ -1340,148 +721,120 @@ static void igmp_show_statistics(struct pim_instance *pim, struct vty *vty,
 		if (ifname && strcmp(ifname, ifp->name))
 			continue;
 
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_socket_list, sock_node,
+		found_ifname = true;
+
+		igmp_stats.joins_failed += pim_ifp->igmp_ifstat_joins_failed;
+		igmp_stats.joins_sent += pim_ifp->igmp_ifstat_joins_sent;
+		igmp_stats.total_groups +=
+			pim_ifp->gm_group_list
+				? listcount(pim_ifp->gm_group_list)
+				: 0;
+		igmp_stats.peak_groups += pim_ifp->igmp_peak_group_count;
+
+
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, group_node,
+					  group)) {
+			for (ALL_LIST_ELEMENTS_RO(group->group_source_list,
+						  source_node, src)) {
+				if (pim_addr_is_any(src->source_addr))
+					continue;
+
+				igmp_stats.total_source_groups++;
+			}
+		}
+
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_socket_list, sock_node,
 					  igmp)) {
-			igmp_stats_add(&rx_stats, &igmp->rx_stats);
+			igmp_stats_add(&igmp_stats, &igmp->igmp_stats);
 		}
 	}
+
+	if (!found_ifname) {
+		if (uj)
+			vty_json(vty, json);
+		else
+			vty_out(vty, "%% No such interface\n");
+		return;
+	}
+
 	if (uj) {
-		json_object *json = NULL;
-		json_object *json_row = NULL;
+		json_object *json_row = json_object_new_object();
 
-		json = json_object_new_object();
-		json_row = json_object_new_object();
-
-		json_object_string_add(json_row, "name", ifname ? ifname :
-				       "global");
-		json_object_int_add(json_row, "queryV1", rx_stats.query_v1);
-		json_object_int_add(json_row, "queryV2", rx_stats.query_v2);
-		json_object_int_add(json_row, "queryV3", rx_stats.query_v3);
-		json_object_int_add(json_row, "leaveV3", rx_stats.leave_v2);
-		json_object_int_add(json_row, "reportV1", rx_stats.report_v1);
-		json_object_int_add(json_row, "reportV2", rx_stats.report_v2);
-		json_object_int_add(json_row, "reportV3", rx_stats.report_v3);
+		json_object_string_add(json_row, "name",
+				       ifname ? ifname : "global");
+		json_object_int_add(json_row, "queryV1", igmp_stats.query_v1);
+		json_object_int_add(json_row, "queryV2", igmp_stats.query_v2);
+		json_object_int_add(json_row, "queryV3", igmp_stats.query_v3);
+		json_object_int_add(json_row, "leaveV2", igmp_stats.leave_v2);
+		json_object_int_add(json_row, "reportV1", igmp_stats.report_v1);
+		json_object_int_add(json_row, "reportV2", igmp_stats.report_v2);
+		json_object_int_add(json_row, "reportV3", igmp_stats.report_v3);
 		json_object_int_add(json_row, "mtraceResponse",
-				    rx_stats.mtrace_rsp);
+				    igmp_stats.mtrace_rsp);
 		json_object_int_add(json_row, "mtraceRequest",
-				    rx_stats.mtrace_req);
+				    igmp_stats.mtrace_req);
 		json_object_int_add(json_row, "unsupported",
-				    rx_stats.unsupported);
+				    igmp_stats.unsupported);
+		json_object_int_add(json_row, "totalReceivedMessages",
+				    igmp_stats.total_recv_messages);
+		json_object_int_add(json_row, "peakGroups",
+				    igmp_stats.peak_groups);
+		json_object_int_add(json_row, "totalGroups",
+				    igmp_stats.total_groups);
+		json_object_int_add(json_row, "totalSourceGroups",
+				    igmp_stats.total_source_groups);
+		json_object_int_add(json_row, "joinsFailed",
+				    igmp_stats.joins_failed);
+		json_object_int_add(json_row, "joinsSent",
+				    igmp_stats.joins_sent);
+		json_object_int_add(json_row, "generalQueriesSent",
+				    igmp_stats.general_queries_sent);
+		json_object_int_add(json_row, "groupQueriesSent",
+				    igmp_stats.group_queries_sent);
 		json_object_object_add(json, ifname ? ifname : "global",
 				       json_row);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	} else {
-		vty_out(vty, "IGMP RX statistics\n");
-		vty_out(vty, "Interface       : %s\n",
+		vty_out(vty, "IGMP statistics\n");
+		vty_out(vty, "Interface               : %s\n",
 			ifname ? ifname : "global");
-		vty_out(vty, "V1 query        : %u\n", rx_stats.query_v1);
-		vty_out(vty, "V2 query        : %u\n", rx_stats.query_v2);
-		vty_out(vty, "V3 query        : %u\n", rx_stats.query_v3);
-		vty_out(vty, "V2 leave        : %u\n", rx_stats.leave_v2);
-		vty_out(vty, "V1 report       : %u\n", rx_stats.report_v1);
-		vty_out(vty, "V2 report       : %u\n", rx_stats.report_v2);
-		vty_out(vty, "V3 report       : %u\n", rx_stats.report_v3);
-		vty_out(vty, "mtrace response : %u\n", rx_stats.mtrace_rsp);
-		vty_out(vty, "mtrace request  : %u\n", rx_stats.mtrace_req);
-		vty_out(vty, "unsupported     : %u\n", rx_stats.unsupported);
+		vty_out(vty, "V1 query                : %u\n",
+			igmp_stats.query_v1);
+		vty_out(vty, "V2 query                : %u\n",
+			igmp_stats.query_v2);
+		vty_out(vty, "V3 query                : %u\n",
+			igmp_stats.query_v3);
+		vty_out(vty, "V2 leave                : %u\n",
+			igmp_stats.leave_v2);
+		vty_out(vty, "V1 report               : %u\n",
+			igmp_stats.report_v1);
+		vty_out(vty, "V2 report               : %u\n",
+			igmp_stats.report_v2);
+		vty_out(vty, "V3 report               : %u\n",
+			igmp_stats.report_v3);
+		vty_out(vty, "mtrace response         : %u\n",
+			igmp_stats.mtrace_rsp);
+		vty_out(vty, "mtrace request          : %u\n",
+			igmp_stats.mtrace_req);
+		vty_out(vty, "unsupported             : %u\n",
+			igmp_stats.unsupported);
+		vty_out(vty, "total received messages : %u\n",
+			igmp_stats.total_recv_messages);
+		vty_out(vty, "joins failed            : %u\n",
+			igmp_stats.joins_failed);
+		vty_out(vty, "joins sent              : %u\n",
+			igmp_stats.joins_sent);
+		vty_out(vty, "general queries sent    : %u\n",
+			igmp_stats.general_queries_sent);
+		vty_out(vty, "group queries sent      : %u\n",
+			igmp_stats.group_queries_sent);
+		vty_out(vty, "peak groups             : %u\n",
+			igmp_stats.peak_groups);
+		vty_out(vty, "total groups            : %u\n",
+			igmp_stats.total_groups);
+		vty_out(vty, "total source groups     : %u\n",
+			igmp_stats.total_source_groups);
 	}
-}
-
-static void pim_show_interfaces(struct pim_instance *pim, struct vty *vty,
-				bool mlag, bool uj)
-{
-	struct interface *ifp;
-	struct pim_interface *pim_ifp;
-	struct pim_upstream *up;
-	int fhr = 0;
-	int pim_nbrs = 0;
-	int pim_ifchannels = 0;
-	json_object *json = NULL;
-	json_object *json_row = NULL;
-	json_object *json_tmp;
-
-	json = json_object_new_object();
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		if (mlag == true && pim_ifp->activeactive == false)
-			continue;
-
-		pim_nbrs = pim_ifp->pim_neighbor_list->count;
-		pim_ifchannels = pim_if_ifchannel_count(pim_ifp);
-		fhr = 0;
-
-		frr_each (rb_pim_upstream, &pim->upstream_head, up)
-			if (ifp == up->rpf.source_nexthop.interface)
-				if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR)
-					fhr++;
-
-		json_row = json_object_new_object();
-		json_object_pim_ifp_add(json_row, ifp);
-		json_object_int_add(json_row, "pimNeighbors", pim_nbrs);
-		json_object_int_add(json_row, "pimIfChannels", pim_ifchannels);
-		json_object_int_add(json_row, "firstHopRouterCount", fhr);
-		json_object_string_addf(json_row, "pimDesignatedRouter", "%pI4",
-					&pim_ifp->pim_dr_addr);
-
-		if (pim_ifp->pim_dr_addr.s_addr
-		    == pim_ifp->primary_address.s_addr)
-			json_object_boolean_true_add(
-				json_row, "pimDesignatedRouterLocal");
-
-		json_object_object_add(json, ifp->name, json_row);
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-	} else {
-		vty_out(vty,
-			"Interface         State          Address  PIM Nbrs           PIM DR  FHR IfChannels\n");
-
-		json_object_object_foreach(json, key, val)
-		{
-			vty_out(vty, "%-16s  ", key);
-
-			json_object_object_get_ex(val, "state", &json_tmp);
-			vty_out(vty, "%5s  ", json_object_get_string(json_tmp));
-
-			json_object_object_get_ex(val, "address", &json_tmp);
-			vty_out(vty, "%15s  ",
-				json_object_get_string(json_tmp));
-
-			json_object_object_get_ex(val, "pimNeighbors",
-						  &json_tmp);
-			vty_out(vty, "%8d  ", json_object_get_int(json_tmp));
-
-			if (json_object_object_get_ex(
-				    val, "pimDesignatedRouterLocal",
-				    &json_tmp)) {
-				vty_out(vty, "%15s  ", "local");
-			} else {
-				json_object_object_get_ex(
-					val, "pimDesignatedRouter", &json_tmp);
-				vty_out(vty, "%15s  ",
-					json_object_get_string(json_tmp));
-			}
-
-			json_object_object_get_ex(val, "firstHopRouter",
-						  &json_tmp);
-			vty_out(vty, "%3d  ", json_object_get_int(json_tmp));
-
-			json_object_object_get_ex(val, "pimIfChannels",
-						  &json_tmp);
-			vty_out(vty, "%9d\n", json_object_get_int(json_tmp));
-		}
-	}
-
-	json_object_free(json);
 }
 
 static void pim_show_interface_traffic(struct pim_instance *pim,
@@ -1534,7 +887,7 @@ static void pim_show_interface_traffic(struct pim_instance *pim,
 			json_object_int_add(json_row, "registerRx",
 					    pim_ifp->pim_ifstat_reg_recv);
 			json_object_int_add(json_row, "registerTx",
-					    pim_ifp->pim_ifstat_reg_recv);
+					    pim_ifp->pim_ifstat_reg_send);
 			json_object_int_add(json_row, "registerStopRx",
 					    pim_ifp->pim_ifstat_reg_stop_recv);
 			json_object_int_add(json_row, "registerStopTx",
@@ -1567,11 +920,8 @@ static void pim_show_interface_traffic(struct pim_instance *pim,
 				pim_ifp->pim_ifstat_bsm_tx);
 		}
 	}
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void pim_show_interface_traffic_single(struct pim_instance *pim,
@@ -1623,10 +973,14 @@ static void pim_show_interface_traffic_single(struct pim_instance *pim,
 					    pim_ifp->pim_ifstat_join_recv);
 			json_object_int_add(json_row, "joinTx",
 					    pim_ifp->pim_ifstat_join_send);
+			json_object_int_add(json_row, "pruneRx",
+					    pim_ifp->pim_ifstat_prune_recv);
+			json_object_int_add(json_row, "pruneTx",
+					    pim_ifp->pim_ifstat_prune_send);
 			json_object_int_add(json_row, "registerRx",
 					    pim_ifp->pim_ifstat_reg_recv);
 			json_object_int_add(json_row, "registerTx",
-					    pim_ifp->pim_ifstat_reg_recv);
+					    pim_ifp->pim_ifstat_reg_send);
 			json_object_int_add(json_row, "registerStopRx",
 					    pim_ifp->pim_ifstat_reg_stop_recv);
 			json_object_int_add(json_row, "registerStopTx",
@@ -1660,1353 +1014,10 @@ static void pim_show_interface_traffic_single(struct pim_instance *pim,
 				pim_ifp->pim_ifstat_bsm_tx);
 		}
 	}
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else {
-		if (!found_ifname)
-			vty_out(vty, "%% No such interface\n");
-	}
-}
-
-static void pim_show_join_helper(struct vty *vty, struct pim_interface *pim_ifp,
-				 struct pim_ifchannel *ch, json_object *json,
-				 time_t now, bool uj)
-{
-	char ch_src_str[INET_ADDRSTRLEN];
-	char ch_grp_str[INET_ADDRSTRLEN];
-	json_object *json_iface = NULL;
-	json_object *json_row = NULL;
-	json_object *json_grp = NULL;
-	struct in_addr ifaddr;
-	char uptime[10];
-	char expire[10];
-	char prune[10];
-	char buf[PREFIX_STRLEN];
-
-	ifaddr = pim_ifp->primary_address;
-
-	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
-	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
-
-	pim_time_uptime_begin(uptime, sizeof(uptime), now, ch->ifjoin_creation);
-	pim_time_timer_to_mmss(expire, sizeof(expire),
-			       ch->t_ifjoin_expiry_timer);
-	pim_time_timer_to_mmss(prune, sizeof(prune),
-			       ch->t_ifjoin_prune_pending_timer);
-
-	if (uj) {
-		json_object_object_get_ex(json, ch->interface->name,
-					  &json_iface);
-
-		if (!json_iface) {
-			json_iface = json_object_new_object();
-			json_object_pim_ifp_add(json_iface, ch->interface);
-			json_object_object_add(json, ch->interface->name,
-					       json_iface);
-		}
-
-		json_row = json_object_new_object();
-		json_object_string_add(json_row, "source", ch_src_str);
-		json_object_string_add(json_row, "group", ch_grp_str);
-		json_object_string_add(json_row, "upTime", uptime);
-		json_object_string_add(json_row, "expire", expire);
-		json_object_string_add(json_row, "prune", prune);
-		json_object_string_add(
-			json_row, "channelJoinName",
-			pim_ifchannel_ifjoin_name(ch->ifjoin_state, ch->flags));
-		if (PIM_IF_FLAG_TEST_S_G_RPT(ch->flags))
-			json_object_int_add(json_row, "SGRpt", 1);
-		if (PIM_IF_FLAG_TEST_PROTO_PIM(ch->flags))
-			json_object_int_add(json_row, "protocolPim", 1);
-		if (PIM_IF_FLAG_TEST_PROTO_IGMP(ch->flags))
-			json_object_int_add(json_row, "protocolIgmp", 1);
-		json_object_object_get_ex(json_iface, ch_grp_str, &json_grp);
-		if (!json_grp) {
-			json_grp = json_object_new_object();
-			json_object_object_add(json_grp, ch_src_str, json_row);
-			json_object_object_add(json_iface, ch_grp_str,
-					       json_grp);
-		} else
-			json_object_object_add(json_grp, ch_src_str, json_row);
-	} else {
-		vty_out(vty, "%-16s %-15s %-15s %-15s %-10s %8s %-6s %5s\n",
-			ch->interface->name,
-			inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)),
-			ch_src_str, ch_grp_str,
-			pim_ifchannel_ifjoin_name(ch->ifjoin_state, ch->flags),
-			uptime, expire, prune);
-	}
-}
-
-static void pim_show_join(struct pim_instance *pim, struct vty *vty,
-			  struct prefix_sg *sg, bool uj)
-{
-	struct pim_interface *pim_ifp;
-	struct pim_ifchannel *ch;
-	struct interface *ifp;
-	time_t now;
-	json_object *json = NULL;
-
-	now = pim_time_monotonic_sec();
-
 	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Interface        Address         Source          Group           State      Uptime   Expire Prune\n");
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-		if (!pim_ifp)
-			continue;
-
-		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
-			if (sg->grp.s_addr != INADDR_ANY
-			    && sg->grp.s_addr != ch->sg.grp.s_addr)
-				continue;
-			if (sg->src.s_addr != INADDR_ANY
-			    && sg->src.s_addr != ch->sg.src.s_addr)
-				continue;
-			pim_show_join_helper(vty, pim_ifp, ch, json, now, uj);
-		} /* scan interface channels */
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_neighbors_single(struct pim_instance *pim, struct vty *vty,
-				      const char *neighbor, bool uj)
-{
-	struct listnode *neighnode;
-	struct interface *ifp;
-	struct pim_interface *pim_ifp;
-	struct pim_neighbor *neigh;
-	time_t now;
-	int found_neighbor = 0;
-	int option_address_list;
-	int option_dr_priority;
-	int option_generation_id;
-	int option_holdtime;
-	int option_lan_prune_delay;
-	int option_t_bit;
-	char uptime[10];
-	char expire[10];
-	char neigh_src_str[INET_ADDRSTRLEN];
-
-	json_object *json = NULL;
-	json_object *json_ifp = NULL;
-	json_object *json_row = NULL;
-
-	now = pim_time_monotonic_sec();
-
-	if (uj)
-		json = json_object_new_object();
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		if (pim_ifp->pim_sock_fd < 0)
-			continue;
-
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->pim_neighbor_list, neighnode,
-					  neigh)) {
-			pim_inet4_dump("<src?>", neigh->source_addr,
-				       neigh_src_str, sizeof(neigh_src_str));
-
-			/*
-			 * The user can specify either the interface name or the
-			 * PIM neighbor IP.
-			 * If this pim_ifp matches neither then skip.
-			 */
-			if (strcmp(neighbor, "detail")
-			    && strcmp(neighbor, ifp->name)
-			    && strcmp(neighbor, neigh_src_str))
-				continue;
-
-			found_neighbor = 1;
-			pim_time_uptime(uptime, sizeof(uptime),
-					now - neigh->creation);
-			pim_time_timer_to_hhmmss(expire, sizeof(expire),
-						 neigh->t_expire_timer);
-
-			option_address_list = 0;
-			option_dr_priority = 0;
-			option_generation_id = 0;
-			option_holdtime = 0;
-			option_lan_prune_delay = 0;
-			option_t_bit = 0;
-
-			if (PIM_OPTION_IS_SET(neigh->hello_options,
-					      PIM_OPTION_MASK_ADDRESS_LIST))
-				option_address_list = 1;
-
-			if (PIM_OPTION_IS_SET(neigh->hello_options,
-					      PIM_OPTION_MASK_DR_PRIORITY))
-				option_dr_priority = 1;
-
-			if (PIM_OPTION_IS_SET(neigh->hello_options,
-					      PIM_OPTION_MASK_GENERATION_ID))
-				option_generation_id = 1;
-
-			if (PIM_OPTION_IS_SET(neigh->hello_options,
-					      PIM_OPTION_MASK_HOLDTIME))
-				option_holdtime = 1;
-
-			if (PIM_OPTION_IS_SET(neigh->hello_options,
-					      PIM_OPTION_MASK_LAN_PRUNE_DELAY))
-				option_lan_prune_delay = 1;
-
-			if (PIM_OPTION_IS_SET(
-				    neigh->hello_options,
-				    PIM_OPTION_MASK_CAN_DISABLE_JOIN_SUPPRESSION))
-				option_t_bit = 1;
-
-			if (uj) {
-
-				/* Does this ifp live in json?  If not create
-				 * it. */
-				json_object_object_get_ex(json, ifp->name,
-							  &json_ifp);
-
-				if (!json_ifp) {
-					json_ifp = json_object_new_object();
-					json_object_pim_ifp_add(json_ifp, ifp);
-					json_object_object_add(json, ifp->name,
-							       json_ifp);
-				}
-
-				json_row = json_object_new_object();
-				json_object_string_add(json_row, "interface",
-						       ifp->name);
-				json_object_string_add(json_row, "address",
-						       neigh_src_str);
-				json_object_string_add(json_row, "upTime",
-						       uptime);
-				json_object_string_add(json_row, "holdtime",
-						       expire);
-				json_object_int_add(json_row, "drPriority",
-						    neigh->dr_priority);
-				json_object_int_add(json_row, "generationId",
-						    neigh->generation_id);
-
-				if (option_address_list)
-					json_object_boolean_true_add(
-						json_row,
-						"helloOptionAddressList");
-
-				if (option_dr_priority)
-					json_object_boolean_true_add(
-						json_row,
-						"helloOptionDrPriority");
-
-				if (option_generation_id)
-					json_object_boolean_true_add(
-						json_row,
-						"helloOptionGenerationId");
-
-				if (option_holdtime)
-					json_object_boolean_true_add(
-						json_row,
-						"helloOptionHoldtime");
-
-				if (option_lan_prune_delay)
-					json_object_boolean_true_add(
-						json_row,
-						"helloOptionLanPruneDelay");
-
-				if (option_t_bit)
-					json_object_boolean_true_add(
-						json_row, "helloOptionTBit");
-
-				json_object_object_add(json_ifp, neigh_src_str,
-						       json_row);
-
-			} else {
-				vty_out(vty, "Interface : %s\n", ifp->name);
-				vty_out(vty, "Neighbor  : %s\n", neigh_src_str);
-				vty_out(vty,
-					"    Uptime                         : %s\n",
-					uptime);
-				vty_out(vty,
-					"    Holdtime                       : %s\n",
-					expire);
-				vty_out(vty,
-					"    DR Priority                    : %d\n",
-					neigh->dr_priority);
-				vty_out(vty,
-					"    Generation ID                  : %08x\n",
-					neigh->generation_id);
-				vty_out(vty,
-					"    Override Interval (msec)       : %d\n",
-					neigh->override_interval_msec);
-				vty_out(vty,
-					"    Propagation Delay (msec)       : %d\n",
-					neigh->propagation_delay_msec);
-				vty_out(vty,
-					"    Hello Option - Address List    : %s\n",
-					option_address_list ? "yes" : "no");
-				vty_out(vty,
-					"    Hello Option - DR Priority     : %s\n",
-					option_dr_priority ? "yes" : "no");
-				vty_out(vty,
-					"    Hello Option - Generation ID   : %s\n",
-					option_generation_id ? "yes" : "no");
-				vty_out(vty,
-					"    Hello Option - Holdtime        : %s\n",
-					option_holdtime ? "yes" : "no");
-				vty_out(vty,
-					"    Hello Option - LAN Prune Delay : %s\n",
-					option_lan_prune_delay ? "yes" : "no");
-				vty_out(vty,
-					"    Hello Option - T-bit           : %s\n",
-					option_t_bit ? "yes" : "no");
-				bfd_sess_show(vty, json_ifp,
-					      neigh->bfd_session);
-				vty_out(vty, "\n");
-			}
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else {
-		{
-			if (!found_neighbor)
-				vty_out(vty,
-					"%% No such interface or neighbor\n");
-		}
-	}
-}
-
-static void pim_show_state(struct pim_instance *pim, struct vty *vty,
-			   const char *src_or_group, const char *group, bool uj)
-{
-	struct channel_oil *c_oil;
-	json_object *json = NULL;
-	json_object *json_group = NULL;
-	json_object *json_ifp_in = NULL;
-	json_object *json_ifp_out = NULL;
-	json_object *json_source = NULL;
-	time_t now;
-	int first_oif;
-	now = pim_time_monotonic_sec();
-
-	if (uj) {
-		json = json_object_new_object();
-	} else {
-		vty_out(vty,
-			"Codes: J -> Pim Join, I -> IGMP Report, S -> Source, * -> Inherited from (*,G), V -> VxLAN, M -> Muted");
-		vty_out(vty,
-			"\nActive Source           Group            RPT  IIF               OIL\n");
-	}
-
-	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
-		char grp_str[INET_ADDRSTRLEN];
-		char src_str[INET_ADDRSTRLEN];
-		char in_ifname[INTERFACE_NAMSIZ + 1];
-		char out_ifname[INTERFACE_NAMSIZ + 1];
-		int oif_vif_index;
-		struct interface *ifp_in;
-		bool isRpt;
-		first_oif = 1;
-
-		if ((c_oil->up &&
-		     PIM_UPSTREAM_FLAG_TEST_USE_RPT(c_oil->up->flags)) ||
-		    c_oil->oil.mfcc_origin.s_addr == INADDR_ANY)
-			isRpt = true;
-		else
-			isRpt = false;
-
-		pim_inet4_dump("<group?>", c_oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", c_oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
-		ifp_in = pim_if_find_by_vif_index(pim, c_oil->oil.mfcc_parent);
-
-		if (ifp_in)
-			strlcpy(in_ifname, ifp_in->name, sizeof(in_ifname));
-		else
-			strlcpy(in_ifname, "<iif?>", sizeof(in_ifname));
-
-		if (src_or_group) {
-			if (strcmp(src_or_group, src_str)
-			    && strcmp(src_or_group, grp_str))
-				continue;
-
-			if (group && strcmp(group, grp_str))
-				continue;
-		}
-
-		if (uj) {
-
-			/* Find the group, create it if it doesn't exist */
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			/* Find the source nested under the group, create it if
-			 * it doesn't exist */
-			json_object_object_get_ex(json_group, src_str,
-						  &json_source);
-
-			if (!json_source) {
-				json_source = json_object_new_object();
-				json_object_object_add(json_group, src_str,
-						       json_source);
-			}
-
-			/* Find the inbound interface nested under the source,
-			 * create it if it doesn't exist */
-			json_object_object_get_ex(json_source, in_ifname,
-						  &json_ifp_in);
-
-			if (!json_ifp_in) {
-				json_ifp_in = json_object_new_object();
-				json_object_object_add(json_source, in_ifname,
-						       json_ifp_in);
-				json_object_int_add(json_source, "Installed",
-						    c_oil->installed);
-				if (isRpt)
-					json_object_boolean_true_add(
-						json_source, "isRpt");
-				else
-					json_object_boolean_false_add(
-						json_source, "isRpt");
-				json_object_int_add(json_source, "RefCount",
-						    c_oil->oil_ref_count);
-				json_object_int_add(json_source, "OilListSize",
-						    c_oil->oil_size);
-				json_object_int_add(
-					json_source, "OilRescan",
-					c_oil->oil_inherited_rescan);
-				json_object_int_add(json_source, "LastUsed",
-						    c_oil->cc.lastused);
-				json_object_int_add(json_source, "PacketCount",
-						    c_oil->cc.pktcnt);
-				json_object_int_add(json_source, "ByteCount",
-						    c_oil->cc.bytecnt);
-				json_object_int_add(json_source,
-						    "WrongInterface",
-						    c_oil->cc.wrong_if);
-			}
-		} else {
-			vty_out(vty, "%-6d %-15s  %-15s  %-3s  %-16s  ",
-				c_oil->installed, src_str, grp_str,
-				isRpt ? "y" : "n", in_ifname);
-		}
-
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
-		     ++oif_vif_index) {
-			struct interface *ifp_out;
-			char oif_uptime[10];
-			int ttl;
-
-			ttl = c_oil->oil.mfcc_ttls[oif_vif_index];
-			if (ttl < 1)
-				continue;
-
-			ifp_out = pim_if_find_by_vif_index(pim, oif_vif_index);
-			pim_time_uptime(
-				oif_uptime, sizeof(oif_uptime),
-				now - c_oil->oif_creation[oif_vif_index]);
-
-			if (ifp_out)
-				strlcpy(out_ifname, ifp_out->name, sizeof(out_ifname));
-			else
-				strlcpy(out_ifname, "<oif?>", sizeof(out_ifname));
-
-			if (uj) {
-				json_ifp_out = json_object_new_object();
-				json_object_string_add(json_ifp_out, "source",
-						       src_str);
-				json_object_string_add(json_ifp_out, "group",
-						       grp_str);
-				json_object_string_add(json_ifp_out,
-						       "inboundInterface",
-						       in_ifname);
-				json_object_string_add(json_ifp_out,
-						       "outboundInterface",
-						       out_ifname);
-				json_object_int_add(json_ifp_out, "installed",
-						    c_oil->installed);
-
-				json_object_object_add(json_ifp_in, out_ifname,
-						       json_ifp_out);
-			} else {
-				if (first_oif) {
-					first_oif = 0;
-					vty_out(vty, "%s(%c%c%c%c%c)",
-						out_ifname,
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_IGMP)
-						? 'I'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_PIM)
-						? 'J'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_VXLAN)
-						? 'V'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_STAR)
-						? '*'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_MUTE)
-						? 'M'
-						: ' ');
-				} else
-					vty_out(vty, ", %s(%c%c%c%c%c)",
-						out_ifname,
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_IGMP)
-						? 'I'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_PIM)
-						? 'J'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_VXLAN)
-						? 'V'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_PROTO_STAR)
-						? '*'
-						: ' ',
-						(c_oil->oif_flags[oif_vif_index]
-						 & PIM_OIF_FLAG_MUTE)
-						? 'M'
-						: ' ');
-			}
-		}
-
-		if (!uj)
-			vty_out(vty, "\n");
-	}
-
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else {
-		vty_out(vty, "\n");
-	}
-}
-
-static void pim_show_neighbors(struct pim_instance *pim, struct vty *vty,
-			       bool uj)
-{
-	struct listnode *neighnode;
-	struct interface *ifp;
-	struct pim_interface *pim_ifp;
-	struct pim_neighbor *neigh;
-	time_t now;
-	char uptime[10];
-	char expire[10];
-	char neigh_src_str[INET_ADDRSTRLEN];
-	json_object *json = NULL;
-	json_object *json_ifp_rows = NULL;
-	json_object *json_row = NULL;
-
-	now = pim_time_monotonic_sec();
-
-	if (uj) {
-		json = json_object_new_object();
-	} else {
-		vty_out(vty,
-			"Interface                Neighbor    Uptime  Holdtime  DR Pri\n");
-	}
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		if (pim_ifp->pim_sock_fd < 0)
-			continue;
-
-		if (uj)
-			json_ifp_rows = json_object_new_object();
-
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->pim_neighbor_list, neighnode,
-					  neigh)) {
-			pim_inet4_dump("<src?>", neigh->source_addr,
-				       neigh_src_str, sizeof(neigh_src_str));
-			pim_time_uptime(uptime, sizeof(uptime),
-					now - neigh->creation);
-			pim_time_timer_to_hhmmss(expire, sizeof(expire),
-						 neigh->t_expire_timer);
-
-			if (uj) {
-				json_row = json_object_new_object();
-				json_object_string_add(json_row, "interface",
-						       ifp->name);
-				json_object_string_add(json_row, "neighbor",
-						       neigh_src_str);
-				json_object_string_add(json_row, "upTime",
-						       uptime);
-				json_object_string_add(json_row, "holdTime",
-						       expire);
-				json_object_int_add(json_row, "holdTimeMax",
-						    neigh->holdtime);
-				json_object_int_add(json_row, "drPriority",
-						    neigh->dr_priority);
-				json_object_object_add(json_ifp_rows,
-						       neigh_src_str, json_row);
-
-			} else {
-				vty_out(vty, "%-16s  %15s  %8s  %8s  %6d\n",
-					ifp->name, neigh_src_str, uptime,
-					expire, neigh->dr_priority);
-			}
-		}
-
-		if (uj) {
-			json_object_object_add(json, ifp->name, json_ifp_rows);
-			json_ifp_rows = NULL;
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_neighbors_secondary(struct pim_instance *pim,
-					 struct vty *vty)
-{
-	struct interface *ifp;
-
-	vty_out(vty,
-		"Interface        Address         Neighbor        Secondary      \n");
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		struct pim_interface *pim_ifp;
-		struct in_addr ifaddr;
-		struct listnode *neighnode;
-		struct pim_neighbor *neigh;
-		char buf[PREFIX_STRLEN];
-
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		if (pim_ifp->pim_sock_fd < 0)
-			continue;
-
-		ifaddr = pim_ifp->primary_address;
-
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->pim_neighbor_list, neighnode,
-					  neigh)) {
-			char neigh_src_str[INET_ADDRSTRLEN];
-			struct listnode *prefix_node;
-			struct prefix *p;
-
-			if (!neigh->prefix_list)
-				continue;
-
-			pim_inet4_dump("<src?>", neigh->source_addr,
-				       neigh_src_str, sizeof(neigh_src_str));
-
-			for (ALL_LIST_ELEMENTS_RO(neigh->prefix_list,
-						  prefix_node, p))
-				vty_out(vty, "%-16s %-15s %-15s %-15pFX\n",
-					ifp->name,
-					inet_ntop(AF_INET, &ifaddr,
-						  buf, sizeof(buf)),
-					neigh_src_str, p);
-		}
-	}
-}
-
-static void json_object_pim_upstream_add(json_object *json,
-					 struct pim_upstream *up)
-{
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_DR_JOIN_DESIRED)
-		json_object_boolean_true_add(json, "drJoinDesired");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_DR_JOIN_DESIRED_UPDATED)
-		json_object_boolean_true_add(json, "drJoinDesiredUpdated");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR)
-		json_object_boolean_true_add(json, "firstHopRouter");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_IGMP)
-		json_object_boolean_true_add(json, "sourceIgmp");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_PIM)
-		json_object_boolean_true_add(json, "sourcePim");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_STREAM)
-		json_object_boolean_true_add(json, "sourceStream");
-
-	/* XXX: need to print ths flag in the plain text display as well */
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_MSDP)
-		json_object_boolean_true_add(json, "sourceMsdp");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SEND_SG_RPT_PRUNE)
-		json_object_boolean_true_add(json, "sendSGRptPrune");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_LHR)
-		json_object_boolean_true_add(json, "lastHopRouter");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY)
-		json_object_boolean_true_add(json, "disableKATExpiry");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_STATIC_IIF)
-		json_object_boolean_true_add(json, "staticIncomingInterface");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_ALLOW_IIF_IN_OIL)
-		json_object_boolean_true_add(json,
-					     "allowIncomingInterfaceinOil");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_NO_PIMREG_DATA)
-		json_object_boolean_true_add(json, "noPimRegistrationData");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_FORCE_PIMREG)
-		json_object_boolean_true_add(json, "forcePimRegistration");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_VXLAN_ORIG)
-		json_object_boolean_true_add(json, "sourceVxlanOrigination");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_VXLAN_TERM)
-		json_object_boolean_true_add(json, "sourceVxlanTermination");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_MLAG_VXLAN)
-		json_object_boolean_true_add(json, "mlagVxlan");
-
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_MLAG_NON_DF)
-		json_object_boolean_true_add(json,
-					     "mlagNonDesignatedForwarder");
-}
-
-static const char *
-pim_upstream_state2brief_str(enum pim_upstream_state join_state,
-			     char *state_str, size_t state_str_len)
-{
-	switch (join_state) {
-	case PIM_UPSTREAM_NOTJOINED:
-		strlcpy(state_str, "NotJ", state_str_len);
-		break;
-	case PIM_UPSTREAM_JOINED:
-		strlcpy(state_str, "J", state_str_len);
-		break;
-	default:
-		strlcpy(state_str, "Unk", state_str_len);
-	}
-	return state_str;
-}
-
-static const char *pim_reg_state2brief_str(enum pim_reg_state reg_state,
-					   char *state_str, size_t state_str_len)
-{
-	switch (reg_state) {
-	case PIM_REG_NOINFO:
-		strlcpy(state_str, "RegNI", state_str_len);
-		break;
-	case PIM_REG_JOIN:
-		strlcpy(state_str, "RegJ", state_str_len);
-		break;
-	case PIM_REG_JOIN_PENDING:
-	case PIM_REG_PRUNE:
-		strlcpy(state_str, "RegP", state_str_len);
-		break;
-	}
-	return state_str;
-}
-
-static void pim_show_upstream(struct pim_instance *pim, struct vty *vty,
-			      struct prefix_sg *sg, bool uj)
-{
-	struct pim_upstream *up;
-	time_t now;
-	json_object *json = NULL;
-	json_object *json_group = NULL;
-	json_object *json_row = NULL;
-
-	now = pim_time_monotonic_sec();
-
-	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Iif             Source          Group           State       Uptime   JoinTimer RSTimer   KATimer   RefCnt\n");
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		char src_str[INET_ADDRSTRLEN];
-		char grp_str[INET_ADDRSTRLEN];
-		char uptime[10];
-		char join_timer[10];
-		char rs_timer[10];
-		char ka_timer[10];
-		char msdp_reg_timer[10];
-		char state_str[PIM_REG_STATE_STR_LEN];
-
-		if (sg->grp.s_addr != INADDR_ANY
-		    && sg->grp.s_addr != up->sg.grp.s_addr)
-			continue;
-		if (sg->src.s_addr != INADDR_ANY
-		    && sg->src.s_addr != up->sg.src.s_addr)
-			continue;
-
-		pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-		pim_time_uptime(uptime, sizeof(uptime),
-				now - up->state_transition);
-		pim_time_timer_to_hhmmss(join_timer, sizeof(join_timer),
-					 up->t_join_timer);
-
-		/*
-		 * If the upstream is not dummy and it has a J/P timer for the
-		 * neighbor display that
-		 */
-		if (!up->t_join_timer && up->rpf.source_nexthop.interface) {
-			struct pim_neighbor *nbr;
-
-			nbr = pim_neighbor_find(
-				up->rpf.source_nexthop.interface,
-				up->rpf.rpf_addr.u.prefix4);
-			if (nbr)
-				pim_time_timer_to_hhmmss(join_timer,
-							 sizeof(join_timer),
-							 nbr->jp_timer);
-		}
-
-		pim_time_timer_to_hhmmss(rs_timer, sizeof(rs_timer),
-					 up->t_rs_timer);
-		pim_time_timer_to_hhmmss(ka_timer, sizeof(ka_timer),
-					 up->t_ka_timer);
-		pim_time_timer_to_hhmmss(msdp_reg_timer, sizeof(msdp_reg_timer),
-					 up->t_msdp_reg_timer);
-
-		pim_upstream_state2brief_str(up->join_state, state_str, sizeof(state_str));
-		if (up->reg_state != PIM_REG_NOINFO) {
-			char tmp_str[PIM_REG_STATE_STR_LEN];
-			char tmp[sizeof(state_str) + 1];
-
-			snprintf(tmp, sizeof(tmp), ",%s",
-				 pim_reg_state2brief_str(up->reg_state, tmp_str,
-							 sizeof(tmp_str)));
-			strlcat(state_str, tmp, sizeof(state_str));
-		}
-
-		if (uj) {
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			json_row = json_object_new_object();
-			json_object_pim_upstream_add(json_row, up);
-			json_object_string_add(
-				json_row, "inboundInterface",
-				up->rpf.source_nexthop.interface
-				? up->rpf.source_nexthop.interface->name
-				: "Unknown");
-
-			/*
-			 * The RPF address we use is slightly different
-			 * based upon what we are looking up.
-			 * If we have a S, list that unless
-			 * we are the FHR, else we just put
-			 * the RP as the rpfAddress
-			 */
-			if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR
-			    || up->sg.src.s_addr == INADDR_ANY) {
-				char rpf[PREFIX_STRLEN];
-				struct pim_rpf *rpg;
-
-				rpg = RP(pim, up->sg.grp);
-				pim_inet4_dump("<rpf?>",
-					       rpg->rpf_addr.u.prefix4, rpf,
-					       sizeof(rpf));
-				json_object_string_add(json_row, "rpfAddress",
-						       rpf);
-			} else {
-				json_object_string_add(json_row, "rpfAddress",
-						       src_str);
-			}
-
-			json_object_string_add(json_row, "source", src_str);
-			json_object_string_add(json_row, "group", grp_str);
-			json_object_string_add(json_row, "state", state_str);
-			json_object_string_add(
-				json_row, "joinState",
-				pim_upstream_state2str(up->join_state));
-			json_object_string_add(
-				json_row, "regState",
-				pim_reg_state2str(up->reg_state, state_str, sizeof(state_str)));
-			json_object_string_add(json_row, "upTime", uptime);
-			json_object_string_add(json_row, "joinTimer",
-					       join_timer);
-			json_object_string_add(json_row, "resetTimer",
-					       rs_timer);
-			json_object_string_add(json_row, "keepaliveTimer",
-					       ka_timer);
-			json_object_string_add(json_row, "msdpRegTimer",
-					       msdp_reg_timer);
-			json_object_int_add(json_row, "refCount",
-					    up->ref_count);
-			json_object_int_add(json_row, "sptBit", up->sptbit);
-			json_object_object_add(json_group, src_str, json_row);
-		} else {
-			vty_out(vty,
-				"%-16s%-15s %-15s %-11s %-8s %-9s %-9s %-9s %6d\n",
-				up->rpf.source_nexthop.interface
-				? up->rpf.source_nexthop.interface->name
-				: "Unknown",
-				src_str, grp_str, state_str, uptime, join_timer,
-				rs_timer, ka_timer, up->ref_count);
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_channel_helper(struct pim_instance *pim,
-				    struct vty *vty,
-				    struct pim_interface *pim_ifp,
-				    struct pim_ifchannel *ch,
-				    json_object *json, bool uj)
-{
-	struct pim_upstream *up = ch->upstream;
-	json_object *json_group = NULL;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
-	json_object *json_row = NULL;
-
-	pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-	pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-
-	if (uj) {
-		json_object_object_get_ex(json, grp_str, &json_group);
-
-		if (!json_group) {
-			json_group = json_object_new_object();
-			json_object_object_add(json, grp_str, json_group);
-		}
-
-		json_row = json_object_new_object();
-		json_object_pim_upstream_add(json_row, up);
-		json_object_string_add(json_row, "interface",
-				       ch->interface->name);
-		json_object_string_add(json_row, "source", src_str);
-		json_object_string_add(json_row, "group", grp_str);
-
-		if (pim_macro_ch_lost_assert(ch))
-			json_object_boolean_true_add(json_row, "lostAssert");
-
-		if (pim_macro_chisin_joins(ch))
-			json_object_boolean_true_add(json_row, "joins");
-
-		if (pim_macro_chisin_pim_include(ch))
-			json_object_boolean_true_add(json_row, "pimInclude");
-
-		if (pim_upstream_evaluate_join_desired(pim, up))
-			json_object_boolean_true_add(json_row,
-						     "evaluateJoinDesired");
-
-		json_object_object_add(json_group, src_str, json_row);
-
-	} else {
-		vty_out(vty, "%-16s %-15s %-15s %-10s %-5s %-10s %-11s %-6s\n",
-			ch->interface->name, src_str, grp_str,
-			pim_macro_ch_lost_assert(ch) ? "yes" : "no",
-			pim_macro_chisin_joins(ch) ? "yes" : "no",
-			pim_macro_chisin_pim_include(ch) ? "yes" : "no",
-			PIM_UPSTREAM_FLAG_TEST_DR_JOIN_DESIRED(up->flags)
-			? "yes"
-			: "no",
-			pim_upstream_evaluate_join_desired(pim, up) ? "yes"
-			: "no");
-	}
-}
-
-static void pim_show_channel(struct pim_instance *pim, struct vty *vty,
-			     bool uj)
-{
-	struct pim_interface *pim_ifp;
-	struct pim_ifchannel *ch;
-	struct interface *ifp;
-
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Interface        Source          Group           LostAssert Joins PimInclude JoinDesired EvalJD\n");
-
-	/* scan per-interface (S,G) state */
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-		if (!pim_ifp)
-			continue;
-
-
-		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
-			/* scan all interfaces */
-			pim_show_channel_helper(pim, vty, pim_ifp, ch,
-						json, uj);
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_join_desired_helper(struct pim_instance *pim,
-					 struct vty *vty,
-					 struct pim_upstream *up,
-					 json_object *json, bool uj)
-{
-	json_object *json_group = NULL;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
-	json_object *json_row = NULL;
-
-	pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-	pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-
-	if (uj) {
-		json_object_object_get_ex(json, grp_str, &json_group);
-
-		if (!json_group) {
-			json_group = json_object_new_object();
-			json_object_object_add(json, grp_str, json_group);
-		}
-
-		json_row = json_object_new_object();
-		json_object_pim_upstream_add(json_row, up);
-		json_object_string_add(json_row, "source", src_str);
-		json_object_string_add(json_row, "group", grp_str);
-
-		if (pim_upstream_evaluate_join_desired(pim, up))
-			json_object_boolean_true_add(json_row,
-						     "evaluateJoinDesired");
-
-		json_object_object_add(json_group, src_str, json_row);
-
-	} else {
-		vty_out(vty, "%-15s %-15s %-6s\n",
-			src_str, grp_str,
-			pim_upstream_evaluate_join_desired(pim, up) ? "yes"
-			: "no");
-	}
-}
-
-static void pim_show_join_desired(struct pim_instance *pim, struct vty *vty,
-				  bool uj)
-{
-	struct pim_upstream *up;
-
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Source          Group           EvalJD\n");
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		/* scan all interfaces */
-		pim_show_join_desired_helper(pim, vty, up,
-					     json, uj);
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_show_upstream_rpf(struct pim_instance *pim, struct vty *vty,
-				  bool uj)
-{
-	struct pim_upstream *up;
-	json_object *json = NULL;
-	json_object *json_group = NULL;
-	json_object *json_row = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Source          Group           RpfIface         RibNextHop      RpfAddress     \n");
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		char src_str[INET_ADDRSTRLEN];
-		char grp_str[INET_ADDRSTRLEN];
-		char rpf_nexthop_str[PREFIX_STRLEN];
-		char rpf_addr_str[PREFIX_STRLEN];
-		struct pim_rpf *rpf;
-		const char *rpf_ifname;
-
-		rpf = &up->rpf;
-
-		pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-		pim_addr_dump("<nexthop?>",
-			      &rpf->source_nexthop.mrib_nexthop_addr,
-			      rpf_nexthop_str, sizeof(rpf_nexthop_str));
-		pim_addr_dump("<rpf?>", &rpf->rpf_addr, rpf_addr_str,
-			      sizeof(rpf_addr_str));
-
-		rpf_ifname = rpf->source_nexthop.interface ? rpf->source_nexthop.interface->name : "<ifname?>";
-
-		if (uj) {
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			json_row = json_object_new_object();
-			json_object_pim_upstream_add(json_row, up);
-			json_object_string_add(json_row, "source", src_str);
-			json_object_string_add(json_row, "group", grp_str);
-			json_object_string_add(json_row, "rpfInterface",
-					       rpf_ifname);
-			json_object_string_add(json_row, "ribNexthop",
-					       rpf_nexthop_str);
-			json_object_string_add(json_row, "rpfAddress",
-					       rpf_addr_str);
-			json_object_object_add(json_group, src_str, json_row);
-		} else {
-			vty_out(vty, "%-15s %-15s %-16s %-15s %-15s\n", src_str,
-				grp_str, rpf_ifname, rpf_nexthop_str,
-				rpf_addr_str);
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void show_rpf_refresh_stats(struct vty *vty, struct pim_instance *pim,
-				   time_t now, json_object *json)
-{
-	char refresh_uptime[10];
-
-	pim_time_uptime_begin(refresh_uptime, sizeof(refresh_uptime), now,
-			      pim->rpf_cache_refresh_last);
-
-	if (json) {
-		json_object_int_add(json, "rpfCacheRefreshDelayMsecs",
-				    router->rpf_cache_refresh_delay_msec);
-		json_object_int_add(
-			json, "rpfCacheRefreshTimer",
-			pim_time_timer_remain_msec(pim->rpf_cache_refresher));
-		json_object_int_add(json, "rpfCacheRefreshRequests",
-				    pim->rpf_cache_refresh_requests);
-		json_object_int_add(json, "rpfCacheRefreshEvents",
-				    pim->rpf_cache_refresh_events);
-		json_object_string_add(json, "rpfCacheRefreshLast",
-				       refresh_uptime);
-		json_object_int_add(json, "nexthopLookups",
-				    pim->nexthop_lookups);
-		json_object_int_add(json, "nexthopLookupsAvoided",
-				    pim->nexthop_lookups_avoided);
-	} else {
-		vty_out(vty,
-			"RPF Cache Refresh Delay:    %ld msecs\n"
-			"RPF Cache Refresh Timer:    %ld msecs\n"
-			"RPF Cache Refresh Requests: %lld\n"
-			"RPF Cache Refresh Events:   %lld\n"
-			"RPF Cache Refresh Last:     %s\n"
-			"Nexthop Lookups:            %lld\n"
-			"Nexthop Lookups Avoided:    %lld\n",
-			router->rpf_cache_refresh_delay_msec,
-			pim_time_timer_remain_msec(pim->rpf_cache_refresher),
-			(long long)pim->rpf_cache_refresh_requests,
-			(long long)pim->rpf_cache_refresh_events,
-			refresh_uptime, (long long)pim->nexthop_lookups,
-			(long long)pim->nexthop_lookups_avoided);
-	}
-}
-
-static void show_scan_oil_stats(struct pim_instance *pim, struct vty *vty,
-				time_t now)
-{
-	char uptime_scan_oil[10];
-	char uptime_mroute_add[10];
-	char uptime_mroute_del[10];
-
-	pim_time_uptime_begin(uptime_scan_oil, sizeof(uptime_scan_oil), now,
-			      pim->scan_oil_last);
-	pim_time_uptime_begin(uptime_mroute_add, sizeof(uptime_mroute_add), now,
-			      pim->mroute_add_last);
-	pim_time_uptime_begin(uptime_mroute_del, sizeof(uptime_mroute_del), now,
-			      pim->mroute_del_last);
-
-	vty_out(vty,
-		"Scan OIL - Last: %s  Events: %lld\n"
-		"MFC Add  - Last: %s  Events: %lld\n"
-		"MFC Del  - Last: %s  Events: %lld\n",
-		uptime_scan_oil, (long long)pim->scan_oil_events,
-		uptime_mroute_add, (long long)pim->mroute_add_events,
-		uptime_mroute_del, (long long)pim->mroute_del_events);
-}
-
-static void pim_show_rpf(struct pim_instance *pim, struct vty *vty, bool uj)
-{
-	struct pim_upstream *up;
-	time_t now = pim_time_monotonic_sec();
-	json_object *json = NULL;
-	json_object *json_group = NULL;
-	json_object *json_row = NULL;
-
-	if (uj) {
-		json = json_object_new_object();
-		show_rpf_refresh_stats(vty, pim, now, json);
-	} else {
-		show_rpf_refresh_stats(vty, pim, now, json);
-		vty_out(vty, "\n");
-		vty_out(vty,
-			"Source          Group           RpfIface         RpfAddress      RibNextHop      Metric Pref\n");
-	}
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		char src_str[INET_ADDRSTRLEN];
-		char grp_str[INET_ADDRSTRLEN];
-		char rpf_addr_str[PREFIX_STRLEN];
-		char rib_nexthop_str[PREFIX_STRLEN];
-		const char *rpf_ifname;
-		struct pim_rpf *rpf = &up->rpf;
-
-		pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-		pim_addr_dump("<rpf?>", &rpf->rpf_addr, rpf_addr_str,
-			      sizeof(rpf_addr_str));
-		pim_addr_dump("<nexthop?>",
-			      &rpf->source_nexthop.mrib_nexthop_addr,
-			      rib_nexthop_str, sizeof(rib_nexthop_str));
-
-		rpf_ifname = rpf->source_nexthop.interface ? rpf->source_nexthop.interface->name : "<ifname?>";
-
-		if (uj) {
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			json_row = json_object_new_object();
-			json_object_string_add(json_row, "source", src_str);
-			json_object_string_add(json_row, "group", grp_str);
-			json_object_string_add(json_row, "rpfInterface",
-					       rpf_ifname);
-			json_object_string_add(json_row, "rpfAddress",
-					       rpf_addr_str);
-			json_object_string_add(json_row, "ribNexthop",
-					       rib_nexthop_str);
-			json_object_int_add(
-				json_row, "routeMetric",
-				rpf->source_nexthop.mrib_route_metric);
-			json_object_int_add(
-				json_row, "routePreference",
-				rpf->source_nexthop.mrib_metric_preference);
-			json_object_object_add(json_group, src_str, json_row);
-
-		} else {
-			vty_out(vty, "%-15s %-15s %-16s %-15s %-15s %6d %4d\n",
-				src_str, grp_str, rpf_ifname, rpf_addr_str,
-				rib_nexthop_str,
-				rpf->source_nexthop.mrib_route_metric,
-				rpf->source_nexthop.mrib_metric_preference);
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-struct pnc_cache_walk_data {
-	struct vty *vty;
-	struct pim_instance *pim;
-};
-
-static int pim_print_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
-{
-	struct pim_nexthop_cache *pnc = bucket->data;
-	struct pnc_cache_walk_data *cwd = arg;
-	struct vty *vty = cwd->vty;
-	struct pim_instance *pim = cwd->pim;
-	struct nexthop *nh_node = NULL;
-	ifindex_t first_ifindex;
-	struct interface *ifp = NULL;
-	char buf[PREFIX_STRLEN];
-
-	for (nh_node = pnc->nexthop; nh_node; nh_node = nh_node->next) {
-		first_ifindex = nh_node->ifindex;
-		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
-
-		vty_out(vty, "%-15s ", inet_ntop(AF_INET,
-						 &pnc->rpf.rpf_addr.u.prefix4,
-						 buf, sizeof(buf)));
-		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
-		vty_out(vty, "%pI4 ", &nh_node->gate.ipv4);
-		vty_out(vty, "\n");
-	}
-	return CMD_SUCCESS;
-}
-
-static void pim_show_nexthop(struct pim_instance *pim, struct vty *vty)
-{
-	struct pnc_cache_walk_data cwd;
-
-	cwd.vty = vty;
-	cwd.pim = pim;
-	vty_out(vty, "Number of registered addresses: %lu\n",
-		pim->rpf_hash->count);
-	vty_out(vty, "Address         Interface        Nexthop\n");
-	vty_out(vty, "---------------------------------------------\n");
-
-	hash_walk(pim->rpf_hash, pim_print_pnc_cache_walkcb, &cwd);
+		vty_json(vty, json);
+	else if (!found_ifname)
+		vty_out(vty, "%% No such interface\n");
 }
 
 /* Display the bsm database details */
@@ -3159,11 +1170,8 @@ static void pim_show_bsm_db(struct pim_instance *pim, struct vty *vty, bool uj)
 		fragment++;
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 /*Display the group-rp mappings */
@@ -3291,86 +1299,8 @@ static void pim_show_group_rp_mappings_info(struct pim_instance *pim,
 			vty_out(vty, "\n");
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-/* pim statistics - just adding only bsm related now.
- * We can continue to add all pim related stats here.
- */
-static void pim_show_statistics(struct pim_instance *pim, struct vty *vty,
-				const char *ifname, bool uj)
-{
-	json_object *json = NULL;
-	struct interface *ifp;
-
-	if (uj) {
-		json = json_object_new_object();
-		json_object_int_add(json, "bsmRx", pim->bsm_rcvd);
-		json_object_int_add(json, "bsmTx", pim->bsm_sent);
-		json_object_int_add(json, "bsmDropped", pim->bsm_dropped);
-	} else {
-		vty_out(vty, "BSM Statistics :\n");
-		vty_out(vty, "----------------\n");
-		vty_out(vty, "Number of Received BSMs : %" PRIu64 "\n",
-			pim->bsm_rcvd);
-		vty_out(vty, "Number of Forwared BSMs : %" PRIu64 "\n",
-			pim->bsm_sent);
-		vty_out(vty, "Number of Dropped BSMs  : %" PRIu64 "\n",
-			pim->bsm_dropped);
-	}
-
-	vty_out(vty, "\n");
-
-	/* scan interfaces */
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		struct pim_interface *pim_ifp = ifp->info;
-
-		if (ifname && strcmp(ifname, ifp->name))
-			continue;
-
-		if (!pim_ifp)
-			continue;
-
-		if (!uj) {
-			vty_out(vty, "Interface : %s\n", ifp->name);
-			vty_out(vty, "-------------------\n");
-			vty_out(vty,
-				"Number of BSMs dropped due to config miss : %u\n",
-				pim_ifp->pim_ifstat_bsm_cfg_miss);
-			vty_out(vty, "Number of unicast BSMs dropped : %u\n",
-				pim_ifp->pim_ifstat_ucast_bsm_cfg_miss);
-			vty_out(vty,
-				"Number of BSMs dropped due to invalid scope zone : %u\n",
-				pim_ifp->pim_ifstat_bsm_invalid_sz);
-		} else {
-
-			json_object *json_row = NULL;
-
-			json_row = json_object_new_object();
-
-			json_object_string_add(json_row, "If Name", ifp->name);
-			json_object_int_add(json_row, "bsmDroppedConfig",
-					    pim_ifp->pim_ifstat_bsm_cfg_miss);
-			json_object_int_add(
-				json_row, "bsmDroppedUnicast",
-				pim_ifp->pim_ifstat_ucast_bsm_cfg_miss);
-			json_object_int_add(json_row,
-					    "bsmDroppedInvalidScopeZone",
-					    pim_ifp->pim_ifstat_bsm_invalid_sz);
-			json_object_object_add(json, ifp->name, json_row);
-		}
-		vty_out(vty, "\n");
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void clear_pim_statistics(struct pim_instance *pim)
@@ -3423,13 +1353,13 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp = ifp->info;
 		struct listnode *grpnode;
-		struct igmp_group *grp;
+		struct gm_group *grp;
 
 		if (!pim_ifp)
 			continue;
 
 		/* scan igmp groups */
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_group_list, grpnode,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, grpnode,
 					  grp)) {
 			char group_str[INET_ADDRSTRLEN];
 			char hhmmss[10];
@@ -3498,11 +1428,8 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 		} /* scan igmp groups */
 	}	  /* scan interfaces */
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void igmp_show_group_retransmission(struct pim_instance *pim,
@@ -3517,18 +1444,18 @@ static void igmp_show_group_retransmission(struct pim_instance *pim,
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp = ifp->info;
 		struct listnode *grpnode;
-		struct igmp_group *grp;
+		struct gm_group *grp;
 
 		if (!pim_ifp)
 			continue;
 
 		/* scan igmp groups */
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_group_list, grpnode,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, grpnode,
 					  grp)) {
 			char group_str[INET_ADDRSTRLEN];
 			char grp_retr_mmss[10];
 			struct listnode *src_node;
-			struct igmp_source *src;
+			struct gm_source *src;
 			int grp_retr_sources = 0;
 
 			pim_inet4_dump("<group?>", grp->group_addr, group_str,
@@ -3556,31 +1483,40 @@ static void igmp_show_group_retransmission(struct pim_instance *pim,
 	}	  /* scan interfaces */
 }
 
-static void igmp_show_sources(struct pim_instance *pim, struct vty *vty)
+static void igmp_show_sources(struct pim_instance *pim, struct vty *vty,
+			      bool uj)
 {
 	struct interface *ifp;
 	time_t now;
+	json_object *json = NULL;
+	json_object *json_iface = NULL;
+	json_object *json_group = NULL;
+	json_object *json_source = NULL;
+	json_object *json_sources = NULL;
 
 	now = pim_time_monotonic_sec();
 
-	vty_out(vty,
-		"Interface        Group           Source          Timer Fwd Uptime  \n");
+	if (uj)
+		json = json_object_new_object();
+	else
+		vty_out(vty,
+			"Interface        Group           Source          Timer Fwd Uptime  \n");
 
 	/* scan interfaces */
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp = ifp->info;
 		struct listnode *grpnode;
-		struct igmp_group *grp;
+		struct gm_group *grp;
 
 		if (!pim_ifp)
 			continue;
 
 		/* scan igmp groups */
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_group_list, grpnode,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, grpnode,
 					  grp)) {
 			char group_str[INET_ADDRSTRLEN];
 			struct listnode *srcnode;
-			struct igmp_source *src;
+			struct gm_source *src;
 
 			pim_inet4_dump("<group?>", grp->group_addr, group_str,
 				       sizeof(group_str));
@@ -3601,17 +1537,70 @@ static void igmp_show_sources(struct pim_instance *pim, struct vty *vty)
 				pim_time_uptime(uptime, sizeof(uptime),
 						now - src->source_creation);
 
-				vty_out(vty, "%-16s %-15s %-15s %5s %3s %8s\n",
-					ifp->name, group_str, source_str, mmss,
-					IGMP_SOURCE_TEST_FORWARDING(
-						src->source_flags)
-						? "Y"
-						: "N",
-					uptime);
+				if (uj) {
+					json_object_object_get_ex(
+						json, ifp->name, &json_iface);
+					if (!json_iface) {
+						json_iface =
+							json_object_new_object();
+						json_object_string_add(
+							json_iface, "name",
+							ifp->name);
+						json_object_object_add(
+							json, ifp->name,
+							json_iface);
+					}
+					json_object_object_get_ex(json_iface,
+								  group_str,
+								  &json_group);
+
+					if (!json_group) {
+						json_group =
+							json_object_new_object();
+						json_object_string_add(
+							json_group, "group",
+							group_str);
+						json_object_object_add(
+							json_iface, group_str,
+							json_group);
+						json_sources =
+							json_object_new_array();
+						json_object_object_add(
+							json_group, "sources",
+							json_sources);
+					}
+					json_source = json_object_new_object();
+					json_object_string_add(json_source,
+							       "source",
+							       source_str);
+					json_object_string_add(json_source,
+							       "timer", mmss);
+					json_object_boolean_add(
+						json_source, "forwarded",
+						IGMP_SOURCE_TEST_FORWARDING(
+							src->source_flags));
+					json_object_string_add(
+						json_source, "uptime", uptime);
+					json_object_array_add(json_sources,
+							      json_source);
+
+				} else {
+					vty_out(vty,
+						"%-16s %-15s %-15s %5s %3s %8s\n",
+						ifp->name, group_str,
+						source_str, mmss,
+						IGMP_SOURCE_TEST_FORWARDING(
+							src->source_flags)
+							? "Y"
+							: "N",
+						uptime);
+				}
 
 			} /* scan group sources */
-		}	  /* scan igmp groups */
+		}	 /* scan igmp groups */
 	}		  /* scan interfaces */
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void igmp_show_source_retransmission(struct pim_instance *pim,
@@ -3626,17 +1615,17 @@ static void igmp_show_source_retransmission(struct pim_instance *pim,
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp = ifp->info;
 		struct listnode *grpnode;
-		struct igmp_group *grp;
+		struct gm_group *grp;
 
 		if (!pim_ifp)
 			continue;
 
 		/* scan igmp groups */
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_group_list, grpnode,
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, grpnode,
 					  grp)) {
 			char group_str[INET_ADDRSTRLEN];
 			struct listnode *srcnode;
-			struct igmp_source *src;
+			struct gm_source *src;
 
 			pim_inet4_dump("<group?>", grp->group_addr, group_str,
 				       sizeof(group_str));
@@ -3654,7 +1643,7 @@ static void igmp_show_source_retransmission(struct pim_instance *pim,
 					src->source_query_retransmit_count);
 
 			} /* scan group sources */
-		}	  /* scan igmp groups */
+		}	 /* scan igmp groups */
 	}		  /* scan interfaces */
 }
 
@@ -3726,11 +1715,8 @@ static void pim_show_bsr(struct pim_instance *pim,
 		vty_out(vty, "Last BSM seen: %s\n", last_bsm_seen);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void clear_igmp_interfaces(struct pim_instance *pim)
@@ -3770,31 +1756,6 @@ static void clear_interfaces(struct pim_instance *pim)
 	}
 
 /**
- * Get current node VRF name.
- *
- * NOTE:
- * In case of failure it will print error message to user.
- *
- * \returns name or NULL if failed to get VRF.
- */
-static const char *pim_cli_get_vrf_name(struct vty *vty)
-{
-	const struct lyd_node *vrf_node;
-
-	/* Not inside any VRF context. */
-	if (vty->xpath_index == 0)
-		return VRF_DEFAULT_NAME;
-
-	vrf_node = yang_dnode_get(vty->candidate_config->dnode, VTY_CURR_XPATH);
-	if (vrf_node == NULL) {
-		vty_out(vty, "%% Failed to get vrf dnode in configuration\n");
-		return NULL;
-	}
-
-	return yang_dnode_get_string(vrf_node, "./name");
-}
-
-/**
  * Compatibility function to keep the legacy mesh group CLI behavior:
  * Delete group when there are no more configurations in it.
  *
@@ -3815,7 +1776,7 @@ static void pim_cli_legacy_mesh_group_behavior(struct vty *vty,
 
 	/* Get mesh group base XPath. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 	/* Group must exists, otherwise just quit. */
 	if (!yang_dnode_exists(vty->candidate_config->dnode, xpath_value))
@@ -3908,7 +1869,6 @@ static void clear_mroute(struct pim_instance *pim)
 	/* scan interfaces */
 	FOR_ALL_INTERFACES (pim->vrf, ifp) {
 		struct pim_interface *pim_ifp = ifp->info;
-		struct igmp_group *grp;
 		struct pim_ifchannel *ch;
 
 		if (!pim_ifp)
@@ -3921,14 +1881,17 @@ static void clear_mroute(struct pim_instance *pim)
 			pim_ifchannel_delete(ch);
 		}
 
+#if PIM_IPV == 4
 		/* clean up all igmp groups */
+		struct gm_group *grp;
 
-		if (pim_ifp->igmp_group_list) {
-			while (pim_ifp->igmp_group_list->count) {
-				grp = listnode_head(pim_ifp->igmp_group_list);
+		if (pim_ifp->gm_group_list) {
+			while (pim_ifp->gm_group_list->count) {
+				grp = listnode_head(pim_ifp->gm_group_list);
 				igmp_group_delete(grp);
 			}
 		}
+#endif
 	}
 
 	/* clean up all upstreams*/
@@ -4014,6 +1977,9 @@ DEFUN (clear_ip_pim_interface_traffic,
 		pim_ifp->pim_ifstat_assert_send = 0;
 		pim_ifp->pim_ifstat_bsm_rx = 0;
 		pim_ifp->pim_ifstat_bsm_tx = 0;
+		pim_ifp->igmp_ifstat_joins_sent = 0;
+		pim_ifp->igmp_ifstat_joins_failed = 0;
+		pim_ifp->igmp_peak_group_count = 0;
 	}
 
 	return CMD_SUCCESS;
@@ -4258,12 +2224,13 @@ DEFUN (show_ip_igmp_groups_retransmissions,
 
 DEFUN (show_ip_igmp_sources,
        show_ip_igmp_sources_cmd,
-       "show ip igmp [vrf NAME] sources",
+       "show ip igmp [vrf NAME] sources [json]",
        SHOW_STR
        IP_STR
        IGMP_STR
        VRF_CMD_HELP_STR
-       IGMP_SOURCE_STR)
+       IGMP_SOURCE_STR
+       JSON_STR)
 {
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
@@ -4271,7 +2238,7 @@ DEFUN (show_ip_igmp_sources,
 	if (!vrf)
 		return CMD_WARNING;
 
-	igmp_show_sources(vrf->info, vty);
+	igmp_show_sources(vrf->info, vty, use_json(argc, argv));
 
 	return CMD_SUCCESS;
 }
@@ -4386,9 +2353,7 @@ DEFUN (show_ip_pim_mlag_summary,
 				    router->mlag_stats.msg.vxlan_updates);
 		json_object_object_add(json, "connStats", json_stat);
 
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 		return CMD_SUCCESS;
 	}
 
@@ -4511,9 +2476,9 @@ DEFUN (show_ip_pim_assert_winner_metric,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_interface,
+DEFPY (show_ip_pim_interface,
        show_ip_pim_interface_cmd,
-       "show ip pim [mlag] [vrf NAME] interface [detail|WORD] [json]",
+       "show ip pim [mlag$mlag] [vrf NAME] interface [detail|WORD]$interface [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -4524,30 +2489,34 @@ DEFUN (show_ip_pim_interface,
        "interface name\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
-	bool mlag = false;
+	struct vrf *v;
+	bool uj = !!json;
+	bool is_mlag = !!mlag;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	if (argv_find(argv, argc, "mlag", &idx))
-		mlag = true;
+	if (uj)
+		json_parent = json_object_new_object();
 
-	if (argv_find(argv, argc, "WORD", &idx)
-	    || argv_find(argv, argc, "detail", &idx))
-		pim_show_interfaces_single(vrf->info, vty, argv[idx]->arg, mlag,
-					   uj);
+	if (interface)
+		pim_show_interfaces_single(v->info, vty, interface, is_mlag,
+					   json_parent);
 	else
-		pim_show_interfaces(vrf->info, vty, mlag, uj);
+		pim_show_interfaces(v->info, vty, is_mlag, json_parent);
+
+	if (uj)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_interface_vrf_all,
+DEFPY (show_ip_pim_interface_vrf_all,
        show_ip_pim_interface_vrf_all_cmd,
-       "show ip pim [mlag] vrf all interface [detail|WORD] [json]",
+       "show ip pim [mlag$mlag] vrf all interface [detail|WORD]$interface [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -4558,35 +2527,32 @@ DEFUN (show_ip_pim_interface_vrf_all,
        "interface name\n"
        JSON_STR)
 {
-	int idx = 2;
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf;
-	bool first = true;
-	bool mlag = false;
+	bool uj = !!json;
+	bool is_mlag = !!mlag;
+	struct vrf *v;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (argv_find(argv, argc, "mlag", &idx))
-		mlag = true;
-
-	idx = 6;
 	if (uj)
-		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		if (argv_find(argv, argc, "WORD", &idx)
-		    || argv_find(argv, argc, "detail", &idx))
-			pim_show_interfaces_single(vrf->info, vty,
-						   argv[idx]->arg, mlag, uj);
+		json_parent = json_object_new_object();
+
+	RB_FOREACH (v, vrf_name_head, &vrfs_by_name) {
+		if (!uj)
+			vty_out(vty, "VRF: %s\n", v->name);
 		else
-			pim_show_interfaces(vrf->info, vty, mlag, uj);
+			json_vrf = json_object_new_object();
+
+		if (interface)
+			pim_show_interfaces_single(v->info, vty, interface,
+						   is_mlag, json_vrf);
+		else
+			pim_show_interfaces(v->info, vty, is_mlag, json_vrf);
+
+		if (uj)
+			json_object_object_add(json_parent, v->name, json_vrf);
 	}
 	if (uj)
-		vty_out(vty, "}\n");
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
@@ -4603,10 +2569,10 @@ DEFPY (show_ip_pim_join,
        "The Group\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
+	pim_sgaddr sg = {0};
 	struct vrf *v;
-	bool uj = !!json;
 	struct pim_instance *pim;
+	json_object *json_parent = NULL;
 
 	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
 
@@ -4629,14 +2595,20 @@ DEFPY (show_ip_pim_join,
 			sg.grp = s_or_g;
 	}
 
-	pim_show_join(pim, vty, &sg, uj);
+	if (json)
+		json_parent = json_object_new_object();
+
+	pim_show_join(pim, vty, &sg, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_join_vrf_all,
+DEFPY (show_ip_pim_join_vrf_all,
        show_ip_pim_join_vrf_all_cmd,
-       "show ip pim vrf all join [json]",
+       "show ip pim vrf all join [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -4644,81 +2616,28 @@ DEFUN (show_ip_pim_join_vrf_all,
        "PIM interface join information\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf;
-	bool first = true;
+	pim_sgaddr sg = {0};
+	struct vrf *vrf_struct;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_show_join(vrf->info, vty, &sg, uj);
+	if (json)
+		json_parent = json_object_new_object();
+	RB_FOREACH (vrf_struct, vrf_name_head, &vrfs_by_name) {
+		if (!json)
+			vty_out(vty, "VRF: %s\n", vrf_struct->name);
+		else
+			json_vrf = json_object_new_object();
+		pim_show_join(vrf_struct->info, vty, &sg, json_vrf);
+
+		if (json)
+			json_object_object_add(json_parent, vrf_struct->name,
+					       json_vrf);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_WARNING;
-}
-
-static void pim_show_jp_agg_helper(struct vty *vty,
-				   struct interface *ifp,
-				   struct pim_neighbor *neigh,
-				   struct pim_upstream *up,
-				   int is_join)
-{
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
-	char rpf_str[INET_ADDRSTRLEN];
-
-	pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-	pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
-	/* pius->address.s_addr */
-	pim_inet4_dump("<rpf?>", neigh->source_addr, rpf_str, sizeof(rpf_str));
-
-	vty_out(vty, "%-16s %-15s %-15s %-15s %5s\n",
-		ifp->name, rpf_str, src_str,
-		grp_str, is_join?"J":"P");
-}
-
-static void pim_show_jp_agg_list(struct pim_instance *pim, struct vty *vty)
-{
-	struct interface *ifp;
-	struct pim_interface *pim_ifp;
-	struct listnode *n_node;
-	struct pim_neighbor *neigh;
-	struct listnode *jag_node;
-	struct pim_jp_agg_group *jag;
-	struct listnode *js_node;
-	struct pim_jp_sources *js;
-
-	vty_out(vty,
-		"Interface        RPF Nbr         Source          Group           State\n");
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		pim_ifp = ifp->info;
-		if (!pim_ifp)
-			continue;
-
-		for (ALL_LIST_ELEMENTS_RO(pim_ifp->pim_neighbor_list,
-					  n_node, neigh)) {
-			for (ALL_LIST_ELEMENTS_RO(neigh->upstream_jp_agg,
-						  jag_node, jag)) {
-				for (ALL_LIST_ELEMENTS_RO(jag->sources,
-							  js_node, js)) {
-					pim_show_jp_agg_helper(vty,
-							       ifp, neigh, js->up,
-							       js->is_join);
-				}
-			}
-		}
-	}
 }
 
 DEFPY (show_ip_pim_jp_agg,
@@ -4751,9 +2670,9 @@ DEFPY (show_ip_pim_jp_agg,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_local_membership,
+DEFPY (show_ip_pim_local_membership,
        show_ip_pim_local_membership_cmd,
-       "show ip pim [vrf NAME] local-membership [json]",
+       "show ip pim [vrf NAME] local-membership [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -4761,14 +2680,15 @@ DEFUN (show_ip_pim_local_membership,
        "PIM interface local-membership\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct vrf *v;
+	bool uj = !!json;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_membership(vrf->info, vty, uj);
+	pim_show_membership(v->info, vty, uj);
 
 	return CMD_SUCCESS;
 }
@@ -4842,8 +2762,8 @@ static void pim_show_mlag_up_detail(struct vrf *vrf,
 				    struct vty *vty, const char *src_or_group,
 				    const char *group, bool uj)
 {
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
+	char src_str[PIM_ADDRSTRLEN];
+	char grp_str[PIM_ADDRSTRLEN];
 	struct pim_upstream *up;
 	struct pim_instance *pim = vrf->info;
 	json_object *json = NULL;
@@ -4860,8 +2780,9 @@ static void pim_show_mlag_up_detail(struct vrf *vrf,
 		    && !pim_up_mlag_is_local(up))
 			continue;
 
-		pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &up->sg.grp);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &up->sg.src);
+
 		/* XXX: strcmps are clearly inefficient. we should do uint comps
 		 * here instead.
 		 */
@@ -4878,11 +2799,8 @@ static void pim_show_mlag_up_detail(struct vrf *vrf,
 					      src_str, grp_str, json);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void pim_show_mlag_up_vrf(struct vrf *vrf, struct vty *vty, bool uj)
@@ -4890,8 +2808,6 @@ static void pim_show_mlag_up_vrf(struct vrf *vrf, struct vty *vty, bool uj)
 	json_object *json = NULL;
 	json_object *json_row;
 	struct pim_upstream *up;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	struct pim_instance *pim = vrf->info;
 	json_object *json_group = NULL;
 
@@ -4907,10 +2823,15 @@ static void pim_show_mlag_up_vrf(struct vrf *vrf, struct vty *vty, bool uj)
 		    && !(up->flags & PIM_UPSTREAM_FLAG_MASK_MLAG_INTERFACE)
 		    && !pim_up_mlag_is_local(up))
 			continue;
-		pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
 		if (uj) {
+			char src_str[PIM_ADDRSTRLEN];
+			char grp_str[PIM_ADDRSTRLEN];
 			json_object *own_list = NULL;
+
+			snprintfrr(grp_str, sizeof(grp_str), "%pPAs",
+				   &up->sg.grp);
+			snprintfrr(src_str, sizeof(src_str), "%pPAs",
+				   &up->sg.src);
 
 			json_object_object_get_ex(json, grp_str, &json_group);
 			if (!json_group) {
@@ -4958,19 +2879,16 @@ static void pim_show_mlag_up_vrf(struct vrf *vrf, struct vty *vty, bool uj)
 			if (up->flags & (PIM_UPSTREAM_FLAG_MASK_MLAG_INTERFACE))
 				strlcat(own_str, "I", sizeof(own_str));
 			vty_out(vty,
-				"%-15s %-15s %-6s %-11u %-10u %2s\n",
-				src_str, grp_str, own_str,
+				"%-15pPAs %-15pPAs %-6s %-11u %-10u %2s\n",
+				&up->sg.src, &up->sg.grp, own_str,
 				pim_up_mlag_local_cost(up),
 				pim_up_mlag_peer_cost(up),
 				PIM_UPSTREAM_FLAG_TEST_MLAG_NON_DF(up->flags)
 				? "n" : "y");
 		}
 	}
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void pim_show_mlag_help_string(struct vty *vty, bool uj)
@@ -5042,9 +2960,9 @@ DEFUN(show_ip_pim_mlag_up_vrf_all, show_ip_pim_mlag_up_vrf_all_cmd,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_neighbor,
+DEFPY (show_ip_pim_neighbor,
        show_ip_pim_neighbor_cmd,
-       "show ip pim [vrf NAME] neighbor [detail|WORD] [json]",
+       "show ip pim [vrf NAME] neighbor [detail|WORD]$interface [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5054,25 +2972,31 @@ DEFUN (show_ip_pim_neighbor,
        "Name of interface or neighbor\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct vrf *v;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	if (argv_find(argv, argc, "detail", &idx)
-	    || argv_find(argv, argc, "WORD", &idx))
-		pim_show_neighbors_single(vrf->info, vty, argv[idx]->arg, uj);
+	if (json)
+		json_parent = json_object_new_object();
+
+	if (interface)
+		pim_show_neighbors_single(v->info, vty, interface, json_parent);
 	else
-		pim_show_neighbors(vrf->info, vty, uj);
+		pim_show_neighbors(v->info, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_neighbor_vrf_all,
+DEFPY (show_ip_pim_neighbor_vrf_all,
        show_ip_pim_neighbor_vrf_all_cmd,
-       "show ip pim vrf all neighbor [detail|WORD] [json]",
+       "show ip pim vrf all neighbor [detail|WORD]$interface [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5082,35 +3006,34 @@ DEFUN (show_ip_pim_neighbor_vrf_all,
        "Name of interface or neighbor\n"
        JSON_STR)
 {
-	int idx = 2;
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf;
-	bool first = true;
+	struct vrf *v;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		if (argv_find(argv, argc, "detail", &idx)
-		    || argv_find(argv, argc, "WORD", &idx))
-			pim_show_neighbors_single(vrf->info, vty,
-						  argv[idx]->arg, uj);
+	if (json)
+		json_parent = json_object_new_object();
+	RB_FOREACH (v, vrf_name_head, &vrfs_by_name) {
+		if (!json)
+			vty_out(vty, "VRF: %s\n", v->name);
 		else
-			pim_show_neighbors(vrf->info, vty, uj);
+			json_vrf = json_object_new_object();
+
+		if (interface)
+			pim_show_neighbors_single(v->info, vty, interface,
+						  json_vrf);
+		else
+			pim_show_neighbors(v->info, vty, json_vrf);
+
+		if (json)
+			json_object_object_add(json_parent, v->name, json_vrf);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_secondary,
+DEFPY (show_ip_pim_secondary,
        show_ip_pim_secondary_cmd,
        "show ip pim [vrf NAME] secondary",
        SHOW_STR
@@ -5119,20 +3042,29 @@ DEFUN (show_ip_pim_secondary,
        VRF_CMD_HELP_STR
        "PIM neighbor addresses\n")
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct pim_instance *pim;
+	struct vrf *v;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_neighbors_secondary(vrf->info, vty);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	pim_show_neighbors_secondary(pim, vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_state,
+DEFPY (show_ip_pim_state,
        show_ip_pim_state_cmd,
-       "show ip pim [vrf NAME] state [A.B.C.D [A.B.C.D]] [json]",
+       "show ip pim [vrf NAME] state [A.B.C.D$s_or_g [A.B.C.D$g]] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5142,32 +3074,36 @@ DEFUN (show_ip_pim_state,
        "Multicast address\n"
        JSON_STR)
 {
-	const char *src_or_group = NULL;
-	const char *group = NULL;
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	if (uj)
-		argc--;
+	pim = pim_get_pim_instance(v->vrf_id);
 
-	if (argv_find(argv, argc, "A.B.C.D", &idx)) {
-		src_or_group = argv[idx]->arg;
-		if (idx + 1 < argc)
-			group = argv[idx + 1]->arg;
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
 	}
 
-	pim_show_state(vrf->info, vty, src_or_group, group, uj);
+	if (json)
+		json_parent = json_object_new_object();
+
+	pim_show_state(pim, vty, s_or_g_str, g_str, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_state_vrf_all,
+DEFPY (show_ip_pim_state_vrf_all,
        show_ip_pim_state_vrf_all_cmd,
-       "show ip pim vrf all state [A.B.C.D [A.B.C.D]] [json]",
+       "show ip pim vrf all state [A.B.C.D$s_or_g [A.B.C.D$g]] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5177,36 +3113,25 @@ DEFUN (show_ip_pim_state_vrf_all,
        "Multicast address\n"
        JSON_STR)
 {
-	const char *src_or_group = NULL;
-	const char *group = NULL;
-	int idx = 2;
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj) {
-		vty_out(vty, "{ ");
-		argc--;
-	}
-
-	if (argv_find(argv, argc, "A.B.C.D", &idx)) {
-		src_or_group = argv[idx]->arg;
-		if (idx + 1 < argc)
-			group = argv[idx + 1]->arg;
-	}
+	if (json)
+		json_parent = json_object_new_object();
 
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_show_state(vrf->info, vty, src_or_group, group, uj);
+		else
+			json_vrf = json_object_new_object();
+		pim_show_state(vrf->info, vty, s_or_g_str, g_str, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
@@ -5223,10 +3148,11 @@ DEFPY (show_ip_pim_upstream,
        "The Group\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
+	pim_sgaddr sg = {0};
 	struct vrf *v;
 	bool uj = !!json;
 	struct pim_instance *pim;
+	json_object *json_parent = NULL;
 
 	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
 
@@ -5241,6 +3167,9 @@ DEFPY (show_ip_pim_upstream,
 		return CMD_WARNING;
 	}
 
+	if (uj)
+		json_parent = json_object_new_object();
+
 	if (s_or_g.s_addr != INADDR_ANY) {
 		if (g.s_addr != INADDR_ANY) {
 			sg.src = s_or_g;
@@ -5248,14 +3177,17 @@ DEFPY (show_ip_pim_upstream,
 		} else
 			sg.grp = s_or_g;
 	}
-	pim_show_upstream(pim, vty, &sg, uj);
+	pim_show_upstream(pim, vty, &sg, json_parent);
+
+	if (uj)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_upstream_vrf_all,
+DEFPY (show_ip_pim_upstream_vrf_all,
        show_ip_pim_upstream_vrf_all_cmd,
-       "show ip pim vrf all upstream [json]",
+       "show ip pim vrf all upstream [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5263,30 +3195,34 @@ DEFUN (show_ip_pim_upstream_vrf_all,
        "PIM upstream information\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
-	bool uj = use_json(argc, argv);
+	pim_sgaddr sg = {0};
 	struct vrf *vrf;
-	bool first = true;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
+	if (json)
+		json_parent = json_object_new_object();
+
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_show_upstream(vrf->info, vty, &sg, uj);
+		else
+			json_vrf = json_object_new_object();
+		pim_show_upstream(vrf->info, vty, &sg, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_channel,
+DEFPY (show_ip_pim_channel,
        show_ip_pim_channel_cmd,
-       "show ip pim [vrf NAME] channel [json]",
+       "show ip pim [vrf NAME] channel [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5294,21 +3230,22 @@ DEFUN (show_ip_pim_channel,
        "PIM downstream channel info\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct vrf *v;
+	bool uj = !!json;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_channel(vrf->info, vty, uj);
+	pim_show_channel(v->info, vty, uj);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_upstream_join_desired,
+DEFPY (show_ip_pim_upstream_join_desired,
        show_ip_pim_upstream_join_desired_cmd,
-       "show ip pim [vrf NAME] upstream-join-desired [json]",
+       "show ip pim [vrf NAME] upstream-join-desired [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5316,21 +3253,30 @@ DEFUN (show_ip_pim_upstream_join_desired,
        "PIM upstream join-desired\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	bool uj = !!json;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_join_desired(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	pim_show_join_desired(pim, vty, uj);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_upstream_rpf,
+DEFPY (show_ip_pim_upstream_rpf,
        show_ip_pim_upstream_rpf_cmd,
-       "show ip pim [vrf NAME] upstream-rpf [json]",
+       "show ip pim [vrf NAME] upstream-rpf [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5338,75 +3284,120 @@ DEFUN (show_ip_pim_upstream_rpf,
        "PIM upstream source rpf\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	bool uj = !!json;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_upstream_rpf(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	pim_show_upstream_rpf(pim, vty, uj);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_rp,
+DEFPY (show_ip_pim_rp,
        show_ip_pim_rp_cmd,
-       "show ip pim [vrf NAME] rp-info [json]",
+       "show ip pim [vrf NAME] rp-info [A.B.C.D/M$group] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
        VRF_CMD_HELP_STR
        "PIM RP information\n"
+       "Multicast Group range\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
+	struct prefix *range = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_rp_show_information(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (group_str) {
+		range = prefix_new();
+		prefix_copy(range, group);
+		apply_mask(range);
+	}
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	pim_rp_show_information(pim, range, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
+
+	prefix_free(&range);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_rp_vrf_all,
+DEFPY (show_ip_pim_rp_vrf_all,
        show_ip_pim_rp_vrf_all_cmd,
-       "show ip pim vrf all rp-info [json]",
+       "show ip pim vrf all rp-info [A.B.C.D/M$group] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
        VRF_CMD_HELP_STR
        "PIM RP information\n"
+       "Multicast Group range\n"
        JSON_STR)
 {
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
+	struct prefix *range = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_rp_show_information(vrf->info, vty, uj);
+	if (group_str) {
+		range = prefix_new();
+		prefix_copy(range, group);
+		apply_mask(range);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		if (!json)
+			vty_out(vty, "VRF: %s\n", vrf->name);
+		else
+			json_vrf = json_object_new_object();
+		pim_rp_show_information(vrf->info, range, vty, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
+	}
+	if (json)
+		vty_json(vty, json_parent);
+
+	prefix_free(&range);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_rpf,
+DEFPY (show_ip_pim_rpf,
        show_ip_pim_rpf_cmd,
-       "show ip pim [vrf NAME] rpf [json]",
+       "show ip pim [vrf NAME] rpf [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5414,21 +3405,36 @@ DEFUN (show_ip_pim_rpf,
        "PIM cached source rpf information\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_rpf(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	pim_show_rpf(pim, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_rpf_vrf_all,
+DEFPY (show_ip_pim_rpf_vrf_all,
        show_ip_pim_rpf_vrf_all_cmd,
-       "show ip pim vrf all rpf [json]",
+       "show ip pim vrf all rpf [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5436,29 +3442,30 @@ DEFUN (show_ip_pim_rpf_vrf_all,
        "PIM cached source rpf information\n"
        JSON_STR)
 {
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
+	if (json)
+		json_parent = json_object_new_object();
+
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_show_rpf(vrf->info, vty, uj);
+		else
+			json_vrf = json_object_new_object();
+		pim_show_rpf(vrf->info, vty, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_nexthop,
+DEFPY (show_ip_pim_nexthop,
        show_ip_pim_nexthop_cmd,
        "show ip pim [vrf NAME] nexthop",
        SHOW_STR
@@ -5467,20 +3474,21 @@ DEFUN (show_ip_pim_nexthop,
        VRF_CMD_HELP_STR
        "PIM cached nexthop rpf information\n")
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct vrf *v;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_show_nexthop(vrf->info, vty);
+	pim_show_nexthop(v->info, vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_nexthop_lookup,
+DEFPY (show_ip_pim_nexthop_lookup,
        show_ip_pim_nexthop_lookup_cmd,
-       "show ip pim [vrf NAME] nexthop-lookup A.B.C.D A.B.C.D",
+       "show ip pim [vrf NAME] nexthop-lookup A.B.C.D$source A.B.C.D$group",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5491,61 +3499,36 @@ DEFUN (show_ip_pim_nexthop_lookup,
 {
 	struct prefix nht_p;
 	int result = 0;
-	struct in_addr src_addr, grp_addr;
-	struct in_addr vif_source;
-	const char *addr_str, *addr_str1;
+	pim_addr vif_source;
 	struct prefix grp;
 	struct pim_nexthop nexthop;
-	char nexthop_addr_str[PREFIX_STRLEN];
-	char grp_str[PREFIX_STRLEN];
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct vrf *v;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	argv_find(argv, argc, "A.B.C.D", &idx);
-	addr_str = argv[idx]->arg;
-	result = inet_pton(AF_INET, addr_str, &src_addr);
-	if (result <= 0) {
-		vty_out(vty, "Bad unicast address %s: errno=%d: %s\n", addr_str,
-			errno, safe_strerror(errno));
-		return CMD_WARNING;
-	}
-
-	if (pim_is_group_224_4(src_addr)) {
+	if (pim_is_group_224_4(source)) {
 		vty_out(vty,
 			"Invalid argument. Expected Valid Source Address.\n");
 		return CMD_WARNING;
 	}
 
-	addr_str1 = argv[idx + 1]->arg;
-	result = inet_pton(AF_INET, addr_str1, &grp_addr);
-	if (result <= 0) {
-		vty_out(vty, "Bad unicast address %s: errno=%d: %s\n", addr_str,
-			errno, safe_strerror(errno));
-		return CMD_WARNING;
-	}
-
-	if (!pim_is_group_224_4(grp_addr)) {
+	if (!pim_is_group_224_4(group)) {
 		vty_out(vty,
 			"Invalid argument. Expected Valid Multicast Group Address.\n");
 		return CMD_WARNING;
 	}
 
-	if (!pim_rp_set_upstream_addr(vrf->info, &vif_source, src_addr,
-				      grp_addr))
+	if (!pim_rp_set_upstream_addr(v->info, &vif_source, source, group))
 		return CMD_SUCCESS;
 
-	nht_p.family = AF_INET;
-	nht_p.prefixlen = IPV4_MAX_BITLEN;
-	nht_p.u.prefix4 = vif_source;
-	grp.family = AF_INET;
-	grp.prefixlen = IPV4_MAX_BITLEN;
-	grp.u.prefix4 = grp_addr;
+	pim_addr_to_prefix(&nht_p, vif_source);
+	pim_addr_to_prefix(&grp, group);
 	memset(&nexthop, 0, sizeof(nexthop));
 
-	result = pim_ecmp_nexthop_lookup(vrf->info, &nexthop, &nht_p, &grp, 0);
+	result = pim_ecmp_nexthop_lookup(v->info, &nexthop, &nht_p, &grp, 0);
 
 	if (!result) {
 		vty_out(vty,
@@ -5553,11 +3536,8 @@ DEFUN (show_ip_pim_nexthop_lookup,
 		return CMD_SUCCESS;
 	}
 
-	pim_addr_dump("<grp?>", &grp, grp_str, sizeof(grp_str));
-	pim_addr_dump("<nexthop?>", &nexthop.mrib_nexthop_addr,
-		      nexthop_addr_str, sizeof(nexthop_addr_str));
-	vty_out(vty, "Group %s --- Nexthop %s Interface %s \n", grp_str,
-		nexthop_addr_str, nexthop.interface->name);
+	vty_out(vty, "Group %s --- Nexthop %pPAs Interface %s \n", group_str,
+		&nexthop.mrib_nexthop_addr, nexthop.interface->name);
 
 	return CMD_SUCCESS;
 }
@@ -5633,9 +3613,9 @@ DEFUN (show_ip_pim_bsrp,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_statistics,
+DEFPY (show_ip_pim_statistics,
        show_ip_pim_statistics_cmd,
-       "show ip pim [vrf NAME] statistics [interface WORD] [json]",
+       "show ip pim [vrf NAME] statistics [interface WORD$word] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5645,620 +3625,145 @@ DEFUN (show_ip_pim_statistics,
        "PIM interface\n"
        JSON_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	bool uj = !!json;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	if (argv_find(argv, argc, "WORD", &idx))
-		pim_show_statistics(vrf->info, vty, argv[idx]->arg, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (word)
+		pim_show_statistics(pim, vty, word, uj);
 	else
-		pim_show_statistics(vrf->info, vty, NULL, uj);
+		pim_show_statistics(pim, vty, NULL, uj);
 
 	return CMD_SUCCESS;
 }
 
-static void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
-				      bool uj)
-{
-	struct interface *ifp;
-	char buf[PREFIX_STRLEN];
-	json_object *json = NULL;
-	json_object *json_row = NULL;
-
-	vty_out(vty, "\n");
-
-	if (uj)
-		json = json_object_new_object();
-	else
-		vty_out(vty,
-			"Interface        Address            ifi Vif  PktsIn PktsOut    BytesIn   BytesOut\n");
-
-	FOR_ALL_INTERFACES (pim->vrf, ifp) {
-		struct pim_interface *pim_ifp;
-		struct in_addr ifaddr;
-		struct sioc_vif_req vreq;
-
-		pim_ifp = ifp->info;
-
-		if (!pim_ifp)
-			continue;
-
-		memset(&vreq, 0, sizeof(vreq));
-		vreq.vifi = pim_ifp->mroute_vif_index;
-
-		if (ioctl(pim->mroute_socket, SIOCGETVIFCNT, &vreq)) {
-			zlog_warn(
-				"ioctl(SIOCGETVIFCNT=%lu) failure for interface %s vif_index=%d: errno=%d: %s",
-				(unsigned long)SIOCGETVIFCNT, ifp->name,
-				pim_ifp->mroute_vif_index, errno,
-				safe_strerror(errno));
-		}
-
-		ifaddr = pim_ifp->primary_address;
-		if (uj) {
-			json_row = json_object_new_object();
-			json_object_string_add(json_row, "name", ifp->name);
-			json_object_string_add(json_row, "state",
-					       if_is_up(ifp) ? "up" : "down");
-			json_object_string_addf(json_row, "address", "%pI4",
-						&pim_ifp->primary_address);
-			json_object_int_add(json_row, "ifIndex", ifp->ifindex);
-			json_object_int_add(json_row, "vif",
-					    pim_ifp->mroute_vif_index);
-			json_object_int_add(json_row, "pktsIn",
-					    (unsigned long)vreq.icount);
-			json_object_int_add(json_row, "pktsOut",
-					    (unsigned long)vreq.ocount);
-			json_object_int_add(json_row, "bytesIn",
-					    (unsigned long)vreq.ibytes);
-			json_object_int_add(json_row, "bytesOut",
-					    (unsigned long)vreq.obytes);
-			json_object_object_add(json, ifp->name, json_row);
-		} else {
-			vty_out(vty,
-				"%-16s %-15s %3d %3d %7lu %7lu %10lu %10lu\n",
-				ifp->name,
-				inet_ntop(AF_INET, &ifaddr, buf, sizeof(buf)),
-				ifp->ifindex, pim_ifp->mroute_vif_index,
-				(unsigned long)vreq.icount,
-				(unsigned long)vreq.ocount,
-				(unsigned long)vreq.ibytes,
-				(unsigned long)vreq.obytes);
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-static void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
-					     struct vty *vty)
-{
-	struct vrf *vrf = pim->vrf;
-	time_t now = pim_time_monotonic_sec();
-	char uptime[10];
-	char mlag_role[80];
-
-	pim = vrf->info;
-
-	vty_out(vty, "Router MLAG Role: %s\n",
-		mlag_role2str(router->mlag_role, mlag_role, sizeof(mlag_role)));
-	vty_out(vty, "Mroute socket descriptor:");
-
-	vty_out(vty, " %d(%s)\n", pim->mroute_socket, vrf->name);
-
-	pim_time_uptime(uptime, sizeof(uptime),
-			now - pim->mroute_socket_creation);
-	vty_out(vty, "Mroute socket uptime: %s\n", uptime);
-
-	vty_out(vty, "\n");
-
-	pim_zebra_zclient_update(vty);
-	pim_zlookup_show_ip_multicast(vty);
-
-	vty_out(vty, "\n");
-	vty_out(vty, "Maximum highest VifIndex: %d\n", PIM_MAX_USABLE_VIFS);
-
-	vty_out(vty, "\n");
-	vty_out(vty, "Upstream Join Timer: %d secs\n", router->t_periodic);
-	vty_out(vty, "Join/Prune Holdtime: %d secs\n", PIM_JP_HOLDTIME);
-	vty_out(vty, "PIM ECMP: %s\n", pim->ecmp_enable ? "Enable" : "Disable");
-	vty_out(vty, "PIM ECMP Rebalance: %s\n",
-		pim->ecmp_rebalance_enable ? "Enable" : "Disable");
-
-	vty_out(vty, "\n");
-
-	show_rpf_refresh_stats(vty, pim, now, NULL);
-
-	vty_out(vty, "\n");
-
-	show_scan_oil_stats(pim, vty, now);
-
-	show_multicast_interfaces(pim, vty, false);
-}
-
-DEFUN (show_ip_multicast,
+DEFPY (show_ip_multicast,
        show_ip_multicast_cmd,
        "show ip multicast [vrf NAME]",
        SHOW_STR
        IP_STR
-       VRF_CMD_HELP_STR
-       "Multicast global information\n")
+       "Multicast global information\n"
+       VRF_CMD_HELP_STR)
 {
-	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct vrf *v;
+	struct pim_instance *pim;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	pim_cmd_show_ip_multicast_helper(vrf->info, vty);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	pim_cmd_show_ip_multicast_helper(pim, vty);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_multicast_vrf_all,
+DEFPY (show_ip_multicast_vrf_all,
        show_ip_multicast_vrf_all_cmd,
        "show ip multicast vrf all",
        SHOW_STR
        IP_STR
-       VRF_CMD_HELP_STR
-       "Multicast global information\n")
+       "Multicast global information\n"
+       VRF_CMD_HELP_STR)
 {
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
 
-	if (uj)
-		vty_out(vty, "{ ");
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
+		vty_out(vty, "VRF: %s\n", vrf->name);
 		pim_cmd_show_ip_multicast_helper(vrf->info, vty);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(show_ip_multicast_count,
-      show_ip_multicast_count_cmd,
-      "show ip multicast count [vrf NAME] [json]",
-      SHOW_STR IP_STR
-      "Multicast global information\n"
-      "Data packet count\n"
-      VRF_CMD_HELP_STR JSON_STR)
+DEFPY (show_ip_multicast_count,
+       show_ip_multicast_count_cmd,
+       "show ip multicast count [vrf NAME] [json$json]",
+       SHOW_STR
+       IP_STR
+       "Multicast global information\n"
+       "Data packet count\n"
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	int idx = 3;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	show_multicast_interfaces(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	show_multicast_interfaces(pim, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN(show_ip_multicast_count_vrf_all,
-      show_ip_multicast_count_vrf_all_cmd,
-      "show ip multicast count vrf all [json]",
-      SHOW_STR IP_STR
-      "Multicast global information\n"
-      "Data packet count\n"
-      VRF_CMD_HELP_STR JSON_STR)
+DEFPY (show_ip_multicast_count_vrf_all,
+       show_ip_multicast_count_vrf_all_cmd,
+       "show ip multicast count vrf all [json$json]",
+       SHOW_STR
+       IP_STR
+       "Multicast global information\n"
+       "Data packet count\n"
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (uj)
-		vty_out(vty, "{ ");
+	if (json)
+		json_parent = json_object_new_object();
 
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
+		else
+			json_vrf = json_object_new_object();
 
-		show_multicast_interfaces(vrf->info, vty, uj);
+		show_multicast_interfaces(vrf->info, vty, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
-
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
-}
-
-static void show_mroute(struct pim_instance *pim, struct vty *vty,
-			struct prefix_sg *sg, bool fill, bool uj)
-{
-	struct listnode *node;
-	struct channel_oil *c_oil;
-	struct static_route *s_route;
-	time_t now;
-	json_object *json = NULL;
-	json_object *json_group = NULL;
-	json_object *json_source = NULL;
-	json_object *json_oil = NULL;
-	json_object *json_ifp_out = NULL;
-	int found_oif;
-	int first;
-	char grp_str[INET_ADDRSTRLEN];
-	char src_str[INET_ADDRSTRLEN];
-	char in_ifname[INTERFACE_NAMSIZ + 1];
-	char out_ifname[INTERFACE_NAMSIZ + 1];
-	int oif_vif_index;
-	struct interface *ifp_in;
-	char proto[100];
-	char state_str[PIM_REG_STATE_STR_LEN];
-	char mroute_uptime[10];
-
-	if (uj) {
-		json = json_object_new_object();
-	} else {
-		vty_out(vty, "IP Multicast Routing Table\n");
-		vty_out(vty, "Flags: S - Sparse, C - Connected, P - Pruned\n");
-		vty_out(vty,
-			"       R - SGRpt Pruned, F - Register flag, T - SPT-bit set\n");
-		vty_out(vty,
-			"\nSource          Group           Flags    Proto  Input            Output           TTL  Uptime\n");
-	}
-
-	now = pim_time_monotonic_sec();
-
-	/* print list of PIM and IGMP routes */
-	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
-		found_oif = 0;
-		first = 1;
-		if (!c_oil->installed)
-			continue;
-
-		if (sg->grp.s_addr != INADDR_ANY
-		    && sg->grp.s_addr != c_oil->oil.mfcc_mcastgrp.s_addr)
-			continue;
-		if (sg->src.s_addr != INADDR_ANY
-		    && sg->src.s_addr != c_oil->oil.mfcc_origin.s_addr)
-			continue;
-
-		pim_inet4_dump("<group?>", c_oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", c_oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
-
-		strlcpy(state_str, "S", sizeof(state_str));
-		/* When a non DR receives a igmp join, it creates a (*,G)
-		 * channel_oil without any upstream creation */
-		if (c_oil->up) {
-			if (PIM_UPSTREAM_FLAG_TEST_SRC_IGMP(c_oil->up->flags))
-				strlcat(state_str, "C", sizeof(state_str));
-			if (pim_upstream_is_sg_rpt(c_oil->up))
-				strlcat(state_str, "R", sizeof(state_str));
-			if (PIM_UPSTREAM_FLAG_TEST_FHR(c_oil->up->flags))
-				strlcat(state_str, "F", sizeof(state_str));
-			if (c_oil->up->sptbit == PIM_UPSTREAM_SPTBIT_TRUE)
-				strlcat(state_str, "T", sizeof(state_str));
-		}
-		if (pim_channel_oil_empty(c_oil))
-			strlcat(state_str, "P", sizeof(state_str));
-
-		ifp_in = pim_if_find_by_vif_index(pim, c_oil->oil.mfcc_parent);
-
-		if (ifp_in)
-			strlcpy(in_ifname, ifp_in->name, sizeof(in_ifname));
-		else
-			strlcpy(in_ifname, "<iif?>", sizeof(in_ifname));
-
-
-		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
-				now - c_oil->mroute_creation);
-
-		if (uj) {
-
-			/* Find the group, create it if it doesn't exist */
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			/* Find the source nested under the group, create it if
-			 * it doesn't exist
-			 */
-			json_object_object_get_ex(json_group, src_str,
-						  &json_source);
-
-			if (!json_source) {
-				json_source = json_object_new_object();
-				json_object_object_add(json_group, src_str,
-						       json_source);
-			}
-
-			/* Find the inbound interface nested under the source,
-			 * create it if it doesn't exist */
-			json_object_int_add(json_source, "installed",
-					    c_oil->installed);
-			json_object_int_add(json_source, "refCount",
-					    c_oil->oil_ref_count);
-			json_object_int_add(json_source, "oilSize",
-					    c_oil->oil_size);
-			json_object_int_add(json_source, "OilInheritedRescan",
-					    c_oil->oil_inherited_rescan);
-			json_object_string_add(json_source, "iif", in_ifname);
-			json_object_string_add(json_source, "upTime",
-					       mroute_uptime);
-			json_oil = NULL;
-		}
-
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
-		     ++oif_vif_index) {
-			struct interface *ifp_out;
-			int ttl;
-
-			ttl = c_oil->oil.mfcc_ttls[oif_vif_index];
-			if (ttl < 1)
-				continue;
-
-			/* do not display muted OIFs */
-			if (c_oil->oif_flags[oif_vif_index]
-			    & PIM_OIF_FLAG_MUTE)
-				continue;
-
-			if (c_oil->oil.mfcc_parent == oif_vif_index &&
-			    !pim_mroute_allow_iif_in_oil(c_oil,
-							 oif_vif_index))
-				continue;
-
-			ifp_out = pim_if_find_by_vif_index(pim, oif_vif_index);
-			found_oif = 1;
-
-			if (ifp_out)
-				strlcpy(out_ifname, ifp_out->name, sizeof(out_ifname));
-			else
-				strlcpy(out_ifname, "<oif?>", sizeof(out_ifname));
-
-			if (uj) {
-				json_ifp_out = json_object_new_object();
-				json_object_string_add(json_ifp_out, "source",
-						       src_str);
-				json_object_string_add(json_ifp_out, "group",
-						       grp_str);
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_PIM)
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolPim");
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_IGMP)
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolIgmp");
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_VXLAN)
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolVxlan");
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_STAR)
-					json_object_boolean_true_add(
-						json_ifp_out,
-						"protocolInherited");
-
-				json_object_string_add(json_ifp_out,
-						       "inboundInterface",
-						       in_ifname);
-				json_object_int_add(json_ifp_out, "iVifI",
-						    c_oil->oil.mfcc_parent);
-				json_object_string_add(json_ifp_out,
-						       "outboundInterface",
-						       out_ifname);
-				json_object_int_add(json_ifp_out, "oVifI",
-						    oif_vif_index);
-				json_object_int_add(json_ifp_out, "ttl", ttl);
-				json_object_string_add(json_ifp_out, "upTime",
-						       mroute_uptime);
-				json_object_string_add(json_source, "flags",
-						       state_str);
-				if (!json_oil) {
-					json_oil = json_object_new_object();
-					json_object_object_add(json_source,
-							       "oil", json_oil);
-				}
-				json_object_object_add(json_oil, out_ifname,
-						       json_ifp_out);
-			} else {
-				proto[0] = '\0';
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_PIM) {
-					strlcpy(proto, "PIM", sizeof(proto));
-				}
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_IGMP) {
-					strlcpy(proto, "IGMP", sizeof(proto));
-				}
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_VXLAN) {
-					strlcpy(proto, "VxLAN", sizeof(proto));
-				}
-
-				if (c_oil->oif_flags[oif_vif_index]
-				    & PIM_OIF_FLAG_PROTO_STAR) {
-					strlcpy(proto, "STAR", sizeof(proto));
-				}
-
-				vty_out(vty,
-					"%-15s %-15s %-8s %-6s %-16s %-16s %-3d  %8s\n",
-					src_str, grp_str, state_str, proto,
-					in_ifname, out_ifname, ttl,
-					mroute_uptime);
-
-				if (first) {
-					src_str[0] = '\0';
-					grp_str[0] = '\0';
-					in_ifname[0] = '\0';
-					state_str[0] = '\0';
-					mroute_uptime[0] = '\0';
-					first = 0;
-				}
-			}
-		}
-
-		if (!uj && !found_oif) {
-			vty_out(vty,
-				"%-15s %-15s %-8s %-6s %-16s %-16s %-3d  %8s\n",
-				src_str, grp_str, state_str, "none", in_ifname,
-				"none", 0, "--:--:--");
-		}
-	}
-
-	/* Print list of static routes */
-	for (ALL_LIST_ELEMENTS_RO(pim->static_routes, node, s_route)) {
-		first = 1;
-
-		if (!s_route->c_oil.installed)
-			continue;
-
-		pim_inet4_dump("<group?>", s_route->group, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", s_route->source, src_str,
-			       sizeof(src_str));
-		ifp_in = pim_if_find_by_vif_index(pim, s_route->iif);
-		found_oif = 0;
-
-		if (ifp_in)
-			strlcpy(in_ifname, ifp_in->name, sizeof(in_ifname));
-		else
-			strlcpy(in_ifname, "<iif?>", sizeof(in_ifname));
-
-		if (uj) {
-
-			/* Find the group, create it if it doesn't exist */
-			json_object_object_get_ex(json, grp_str, &json_group);
-
-			if (!json_group) {
-				json_group = json_object_new_object();
-				json_object_object_add(json, grp_str,
-						       json_group);
-			}
-
-			/* Find the source nested under the group, create it if
-			 * it doesn't exist */
-			json_object_object_get_ex(json_group, src_str,
-						  &json_source);
-
-			if (!json_source) {
-				json_source = json_object_new_object();
-				json_object_object_add(json_group, src_str,
-						       json_source);
-			}
-
-			json_object_string_add(json_source, "iif", in_ifname);
-			json_oil = NULL;
-		} else {
-			strlcpy(proto, "STATIC", sizeof(proto));
-		}
-
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
-		     ++oif_vif_index) {
-			struct interface *ifp_out;
-			char oif_uptime[10];
-			int ttl;
-
-			ttl = s_route->oif_ttls[oif_vif_index];
-			if (ttl < 1)
-				continue;
-
-			ifp_out = pim_if_find_by_vif_index(pim, oif_vif_index);
-			pim_time_uptime(
-				oif_uptime, sizeof(oif_uptime),
-				now
-				- s_route->c_oil
-				.oif_creation[oif_vif_index]);
-			found_oif = 1;
-
-			if (ifp_out)
-				strlcpy(out_ifname, ifp_out->name, sizeof(out_ifname));
-			else
-				strlcpy(out_ifname, "<oif?>", sizeof(out_ifname));
-
-			if (uj) {
-				json_ifp_out = json_object_new_object();
-				json_object_string_add(json_ifp_out, "source",
-						       src_str);
-				json_object_string_add(json_ifp_out, "group",
-						       grp_str);
-				json_object_boolean_true_add(json_ifp_out,
-							     "protocolStatic");
-				json_object_string_add(json_ifp_out,
-						       "inboundInterface",
-						       in_ifname);
-				json_object_int_add(
-					json_ifp_out, "iVifI",
-					s_route->c_oil.oil.mfcc_parent);
-				json_object_string_add(json_ifp_out,
-						       "outboundInterface",
-						       out_ifname);
-				json_object_int_add(json_ifp_out, "oVifI",
-						    oif_vif_index);
-				json_object_int_add(json_ifp_out, "ttl", ttl);
-				json_object_string_add(json_ifp_out, "upTime",
-						       oif_uptime);
-				if (!json_oil) {
-					json_oil = json_object_new_object();
-					json_object_object_add(json_source,
-							       "oil", json_oil);
-				}
-				json_object_object_add(json_oil, out_ifname,
-						       json_ifp_out);
-			} else {
-				vty_out(vty,
-					"%-15s %-15s %-8s %-6s %-16s %-16s %-3d  %8s\n",
-					src_str, grp_str, "-", proto, in_ifname,
-					out_ifname, ttl, oif_uptime);
-				if (first && !fill) {
-					src_str[0] = '\0';
-					grp_str[0] = '\0';
-					in_ifname[0] = '\0';
-					first = 0;
-				}
-			}
-		}
-
-		if (!uj && !found_oif) {
-			vty_out(vty,
-				"%-15s %-15s %-8s %-6s %-16s %-16s %-3d  %8s\n",
-				src_str, grp_str, "-", proto, in_ifname, "none",
-				0, "--:--:--");
-		}
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
 }
 
 DEFPY (show_ip_mroute,
@@ -6273,22 +3778,25 @@ DEFPY (show_ip_mroute,
        "Fill in Assumed data\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
+	pim_sgaddr sg = {0};
 	struct pim_instance *pim;
 	struct vrf *v;
+	json_object *json_parent = NULL;
 
 	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
 
-	if (!v) {
-		vty_out(vty, "%% Vrf specified: %s does not exist\n", vrf);
+	if (!v)
 		return CMD_WARNING;
-	}
+
 	pim = pim_get_pim_instance(v->vrf_id);
 
 	if (!pim) {
 		vty_out(vty, "%% Unable to find pim instance\n");
 		return CMD_WARNING;
 	}
+
+	if (json)
+		json_parent = json_object_new_object();
 
 	if (s_or_g.s_addr != INADDR_ANY) {
 		if (g.s_addr != INADDR_ANY) {
@@ -6297,13 +3805,18 @@ DEFPY (show_ip_mroute,
 		} else
 			sg.grp = s_or_g;
 	}
-	show_mroute(pim, vty, &sg, !!fill, !!json);
+
+	show_mroute(pim, vty, &sg, !!fill, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
+
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_mroute_vrf_all,
+DEFPY (show_ip_mroute_vrf_all,
        show_ip_mroute_vrf_all_cmd,
-       "show ip mroute vrf all [fill] [json]",
+       "show ip mroute vrf all [fill$fill] [json$json]",
        SHOW_STR
        IP_STR
        MROUTE_STR
@@ -6311,30 +3824,26 @@ DEFUN (show_ip_mroute_vrf_all,
        "Fill in Assumed data\n"
        JSON_STR)
 {
-	struct prefix_sg sg = {0};
-	bool uj = use_json(argc, argv);
-	int idx = 4;
+	pim_sgaddr sg = {0};
 	struct vrf *vrf;
-	bool first = true;
-	bool fill = false;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
 
-	if (argv_find(argv, argc, "fill", &idx))
-		fill = true;
+	if (json)
+		json_parent = json_object_new_object();
 
-	if (uj)
-		vty_out(vty, "{ ");
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		show_mroute(vrf->info, vty, &sg, fill, uj);
+		else
+			json_vrf = json_object_new_object();
+		show_mroute(vrf->info, vty, &sg, !!fill, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
-	if (uj)
-		vty_out(vty, "}\n");
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
@@ -6382,85 +3891,9 @@ DEFUN (clear_ip_mroute_count,
 	return CMD_SUCCESS;
 }
 
-static void show_mroute_count_per_channel_oil(struct channel_oil *c_oil,
-					      json_object *json,
-					      struct vty *vty)
-{
-	char group_str[INET_ADDRSTRLEN];
-	char source_str[INET_ADDRSTRLEN];
-	json_object *json_group = NULL;
-	json_object *json_source = NULL;
-
-	if (!c_oil->installed)
-		return;
-
-	pim_mroute_update_counters(c_oil);
-
-	pim_inet4_dump("<group?>", c_oil->oil.mfcc_mcastgrp, group_str,
-		       sizeof(group_str));
-	pim_inet4_dump("<source?>", c_oil->oil.mfcc_origin, source_str,
-		       sizeof(source_str));
-
-	if (json) {
-		json_object_object_get_ex(json, group_str, &json_group);
-
-		if (!json_group) {
-			json_group = json_object_new_object();
-			json_object_object_add(json, group_str, json_group);
-		}
-
-		json_source = json_object_new_object();
-		json_object_object_add(json_group, source_str, json_source);
-		json_object_int_add(json_source, "lastUsed",
-				    c_oil->cc.lastused / 100);
-		json_object_int_add(json_source, "packets", c_oil->cc.pktcnt);
-		json_object_int_add(json_source, "bytes", c_oil->cc.bytecnt);
-		json_object_int_add(json_source, "wrongIf", c_oil->cc.wrong_if);
-
-	} else {
-		vty_out(vty, "%-15s %-15s %-8llu %-7ld %-10ld %-7ld\n",
-			source_str, group_str, c_oil->cc.lastused / 100,
-			c_oil->cc.pktcnt - c_oil->cc.origpktcnt,
-			c_oil->cc.bytecnt - c_oil->cc.origbytecnt,
-			c_oil->cc.wrong_if - c_oil->cc.origwrong_if);
-	}
-}
-
-static void show_mroute_count(struct pim_instance *pim, struct vty *vty,
-			      bool uj)
-{
-	struct listnode *node;
-	struct channel_oil *c_oil;
-	struct static_route *sr;
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-	else {
-		vty_out(vty, "\n");
-
-		vty_out(vty,
-			"Source          Group           LastUsed Packets Bytes WrongIf  \n");
-	}
-
-	/* Print PIM and IGMP route counts */
-	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil)
-		show_mroute_count_per_channel_oil(c_oil, json, vty);
-
-	for (ALL_LIST_ELEMENTS_RO(pim->static_routes, node, sr))
-		show_mroute_count_per_channel_oil(&sr->c_oil, json, vty);
-
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-}
-
-DEFUN (show_ip_mroute_count,
+DEFPY (show_ip_mroute_count,
        show_ip_mroute_count_cmd,
-       "show ip mroute [vrf NAME] count [json]",
+       "show ip mroute [vrf NAME] count [json$json]",
        SHOW_STR
        IP_STR
        MROUTE_STR
@@ -6468,20 +3901,36 @@ DEFUN (show_ip_mroute_count,
        "Route and packet count data\n"
        JSON_STR)
 {
-	int idx = 2;
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
 
-	if (!vrf)
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
 		return CMD_WARNING;
 
-	show_mroute_count(vrf->info, vty, uj);
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	show_mroute_count(pim, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
+
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_mroute_count_vrf_all,
+DEFPY (show_ip_mroute_count_vrf_all,
        show_ip_mroute_count_vrf_all_cmd,
-       "show ip mroute vrf all count [json]",
+       "show ip mroute vrf all count [json$json]",
        SHOW_STR
        IP_STR
        MROUTE_STR
@@ -6489,177 +3938,100 @@ DEFUN (show_ip_mroute_count_vrf_all,
        "Route and packet count data\n"
        JSON_STR)
 {
-	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
-	bool first = true;
-
-	if (uj)
-		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
-			if (!first)
-				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
-			first = false;
-		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		show_mroute_count(vrf->info, vty, uj);
-	}
-	if (uj)
-		vty_out(vty, "}\n");
-
-	return CMD_SUCCESS;
-}
-
-static void show_mroute_summary(struct pim_instance *pim, struct vty *vty,
-				json_object *json)
-{
-	struct listnode *node;
-	struct channel_oil *c_oil;
-	struct static_route *s_route;
-	uint32_t starg_sw_mroute_cnt = 0;
-	uint32_t sg_sw_mroute_cnt = 0;
-	uint32_t starg_hw_mroute_cnt = 0;
-	uint32_t sg_hw_mroute_cnt = 0;
-	json_object *json_starg = NULL;
-	json_object *json_sg = NULL;
-
-	if (!json)
-		vty_out(vty, "Mroute Type    Installed/Total\n");
-
-	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
-		if (!c_oil->installed) {
-			if (c_oil->oil.mfcc_origin.s_addr == INADDR_ANY)
-				starg_sw_mroute_cnt++;
-			else
-				sg_sw_mroute_cnt++;
-		} else {
-			if (c_oil->oil.mfcc_origin.s_addr == INADDR_ANY)
-				starg_hw_mroute_cnt++;
-			else
-				sg_hw_mroute_cnt++;
-		}
-	}
-
-	for (ALL_LIST_ELEMENTS_RO(pim->static_routes, node, s_route)) {
-		if (!s_route->c_oil.installed) {
-			if (s_route->c_oil.oil.mfcc_origin.s_addr == INADDR_ANY)
-				starg_sw_mroute_cnt++;
-			else
-				sg_sw_mroute_cnt++;
-		} else {
-			if (s_route->c_oil.oil.mfcc_origin.s_addr == INADDR_ANY)
-				starg_hw_mroute_cnt++;
-			else
-				sg_hw_mroute_cnt++;
-		}
-	}
-
-	if (!json) {
-		vty_out(vty, "%-20s %u/%u\n", "(*, G)", starg_hw_mroute_cnt,
-			starg_sw_mroute_cnt + starg_hw_mroute_cnt);
-		vty_out(vty, "%-20s %u/%u\n", "(S, G)", sg_hw_mroute_cnt,
-			sg_sw_mroute_cnt + sg_hw_mroute_cnt);
-		vty_out(vty, "------\n");
-		vty_out(vty, "%-20s %u/%u\n", "Total",
-			(starg_hw_mroute_cnt + sg_hw_mroute_cnt),
-			(starg_sw_mroute_cnt + starg_hw_mroute_cnt
-			 + sg_sw_mroute_cnt + sg_hw_mroute_cnt));
-	} else {
-		/* (*,G) route details */
-		json_starg = json_object_new_object();
-		json_object_object_add(json, "wildcardGroup", json_starg);
-
-		json_object_int_add(json_starg, "installed",
-				    starg_hw_mroute_cnt);
-		json_object_int_add(json_starg, "total",
-				    starg_sw_mroute_cnt + starg_hw_mroute_cnt);
-
-		/* (S, G) route details */
-		json_sg = json_object_new_object();
-		json_object_object_add(json, "sourceGroup", json_sg);
-
-		json_object_int_add(json_sg, "installed", sg_hw_mroute_cnt);
-		json_object_int_add(json_sg, "total",
-				    sg_sw_mroute_cnt + sg_hw_mroute_cnt);
-
-		json_object_int_add(json, "totalNumOfInstalledMroutes",
-				    starg_hw_mroute_cnt + sg_hw_mroute_cnt);
-		json_object_int_add(json, "totalNumOfMroutes",
-				    starg_sw_mroute_cnt + starg_hw_mroute_cnt
-				    + sg_sw_mroute_cnt
-				    + sg_hw_mroute_cnt);
-	}
-}
-
-DEFUN (show_ip_mroute_summary,
-       show_ip_mroute_summary_cmd,
-       "show ip mroute [vrf NAME] summary [json]",
-       SHOW_STR
-       IP_STR
-       MROUTE_STR
-       VRF_CMD_HELP_STR
-       "Summary of all mroutes\n"
-       JSON_STR)
-{
-	int idx = 2;
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-
-	if (!vrf)
-		return CMD_WARNING;
-
-	show_mroute_summary(vrf->info, vty, json);
-
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-	return CMD_SUCCESS;
-}
-
-DEFUN (show_ip_mroute_summary_vrf_all,
-       show_ip_mroute_summary_vrf_all_cmd,
-       "show ip mroute vrf all summary [json]",
-       SHOW_STR
-       IP_STR
-       MROUTE_STR
-       VRF_CMD_HELP_STR
-       "Summary of all mroutes\n"
-       JSON_STR)
-{
-	struct vrf *vrf;
-	bool uj = use_json(argc, argv);
-	json_object *json = NULL;
+	json_object *json_parent = NULL;
 	json_object *json_vrf = NULL;
 
-	if (uj)
-		json = json_object_new_object();
+	if (json)
+		json_parent = json_object_new_object();
 
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj)
-			json_vrf = json_object_new_object();
-		else
+		if (!json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
+		else
+			json_vrf = json_object_new_object();
+
+		show_mroute_count(vrf->info, vty, json_vrf);
+
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
+	}
+	if (json)
+		vty_json(vty, json_parent);
+
+	return CMD_SUCCESS;
+}
+
+DEFPY (show_ip_mroute_summary,
+       show_ip_mroute_summary_cmd,
+       "show ip mroute [vrf NAME] summary [json$json]",
+       SHOW_STR
+       IP_STR
+       MROUTE_STR
+       VRF_CMD_HELP_STR
+       "Summary of all mroutes\n"
+       JSON_STR)
+{
+	struct pim_instance *pim;
+	struct vrf *v;
+	json_object *json_parent = NULL;
+
+	v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+	if (!v)
+		return CMD_WARNING;
+
+	pim = pim_get_pim_instance(v->vrf_id);
+
+	if (!pim) {
+		vty_out(vty, "%% Unable to find pim instance\n");
+		return CMD_WARNING;
+	}
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	show_mroute_summary(pim, vty, json_parent);
+
+	if (json)
+		vty_json(vty, json_parent);
+
+	return CMD_SUCCESS;
+}
+
+DEFPY (show_ip_mroute_summary_vrf_all,
+       show_ip_mroute_summary_vrf_all_cmd,
+       "show ip mroute vrf all summary [json$json]",
+       SHOW_STR
+       IP_STR
+       MROUTE_STR
+       VRF_CMD_HELP_STR
+       "Summary of all mroutes\n"
+       JSON_STR)
+{
+	struct vrf *vrf;
+	json_object *json_parent = NULL;
+	json_object *json_vrf = NULL;
+
+	if (json)
+		json_parent = json_object_new_object();
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		if (!json)
+			vty_out(vty, "VRF: %s\n", vrf->name);
+		else
+			json_vrf = json_object_new_object();
 
 		show_mroute_summary(vrf->info, vty, json_vrf);
 
-		if (uj)
-			json_object_object_add(json, vrf->name, json_vrf);
+		if (json)
+			json_object_object_add(json_parent, vrf->name,
+					       json_vrf);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (json)
+		vty_json(vty, json_parent);
 
 	return CMD_SUCCESS;
 }
@@ -6678,7 +4050,6 @@ DEFUN (show_ip_rib,
 	struct in_addr addr;
 	const char *addr_str;
 	struct pim_nexthop nexthop;
-	char nexthop_addr_str[PREFIX_STRLEN];
 	int result;
 
 	if (!vrf)
@@ -6704,10 +4075,8 @@ DEFUN (show_ip_rib,
 	vty_out(vty,
 		"Address         NextHop         Interface Metric Preference\n");
 
-	pim_addr_dump("<nexthop?>", &nexthop.mrib_nexthop_addr,
-		      nexthop_addr_str, sizeof(nexthop_addr_str));
-
-	vty_out(vty, "%-15s %-15s %-9s %6d %10d\n", addr_str, nexthop_addr_str,
+	vty_out(vty, "%-15s %-15pPAs %-9s %6d %10d\n", addr_str,
+		&nexthop.mrib_nexthop_addr,
 		nexthop.interface ? nexthop.interface->name : "<ifname?>",
 		nexthop.mrib_route_metric, nexthop.mrib_metric_preference);
 
@@ -6782,38 +4151,12 @@ DEFUN (ip_pim_spt_switchover_infinity,
        "SPT-Switchover\n"
        "Never switch to SPT Tree\n")
 {
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	if (yang_dnode_exists(vty->candidate_config->dnode, spt_plist_xpath))
-		nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY,
-				      NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_INFINITY");
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_spt_switchover_infinity_cmd(vty);
 }
 
-DEFUN (ip_pim_spt_switchover_infinity_plist,
+DEFPY (ip_pim_spt_switchover_infinity_plist,
        ip_pim_spt_switchover_infinity_plist_cmd,
-       "ip pim spt-switchover infinity-and-beyond prefix-list WORD",
+       "ip pim spt-switchover infinity-and-beyond prefix-list WORD$plist",
        IP_STR
        PIM_STR
        "SPT-Switchover\n"
@@ -6821,32 +4164,7 @@ DEFUN (ip_pim_spt_switchover_infinity_plist,
        "Prefix-List to control which groups to switch\n"
        "Prefix-List name\n")
 {
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_INFINITY");
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_MODIFY,
-			      argv[5]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_spt_switchover_prefixlist_cmd(vty, plist);
 }
 
 DEFUN (no_ip_pim_spt_switchover_infinity,
@@ -6858,31 +4176,7 @@ DEFUN (no_ip_pim_spt_switchover_infinity,
        "SPT_Switchover\n"
        "Never switch to SPT Tree\n")
 {
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY, NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_IMMEDIATE");
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_spt_switchover_cmd(vty);
 }
 
 DEFUN (no_ip_pim_spt_switchover_infinity_plist,
@@ -6896,31 +4190,7 @@ DEFUN (no_ip_pim_spt_switchover_infinity_plist,
        "Prefix-List to control which groups to switch\n"
        "Prefix-List name\n")
 {
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY, NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_IMMEDIATE");
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_spt_switchover_cmd(vty);
 }
 
 DEFPY (pim_register_accept_list,
@@ -6940,7 +4210,7 @@ DEFPY (pim_register_accept_list,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(reg_alist_xpath, sizeof(reg_alist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
+		 FRR_PIM_VRF_XPATH, "frr-pim:pimd", "pim", vrfname,
 		 "frr-routing:ipv4");
 	strlcat(reg_alist_xpath, "/register-accept-list",
 		sizeof(reg_alist_xpath));
@@ -6955,18 +4225,15 @@ DEFPY (pim_register_accept_list,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (ip_pim_joinprune_time,
+DEFPY (ip_pim_joinprune_time,
        ip_pim_joinprune_time_cmd,
-       "ip pim join-prune-interval (1-65535)",
+       "ip pim join-prune-interval (1-65535)$jpi",
        IP_STR
        "pim multicast routing\n"
        "Join Prune Send Interval\n"
        "Seconds\n")
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/join-prune-interval",
-			      NB_OP_MODIFY, argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_join_prune_cmd(vty, jpi_str);
 }
 
 DEFUN (no_ip_pim_joinprune_time,
@@ -6978,24 +4245,18 @@ DEFUN (no_ip_pim_joinprune_time,
        "Join Prune Send Interval\n"
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/join-prune-interval",
-			      NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_join_prune_cmd(vty);
 }
 
-DEFUN (ip_pim_register_suppress,
+DEFPY (ip_pim_register_suppress,
        ip_pim_register_suppress_cmd,
-       "ip pim register-suppress-time (1-65535)",
+       "ip pim register-suppress-time (1-65535)$rst",
        IP_STR
        "pim multicast routing\n"
        "Register Suppress Timer\n"
        "Seconds\n")
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/register-suppress-time",
-			      NB_OP_MODIFY, argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_register_suppress_cmd(vty, rst_str);
 }
 
 DEFUN (no_ip_pim_register_suppress,
@@ -7007,37 +4268,19 @@ DEFUN (no_ip_pim_register_suppress,
        "Register Suppress Timer\n"
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/register-suppress-time",
-			      NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_register_suppress_cmd(vty);
 }
 
-DEFUN (ip_pim_rp_keep_alive,
+DEFPY (ip_pim_rp_keep_alive,
        ip_pim_rp_keep_alive_cmd,
-       "ip pim rp keep-alive-timer (1-65535)",
+       "ip pim rp keep-alive-timer (1-65535)$kat",
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "Keep alive Timer\n"
        "Seconds\n")
 {
-	const char *vrfname;
-	char rp_ka_timer_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_ka_timer_xpath, sizeof(rp_ka_timer_xpath),
-		 FRR_PIM_XPATH, "frr-pim:pimd", "pim", vrfname);
-	strlcat(rp_ka_timer_xpath, "/rp-keep-alive-timer",
-		sizeof(rp_ka_timer_xpath));
-
-	nb_cli_enqueue_change(vty, rp_ka_timer_xpath, NB_OP_MODIFY,
-			      argv[4]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_rp_kat_cmd(vty, kat_str);
 }
 
 DEFUN (no_ip_pim_rp_keep_alive,
@@ -7046,61 +4289,22 @@ DEFUN (no_ip_pim_rp_keep_alive,
        NO_STR
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "Keep alive Timer\n"
        IGNORED_IN_NO_STR)
 {
-	const char *vrfname;
-	char rp_ka_timer[6];
-	char rp_ka_timer_xpath[XPATH_MAXLEN];
-	uint v;
-
-	/* RFC4601 */
-	v = yang_dnode_get_uint16(vty->candidate_config->dnode,
-				  "/frr-pim:pim/register-suppress-time");
-	v = 3 * v + PIM_REGISTER_PROBE_TIME_DEFAULT;
-	if (v > UINT16_MAX)
-		v = UINT16_MAX;
-	snprintf(rp_ka_timer, sizeof(rp_ka_timer), "%u", v);
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_ka_timer_xpath, sizeof(rp_ka_timer_xpath),
-		 FRR_PIM_XPATH, "frr-pim:pimd", "pim", vrfname);
-	strlcat(rp_ka_timer_xpath, "/rp-keep-alive-timer",
-		sizeof(rp_ka_timer_xpath));
-
-	nb_cli_enqueue_change(vty, rp_ka_timer_xpath, NB_OP_MODIFY,
-			      rp_ka_timer);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_rp_kat_cmd(vty);
 }
 
-DEFUN (ip_pim_keep_alive,
+DEFPY (ip_pim_keep_alive,
        ip_pim_keep_alive_cmd,
-       "ip pim keep-alive-timer (1-65535)",
+       "ip pim keep-alive-timer (1-65535)$kat",
        IP_STR
        "pim multicast routing\n"
        "Keep alive Timer\n"
        "Seconds\n")
 {
-	const char *vrfname;
-	char ka_timer_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(ka_timer_xpath, sizeof(ka_timer_xpath), FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
-	strlcat(ka_timer_xpath, "/keep-alive-timer", sizeof(ka_timer_xpath));
-
-	nb_cli_enqueue_change(vty, ka_timer_xpath, NB_OP_MODIFY,
-			      argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_keepalivetimer_cmd(vty, kat_str);
 }
 
 DEFUN (no_ip_pim_keep_alive,
@@ -7112,23 +4316,10 @@ DEFUN (no_ip_pim_keep_alive,
        "Keep alive Timer\n"
        IGNORED_IN_NO_STR)
 {
-	const char *vrfname;
-	char ka_timer_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(ka_timer_xpath, sizeof(ka_timer_xpath), FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
-	strlcat(ka_timer_xpath, "/keep-alive-timer", sizeof(ka_timer_xpath));
-
-	nb_cli_enqueue_change(vty, ka_timer_xpath, NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_keepalivetimer_cmd(vty);
 }
 
-DEFUN (ip_pim_packets,
+DEFPY (ip_pim_packets,
        ip_pim_packets_cmd,
        "ip pim packets (1-255)",
        IP_STR
@@ -7136,10 +4327,7 @@ DEFUN (ip_pim_packets,
        "packets to process at one time per fd\n"
        "Number of packets\n")
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/packets", NB_OP_MODIFY,
-			      argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_pim_packet_cmd(vty, packets_str);
 }
 
 DEFUN (no_ip_pim_packets,
@@ -7151,27 +4339,25 @@ DEFUN (no_ip_pim_packets,
        "packets to process at one time per fd\n"
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "/frr-pim:pim/packets", NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_pim_packet_cmd(vty);
 }
 
-DEFPY (igmp_group_watermark,
-       igmp_group_watermark_cmd,
+DEFPY (ip_igmp_group_watermark,
+       ip_igmp_group_watermark_cmd,
        "ip igmp watermark-warn (1-65535)$limit",
        IP_STR
        IGMP_STR
        "Configure group limit for watermark warning\n"
        "Group count to generate watermark warning\n")
 {
-	PIM_DECLVAR_CONTEXT(vrf, pim);
+	PIM_DECLVAR_CONTEXT_VRF(vrf, pim);
 	pim->igmp_watermark_limit = limit;
 
 	return CMD_SUCCESS;
 }
 
-DEFPY (no_igmp_group_watermark,
-       no_igmp_group_watermark_cmd,
+DEFPY (no_ip_igmp_group_watermark,
+       no_ip_igmp_group_watermark_cmd,
        "no ip igmp watermark-warn [(1-65535)$limit]",
        NO_STR
        IP_STR
@@ -7179,7 +4365,7 @@ DEFPY (no_igmp_group_watermark,
        "Unconfigure group limit for watermark warning\n"
        IGNORED_IN_NO_STR)
 {
-	PIM_DECLVAR_CONTEXT(vrf, pim);
+	PIM_DECLVAR_CONTEXT_VRF(vrf, pim);
 	pim->igmp_watermark_limit = 0;
 
 	return CMD_SUCCESS;
@@ -7200,7 +4386,7 @@ DEFUN (ip_pim_v6_secondary,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(send_v6_secondary_xpath, sizeof(send_v6_secondary_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(send_v6_secondary_xpath, "/send-v6-secondary",
 		sizeof(send_v6_secondary_xpath));
@@ -7227,7 +4413,7 @@ DEFUN (no_ip_pim_v6_secondary,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(send_v6_secondary_xpath, sizeof(send_v6_secondary_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(send_v6_secondary_xpath, "/send-v6-secondary",
 		sizeof(send_v6_secondary_xpath));
@@ -7238,191 +4424,60 @@ DEFUN (no_ip_pim_v6_secondary,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (ip_pim_rp,
+DEFPY (ip_pim_rp,
        ip_pim_rp_cmd,
-       "ip pim rp A.B.C.D [A.B.C.D/M]",
+       "ip pim rp A.B.C.D$rp [A.B.C.D/M]$gp",
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "Group Address range to cover\n")
 {
-	const char *vrfname;
-	int idx_rp = 3, idx_group = 4;
-	char rp_group_xpath[XPATH_MAXLEN];
-	int result = 0;
-	struct prefix group;
-	struct in_addr rp_addr;
-	const char *group_str =
-		(argc == 5) ? argv[idx_group]->arg : "224.0.0.0/4";
+	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
 
-	result = str2prefix(group_str, &group);
-	if (result) {
-		struct prefix temp;
-
-		prefix_copy(&temp, &group);
-		apply_mask(&temp);
-		if (!prefix_same(&group, &temp)) {
-			vty_out(vty, "%% Inconsistent address and mask: %s\n",
-				group_str);
-			return CMD_WARNING_CONFIG_FAILED;
-		}
-	}
-
-	if (!result) {
-		vty_out(vty, "%% Bad group address specified: %s\n",
-			group_str);
-		return CMD_WARNING_CONFIG_FAILED;
-	}
-
-	result = inet_pton(AF_INET, argv[idx_rp]->arg, &rp_addr);
-	if (result <= 0) {
-		vty_out(vty, "%% Bad RP address specified: %s\n",
-			argv[idx_rp]->arg);
-		return CMD_WARNING_CONFIG_FAILED;
-	}
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
-		 FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(rp_group_xpath, "/group-list", sizeof(rp_group_xpath));
-
-	nb_cli_enqueue_change(vty, rp_group_xpath, NB_OP_CREATE, group_str);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_rp_cmd(vty, rp_str, group_str);
 }
 
-DEFUN (ip_pim_rp_prefix_list,
+DEFPY (ip_pim_rp_prefix_list,
        ip_pim_rp_prefix_list_cmd,
-       "ip pim rp A.B.C.D prefix-list WORD",
+       "ip pim rp A.B.C.D$rp prefix-list WORD$plist",
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	int idx_rp = 3, idx_plist = 5;
-	const char *vrfname;
-	char rp_plist_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_plist_xpath, sizeof(rp_plist_xpath),
-		 FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(rp_plist_xpath, "/prefix-list", sizeof(rp_plist_xpath));
-
-	nb_cli_enqueue_change(vty, rp_plist_xpath, NB_OP_MODIFY,
-			      argv[idx_plist]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_rp_plist_cmd(vty, rp_str, plist);
 }
 
-DEFUN (no_ip_pim_rp,
+DEFPY (no_ip_pim_rp,
        no_ip_pim_rp_cmd,
-       "no ip pim rp A.B.C.D [A.B.C.D/M]",
+       "no ip pim rp A.B.C.D$rp [A.B.C.D/M]$gp",
        NO_STR
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "Group Address range to cover\n")
 {
-	int idx_rp = 4, idx_group = 5;
-	const char *group_str =
-		(argc == 6) ? argv[idx_group]->arg : "224.0.0.0/4";
-	char group_list_xpath[XPATH_MAXLEN + 32];
-	char group_xpath[XPATH_MAXLEN + 64];
-	char rp_xpath[XPATH_MAXLEN];
-	const char *vrfname;
-	const struct lyd_node *group_dnode;
+	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
 
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-
-	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/group-list",
-		 rp_xpath);
-
-	snprintf(group_xpath, sizeof(group_xpath), "%s[.='%s']",
-		 group_list_xpath, group_str);
-
-	if (!yang_dnode_exists(vty->candidate_config->dnode, group_xpath)) {
-		vty_out(vty, "%% Unable to find specified RP\n");
-		return NB_OK;
-	}
-
-	group_dnode = yang_dnode_get(vty->candidate_config->dnode, group_xpath);
-
-	if (yang_is_last_list_dnode(group_dnode))
-		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
-	else
-		nb_cli_enqueue_change(vty, group_list_xpath, NB_OP_DESTROY,
-				      group_str);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_rp_cmd(vty, rp_str, group_str);
 }
 
-DEFUN (no_ip_pim_rp_prefix_list,
+DEFPY (no_ip_pim_rp_prefix_list,
        no_ip_pim_rp_prefix_list_cmd,
-       "no ip pim rp A.B.C.D prefix-list WORD",
+       "no ip pim rp A.B.C.D$rp prefix-list WORD$plist",
        NO_STR
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	int idx_rp = 4;
-	int idx_plist = 6;
-	char rp_xpath[XPATH_MAXLEN];
-	char plist_xpath[XPATH_MAXLEN];
-	const char *vrfname;
-	const struct lyd_node *plist_dnode;
-	const char *plist;
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-
-	snprintf(plist_xpath, sizeof(plist_xpath), FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(plist_xpath, "/prefix-list", sizeof(plist_xpath));
-
-	plist_dnode = yang_dnode_get(vty->candidate_config->dnode, plist_xpath);
-	if (!plist_dnode) {
-		vty_out(vty, "%% Unable to find specified RP\n");
-		return NB_OK;
-	}
-
-	plist = yang_dnode_get_string(plist_dnode, plist_xpath);
-	if (strcmp(argv[idx_plist]->arg, plist)) {
-		vty_out(vty, "%% Unable to find specified RP\n");
-		return NB_OK;
-	}
-
-	nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_rp_plist_cmd(vty, rp_str, plist);
 }
 
 DEFUN (ip_pim_ssm_prefix_list,
@@ -7441,7 +4496,7 @@ DEFUN (ip_pim_ssm_prefix_list,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(ssm_plist_xpath, sizeof(ssm_plist_xpath), FRR_PIM_AF_XPATH,
+	snprintf(ssm_plist_xpath, sizeof(ssm_plist_xpath), FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ssm_plist_xpath, "/ssm-prefix-list", sizeof(ssm_plist_xpath));
 
@@ -7467,7 +4522,7 @@ DEFUN (no_ip_pim_ssm_prefix_list,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(ssm_plist_xpath, sizeof(ssm_plist_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ssm_plist_xpath, "/ssm-prefix-list", sizeof(ssm_plist_xpath));
 
@@ -7496,7 +4551,7 @@ DEFUN (no_ip_pim_ssm_prefix_list_name,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(ssm_plist_xpath, sizeof(ssm_plist_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ssm_plist_xpath, "/ssm-prefix-list", sizeof(ssm_plist_xpath));
 	ssm_plist_dnode = yang_dnode_get(vty->candidate_config->dnode,
@@ -7521,24 +4576,6 @@ DEFUN (no_ip_pim_ssm_prefix_list_name,
 	vty_out(vty, "%% pim ssm prefix-list %s doesn't exist\n", argv[5]->arg);
 
 	return CMD_WARNING_CONFIG_FAILED;
-}
-
-static void ip_pim_ssm_show_group_range(struct pim_instance *pim,
-					struct vty *vty, bool uj)
-{
-	struct pim_ssm *ssm = pim->ssm_info;
-	const char *range_str =
-		ssm->plist_name ? ssm->plist_name : PIM_SSM_STANDARD_RANGE;
-
-	if (uj) {
-		json_object *json;
-		json = json_object_new_object();
-		json_object_string_add(json, "ssmGroups", range_str);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	} else
-		vty_out(vty, "SSM group range : %s\n", range_str);
 }
 
 DEFUN (show_ip_pim_ssm_range,
@@ -7586,9 +4623,7 @@ static void ip_pim_ssm_show_group_type(struct pim_instance *pim,
 		json_object *json;
 		json = json_object_new_object();
 		json_object_string_add(json, "groupType", type_str);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	} else
 		vty_out(vty, "Group type : %s\n", type_str);
 }
@@ -7646,24 +4681,9 @@ DEFUN (ip_ssmpingd,
        "Source address\n")
 {
 	int idx_ipv4 = 2;
-	const char *source_str = (argc == 3) ? argv[idx_ipv4]->arg : "0.0.0.0";
-	const char *vrfname;
-	char ssmpingd_ip_xpath[XPATH_MAXLEN];
+	const char *src_str = (argc == 3) ? argv[idx_ipv4]->arg : "0.0.0.0";
 
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(ssmpingd_ip_xpath, sizeof(ssmpingd_ip_xpath),
-		 FRR_PIM_AF_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
-	strlcat(ssmpingd_ip_xpath, "/ssm-pingd-source-ip",
-		sizeof(ssmpingd_ip_xpath));
-
-	nb_cli_enqueue_change(vty, ssmpingd_ip_xpath, NB_OP_CREATE,
-			      source_str);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_ssmpingd_cmd(vty, NB_OP_CREATE, src_str);
 }
 
 DEFUN (no_ip_ssmpingd,
@@ -7674,25 +4694,10 @@ DEFUN (no_ip_ssmpingd,
        CONF_SSMPINGD_STR
        "Source address\n")
 {
-	const char *vrfname;
 	int idx_ipv4 = 3;
-	const char *source_str = (argc == 4) ? argv[idx_ipv4]->arg : "0.0.0.0";
-	char ssmpingd_ip_xpath[XPATH_MAXLEN];
+	const char *src_str = (argc == 4) ? argv[idx_ipv4]->arg : "0.0.0.0";
 
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(ssmpingd_ip_xpath, sizeof(ssmpingd_ip_xpath),
-		 FRR_PIM_AF_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
-	strlcat(ssmpingd_ip_xpath, "/ssm-pingd-source-ip",
-		sizeof(ssmpingd_ip_xpath));
-
-	nb_cli_enqueue_change(vty, ssmpingd_ip_xpath, NB_OP_DESTROY,
-			      source_str);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_ssmpingd_cmd(vty, NB_OP_DESTROY, src_str);
 }
 
 DEFUN (ip_pim_ecmp,
@@ -7709,8 +4714,8 @@ DEFUN (ip_pim_ecmp,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
+	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ecmp_xpath, "/ecmp", sizeof(ecmp_xpath));
 
 	nb_cli_enqueue_change(vty, ecmp_xpath, NB_OP_MODIFY, "true");
@@ -7732,8 +4737,8 @@ DEFUN (no_ip_pim_ecmp,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
+	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ecmp_xpath, "/ecmp", sizeof(ecmp_xpath));
 
 	nb_cli_enqueue_change(vty, ecmp_xpath, NB_OP_MODIFY, "false");
@@ -7757,12 +4762,12 @@ DEFUN (ip_pim_ecmp_rebalance,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
+	snprintf(ecmp_xpath, sizeof(ecmp_xpath), FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ecmp_xpath, "/ecmp", sizeof(ecmp_xpath));
 	snprintf(ecmp_rebalance_xpath, sizeof(ecmp_rebalance_xpath),
-		 FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
+		 FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ecmp_rebalance_xpath, "/ecmp-rebalance",
 		sizeof(ecmp_rebalance_xpath));
 
@@ -7789,8 +4794,8 @@ DEFUN (no_ip_pim_ecmp_rebalance,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(ecmp_rebalance_xpath, sizeof(ecmp_rebalance_xpath),
-		 FRR_PIM_XPATH,
-		 "frr-pim:pimd", "pim", vrfname);
+		 FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	strlcat(ecmp_rebalance_xpath, "/ecmp-rebalance",
 		sizeof(ecmp_rebalance_xpath));
 
@@ -7805,9 +4810,10 @@ DEFUN (interface_ip_igmp,
        IP_STR
        IFACE_IGMP_STR)
 {
-	nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY, "true");
+	nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY, "true");
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN (interface_no_ip_igmp,
@@ -7818,13 +4824,22 @@ DEFUN (interface_no_ip_igmp,
        IFACE_IGMP_STR)
 {
 	const struct lyd_node *pim_enable_dnode;
-	char pim_if_xpath[XPATH_MAXLEN + 20];
+	char pim_if_xpath[XPATH_MAXLEN];
 
-	snprintf(pim_if_xpath, sizeof(pim_if_xpath),
-		 "%s/frr-pim:pim", VTY_CURR_XPATH);
+	int printed =
+		snprintf(pim_if_xpath, sizeof(pim_if_xpath),
+			 "%s/frr-pim:pim/address-family[address-family='%s']",
+			 VTY_CURR_XPATH, "frr-routing:ipv4");
+
+	if (printed >= (int)(sizeof(pim_if_xpath))) {
+		vty_out(vty, "Xpath too long (%d > %u)", printed + 1,
+			XPATH_MAXLEN);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
 
 	pim_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
-					   "%s/pim-enable", pim_if_xpath);
+					   FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
+					   "frr-routing:ipv4");
 	if (!pim_enable_dnode) {
 		nb_cli_enqueue_change(vty, pim_if_xpath, NB_OP_DESTROY, NULL);
 		nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
@@ -7834,11 +4849,12 @@ DEFUN (interface_no_ip_igmp,
 					      NULL);
 			nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
 		} else
-			nb_cli_enqueue_change(vty, "./igmp-enable",
+			nb_cli_enqueue_change(vty, "./enable",
 					      NB_OP_MODIFY, "false");
 	}
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN (interface_ip_igmp_join,
@@ -7866,7 +4882,7 @@ DEFUN (interface_ip_igmp_join,
 	} else
 		source_str = "0.0.0.0";
 
-	snprintf(xpath, sizeof(xpath), FRR_IGMP_JOIN_XPATH,
+	snprintf(xpath, sizeof(xpath), FRR_GMP_JOIN_XPATH,
 		 "frr-routing:ipv4", argv[idx_group]->arg, source_str);
 
 	nb_cli_enqueue_change(vty, xpath, NB_OP_CREATE, NULL);
@@ -7900,7 +4916,7 @@ DEFUN (interface_no_ip_igmp_join,
 	} else
 		source_str = "0.0.0.0";
 
-	snprintf(xpath, sizeof(xpath), FRR_IGMP_JOIN_XPATH,
+	snprintf(xpath, sizeof(xpath), FRR_GMP_JOIN_XPATH,
 		 "frr-routing:ipv4", argv[idx_group]->arg, source_str);
 
 	nb_cli_enqueue_change(vty, xpath, NB_OP_DESTROY, NULL);
@@ -7920,20 +4936,22 @@ DEFUN (interface_ip_igmp_query_interval,
 
 	pim_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-pim:pim/pim-enable", VTY_CURR_XPATH);
+				FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
+		nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
 				      "true");
 	} else {
 		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./igmp-enable",
+			nb_cli_enqueue_change(vty, "./enable",
 					      NB_OP_MODIFY, "true");
 	}
 
 	nb_cli_enqueue_change(vty, "./query-interval", NB_OP_MODIFY,
 			      argv[3]->arg);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN (interface_no_ip_igmp_query_interval,
@@ -7947,7 +4965,8 @@ DEFUN (interface_no_ip_igmp_query_interval,
 {
 	nb_cli_enqueue_change(vty, "./query-interval", NB_OP_DESTROY, NULL);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN (interface_ip_igmp_version,
@@ -7958,11 +4977,13 @@ DEFUN (interface_ip_igmp_version,
        "IGMP version\n"
        "IGMP version number\n")
 {
-	nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
+	nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
 			      "true");
-	nb_cli_enqueue_change(vty, "./version", NB_OP_MODIFY, argv[3]->arg);
+	nb_cli_enqueue_change(vty, "./igmp-version", NB_OP_MODIFY,
+			      argv[3]->arg);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN (interface_no_ip_igmp_version,
@@ -7974,38 +4995,21 @@ DEFUN (interface_no_ip_igmp_version,
        "IGMP version\n"
        "IGMP version number\n")
 {
-	nb_cli_enqueue_change(vty, "./version", NB_OP_DESTROY, NULL);
+	nb_cli_enqueue_change(vty, "./igmp-version", NB_OP_DESTROY, NULL);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
-DEFUN (interface_ip_igmp_query_max_response_time,
+DEFPY (interface_ip_igmp_query_max_response_time,
        interface_ip_igmp_query_max_response_time_cmd,
-       "ip igmp query-max-response-time (1-65535)",
+       "ip igmp query-max-response-time (1-65535)$qmrt",
        IP_STR
        IFACE_IGMP_STR
        IFACE_IGMP_QUERY_MAX_RESPONSE_TIME_STR
        "Query response value in deci-seconds\n")
 {
-	const struct lyd_node *pim_enable_dnode;
-
-	pim_enable_dnode =
-		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-pim:pim/pim-enable", VTY_CURR_XPATH);
-
-	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
-				      "true");
-	} else {
-		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./igmp-enable",
-					      NB_OP_MODIFY, "true");
-	}
-
-	nb_cli_enqueue_change(vty, "./query-max-response-time", NB_OP_MODIFY,
-			      argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_query_max_response_time_cmd(vty, qmrt_str);
 }
 
 DEFUN (interface_no_ip_igmp_query_max_response_time,
@@ -8017,9 +5021,7 @@ DEFUN (interface_no_ip_igmp_query_max_response_time,
        IFACE_IGMP_QUERY_MAX_RESPONSE_TIME_STR
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "./query-max-response-time", NB_OP_DESTROY,
-			      NULL);
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_no_query_max_response_time_cmd(vty);
 }
 
 DEFUN_HIDDEN (interface_ip_igmp_query_max_response_time_dsec,
@@ -8034,20 +5036,22 @@ DEFUN_HIDDEN (interface_ip_igmp_query_max_response_time_dsec,
 
 	pim_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-pim:pim/pim-enable", VTY_CURR_XPATH);
+				FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
+		nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
 				      "true");
 	} else {
 		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./igmp-enable",
+			nb_cli_enqueue_change(vty, "./enable",
 					      NB_OP_MODIFY, "true");
 	}
 
 	nb_cli_enqueue_change(vty, "./query-max-response-time", NB_OP_MODIFY,
 			      argv[3]->arg);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFUN_HIDDEN (interface_no_ip_igmp_query_max_response_time_dsec,
@@ -8062,35 +5066,19 @@ DEFUN_HIDDEN (interface_no_ip_igmp_query_max_response_time_dsec,
 	nb_cli_enqueue_change(vty, "./query-max-response-time", NB_OP_DESTROY,
 			      NULL);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
-DEFUN (interface_ip_igmp_last_member_query_count,
+DEFPY (interface_ip_igmp_last_member_query_count,
        interface_ip_igmp_last_member_query_count_cmd,
-       "ip igmp last-member-query-count (1-255)",
+       "ip igmp last-member-query-count (1-255)$lmqc",
        IP_STR
        IFACE_IGMP_STR
        IFACE_IGMP_LAST_MEMBER_QUERY_COUNT_STR
        "Last member query count\n")
 {
-	const struct lyd_node *pim_enable_dnode;
-
-	pim_enable_dnode =
-		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-pim:pim/pim-enable", VTY_CURR_XPATH);
-	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
-				      "true");
-	} else {
-		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./igmp-enable",
-					      NB_OP_MODIFY, "true");
-	}
-
-	nb_cli_enqueue_change(vty, "./robustness-variable", NB_OP_MODIFY,
-			      argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_last_member_query_count_cmd(vty, lmqc_str);
 }
 
 DEFUN (interface_no_ip_igmp_last_member_query_count,
@@ -8102,38 +5090,18 @@ DEFUN (interface_no_ip_igmp_last_member_query_count,
        IFACE_IGMP_LAST_MEMBER_QUERY_COUNT_STR
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "./robustness-variable", NB_OP_DESTROY,
-			      NULL);
-
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_no_last_member_query_count_cmd(vty);
 }
 
-DEFUN (interface_ip_igmp_last_member_query_interval,
+DEFPY (interface_ip_igmp_last_member_query_interval,
        interface_ip_igmp_last_member_query_interval_cmd,
-       "ip igmp last-member-query-interval (1-65535)",
+       "ip igmp last-member-query-interval (1-65535)$lmqi",
        IP_STR
        IFACE_IGMP_STR
        IFACE_IGMP_LAST_MEMBER_QUERY_INTERVAL_STR
        "Last member query interval in deciseconds\n")
 {
-	const struct lyd_node *pim_enable_dnode;
-
-	pim_enable_dnode =
-		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-pim:pim/pim-enable", VTY_CURR_XPATH);
-	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./igmp-enable", NB_OP_MODIFY,
-				      "true");
-	} else {
-		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./igmp-enable",
-					      NB_OP_MODIFY, "true");
-	}
-
-	nb_cli_enqueue_change(vty, "./last-member-query-interval", NB_OP_MODIFY,
-			      argv[3]->arg);
-
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_last_member_query_interval_cmd(vty, lmqi_str);
 }
 
 DEFUN (interface_no_ip_igmp_last_member_query_interval,
@@ -8145,10 +5113,7 @@ DEFUN (interface_no_ip_igmp_last_member_query_interval,
        IFACE_IGMP_LAST_MEMBER_QUERY_INTERVAL_STR
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "./last-member-query-interval",
-			      NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return gm_process_no_last_member_query_interval_cmd(vty);
 }
 
 DEFUN (interface_ip_pim_drprio,
@@ -8161,10 +5126,7 @@ DEFUN (interface_ip_pim_drprio,
 {
 	int idx_number = 3;
 
-	nb_cli_enqueue_change(vty, "./dr-priority", NB_OP_MODIFY,
-			      argv[idx_number]->arg);
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_ip_pim_drprio_cmd(vty, argv[idx_number]->arg);
 }
 
 DEFUN (interface_no_ip_pim_drprio,
@@ -8176,9 +5138,7 @@ DEFUN (interface_no_ip_pim_drprio,
        "Revert the Designated Router Priority to default\n"
        "Old Value of the Priority\n")
 {
-	nb_cli_enqueue_change(vty, "./dr-priority", NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_no_ip_pim_drprio_cmd(vty);
 }
 
 DEFPY_HIDDEN (interface_ip_igmp_query_generate,
@@ -8190,8 +5150,10 @@ DEFPY_HIDDEN (interface_ip_igmp_query_generate,
 	      "IGMP version\n"
 	      "IGMP version number\n")
 {
+#if PIM_IPV == 4
 	VTY_DECLVAR_CONTEXT(interface, ifp);
-	int igmp_version = 2;
+	int igmp_version;
+	struct pim_interface *pim_ifp = ifp->info;
 
 	if (!ifp->info) {
 		vty_out(vty, "IGMP/PIM is not enabled on the interface %s\n",
@@ -8199,11 +5161,14 @@ DEFPY_HIDDEN (interface_ip_igmp_query_generate,
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
+	/* It takes the igmp version configured on the interface as default */
+	igmp_version = pim_ifp->igmp_version;
+
 	if (argc > 3)
 		igmp_version = atoi(argv[4]->arg);
 
 	igmp_send_query_on_intf(ifp, igmp_version);
-
+#endif
 	return CMD_SUCCESS;
 }
 
@@ -8219,7 +5184,7 @@ DEFPY_HIDDEN (pim_test_sg_keepalive,
 {
 	struct pim_upstream *up;
 	struct pim_instance *pim;
-	struct prefix_sg sg;
+	pim_sgaddr sg;
 
 	sg.src = source;
 	sg.grp = group;
@@ -8245,13 +5210,12 @@ DEFPY_HIDDEN (pim_test_sg_keepalive,
 
 	up = pim_upstream_find(pim, &sg);
 	if (!up) {
-		vty_out(vty, "%% Unable to find %s specified\n",
-			pim_str_sg_dump(&sg));
+		vty_out(vty, "%% Unable to find %pSG specified\n", &sg);
 		return CMD_WARNING;
 	}
 
-	vty_out(vty, "Setting %s to current keep alive time: %d\n",
-		pim_str_sg_dump(&sg), pim->keep_alive_time);
+	vty_out(vty, "Setting %pSG to current keep alive time: %d\n", &sg,
+		pim->keep_alive_time);
 	pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
 
 	return CMD_SUCCESS;
@@ -8265,18 +5229,7 @@ DEFPY (interface_ip_pim_activeactive,
        PIM_STR
        "Mark interface as Active-Active for MLAG operations, Hidden because not finished yet\n")
 {
-	if (no)
-		nb_cli_enqueue_change(vty, "./active-active", NB_OP_MODIFY,
-				      "false");
-	else {
-		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-				      "true");
-
-		nb_cli_enqueue_change(vty, "./active-active", NB_OP_MODIFY,
-				      "true");
-	}
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_ip_pim_activeactive_cmd(vty, no);
 }
 
 DEFUN_HIDDEN (interface_ip_pim_ssm,
@@ -8288,9 +5241,7 @@ DEFUN_HIDDEN (interface_ip_pim_ssm,
 {
 	int ret;
 
-	nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY, "true");
-
-	ret = nb_cli_apply_changes(vty, "./frr-pim:pim");
+	ret = pim_process_ip_pim_cmd(vty);
 
 	if (ret != NB_OK)
 		return ret;
@@ -8308,9 +5259,7 @@ DEFUN_HIDDEN (interface_ip_pim_sm,
 	      PIM_STR
 	      IFACE_PIM_SM_STR)
 {
-	nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY, "true");
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_ip_pim_cmd(vty);
 }
 
 DEFUN (interface_ip_pim,
@@ -8319,9 +5268,7 @@ DEFUN (interface_ip_pim,
        IP_STR
        PIM_STR)
 {
-	nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY, "true");
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_ip_pim_cmd(vty);
 }
 
 DEFUN_HIDDEN (interface_no_ip_pim_ssm,
@@ -8332,28 +5279,7 @@ DEFUN_HIDDEN (interface_no_ip_pim_ssm,
 	      PIM_STR
 	      IFACE_PIM_STR)
 {
-	const struct lyd_node *igmp_enable_dnode;
-	char igmp_if_xpath[XPATH_MAXLEN + 20];
-
-	snprintf(igmp_if_xpath, sizeof(igmp_if_xpath),
-		 "%s/frr-igmp:igmp", VTY_CURR_XPATH);
-	igmp_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
-					    "%s/igmp-enable", igmp_if_xpath);
-
-	if (!igmp_enable_dnode) {
-		nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY, NULL);
-		nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-	} else {
-		if (!yang_dnode_get_bool(igmp_enable_dnode, ".")) {
-			nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY,
-					      NULL);
-			nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-		} else
-			nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-					      "false");
-	}
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_no_ip_pim_cmd(vty);
 }
 
 DEFUN_HIDDEN (interface_no_ip_pim_sm,
@@ -8364,28 +5290,7 @@ DEFUN_HIDDEN (interface_no_ip_pim_sm,
 	      PIM_STR
 	      IFACE_PIM_SM_STR)
 {
-	const struct lyd_node *igmp_enable_dnode;
-	char igmp_if_xpath[XPATH_MAXLEN + 20];
-
-	snprintf(igmp_if_xpath, sizeof(igmp_if_xpath),
-		 "%s/frr-igmp:igmp", VTY_CURR_XPATH);
-	igmp_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
-					    "%s/igmp-enable", igmp_if_xpath);
-
-	if (!igmp_enable_dnode) {
-		nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY, NULL);
-		nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-	} else {
-		if (!yang_dnode_get_bool(igmp_enable_dnode, ".")) {
-			nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY,
-					      NULL);
-			nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-		} else
-			nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-					      "false");
-	}
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_no_ip_pim_cmd(vty);
 }
 
 DEFUN (interface_no_ip_pim,
@@ -8395,28 +5300,7 @@ DEFUN (interface_no_ip_pim,
        IP_STR
        PIM_STR)
 {
-	const struct lyd_node *igmp_enable_dnode;
-	char igmp_if_xpath[XPATH_MAXLEN + 20];
-
-	snprintf(igmp_if_xpath, sizeof(igmp_if_xpath),
-		 "%s/frr-igmp:igmp", VTY_CURR_XPATH);
-	igmp_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
-					    "%s/igmp-enable", igmp_if_xpath);
-
-	if (!igmp_enable_dnode) {
-		nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY, NULL);
-		nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-	} else {
-		if (!yang_dnode_get_bool(igmp_enable_dnode, ".")) {
-			nb_cli_enqueue_change(vty, igmp_if_xpath, NB_OP_DESTROY,
-					      NULL);
-			nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-		} else
-			nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-					      "false");
-	}
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_no_ip_pim_cmd(vty);
 }
 
 /* boundaries */
@@ -8429,13 +5313,7 @@ DEFUN(interface_ip_pim_boundary_oil,
       "Filter OIL by group using prefix list\n"
       "Prefix list to filter OIL with\n")
 {
-	nb_cli_enqueue_change(vty, "./multicast-boundary-oil", NB_OP_MODIFY,
-			      argv[4]->arg);
-
-	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']",
-				    "frr-routing:ipv4");
-
+	return pim_process_ip_pim_boundary_oil_cmd(vty, argv[4]->arg);
 }
 
 DEFUN(interface_no_ip_pim_boundary_oil,
@@ -8448,12 +5326,7 @@ DEFUN(interface_no_ip_pim_boundary_oil,
       "Filter OIL by group using prefix list\n"
       "Prefix list to filter OIL with\n")
 {
-	nb_cli_enqueue_change(vty, "./multicast-boundary-oil", NB_OP_DESTROY,
-			      NULL);
-
-	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']",
-				    "frr-routing:ipv4");
+	return pim_process_no_ip_pim_boundary_oil_cmd(vty);
 }
 
 DEFUN (interface_ip_mroute,
@@ -8474,13 +5347,8 @@ DEFUN (interface_ip_mroute,
 	else
 		source_str = argv[idx_ipv4 + 1]->arg;
 
-	nb_cli_enqueue_change(vty, "./oif", NB_OP_MODIFY,
-			      argv[idx_interface]->arg);
-
-	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']/mroute[source-addr='%s'][group-addr='%s']",
-				    "frr-routing:ipv4", source_str,
-				    argv[idx_ipv4]->arg);
+	return pim_process_ip_mroute_cmd(vty, argv[idx_interface]->arg,
+					 argv[idx_ipv4]->arg, source_str);
 }
 
 DEFUN (interface_no_ip_mroute,
@@ -8493,6 +5361,7 @@ DEFUN (interface_no_ip_mroute,
        "Group Address\n"
        "Source Address\n")
 {
+	int idx_interface = 3;
 	int idx_ipv4 = 4;
 	const char *source_str;
 
@@ -8501,12 +5370,8 @@ DEFUN (interface_no_ip_mroute,
 	else
 		source_str = argv[idx_ipv4 + 1]->arg;
 
-	nb_cli_enqueue_change(vty, ".", NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']/mroute[source-addr='%s'][group-addr='%s']",
-				    "frr-routing:ipv4", source_str,
-				    argv[idx_ipv4]->arg);
+	return pim_process_no_ip_mroute_cmd(vty, argv[idx_interface]->arg,
+					    argv[idx_ipv4]->arg, source_str);
 }
 
 DEFUN (interface_ip_pim_hello,
@@ -8520,28 +5385,14 @@ DEFUN (interface_ip_pim_hello,
 {
 	int idx_time = 3;
 	int idx_hold = 4;
-	const struct lyd_node *igmp_enable_dnode;
-
-	igmp_enable_dnode =
-		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-igmp:igmp/igmp-enable", VTY_CURR_XPATH);
-	if (!igmp_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-				      "true");
-	} else {
-		if (!yang_dnode_get_bool(igmp_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
-					      "true");
-	}
-
-	nb_cli_enqueue_change(vty, "./hello-interval", NB_OP_MODIFY,
-			      argv[idx_time]->arg);
 
 	if (argc == idx_hold + 1)
-		nb_cli_enqueue_change(vty, "./hello-holdtime", NB_OP_MODIFY,
-				      argv[idx_hold]->arg);
+		return pim_process_ip_pim_hello_cmd(vty, argv[idx_time]->arg,
+						    argv[idx_hold]->arg);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	else
+		return pim_process_ip_pim_hello_cmd(vty, argv[idx_time]->arg,
+						    NULL);
 }
 
 DEFUN (interface_no_ip_pim_hello,
@@ -8554,10 +5405,7 @@ DEFUN (interface_no_ip_pim_hello,
        IGNORED_IN_NO_STR
        IGNORED_IN_NO_STR)
 {
-	nb_cli_enqueue_change(vty, "./hello-interval", NB_OP_DESTROY, NULL);
-	nb_cli_enqueue_change(vty, "./hello-holdtime", NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return pim_process_no_ip_pim_hello_cmd(vty);
 }
 
 DEFUN (debug_igmp,
@@ -8658,6 +5506,32 @@ DEFUN (no_debug_igmp_trace,
 }
 
 
+DEFUN (debug_igmp_trace_detail,
+       debug_igmp_trace_detail_cmd,
+       "debug igmp trace detail",
+       DEBUG_STR
+       DEBUG_IGMP_STR
+       DEBUG_IGMP_TRACE_STR
+       "detailed\n")
+{
+	PIM_DO_DEBUG_IGMP_TRACE_DETAIL;
+	return CMD_SUCCESS;
+}
+
+DEFUN (no_debug_igmp_trace_detail,
+       no_debug_igmp_trace_detail_cmd,
+       "no debug igmp trace detail",
+       NO_STR
+       DEBUG_STR
+       DEBUG_IGMP_STR
+       DEBUG_IGMP_TRACE_STR
+       "detailed\n")
+{
+	PIM_DONT_DEBUG_IGMP_TRACE_DETAIL;
+	return CMD_SUCCESS;
+}
+
+
 DEFUN (debug_mroute,
        debug_mroute_cmd,
        "debug mroute",
@@ -8738,6 +5612,7 @@ DEFUN (debug_pim,
 	PIM_DO_DEBUG_MSDP_EVENTS;
 	PIM_DO_DEBUG_MSDP_PACKETS;
 	PIM_DO_DEBUG_BSM;
+	PIM_DO_DEBUG_VXLAN;
 	return CMD_SUCCESS;
 }
 
@@ -8757,6 +5632,7 @@ DEFUN (no_debug_pim,
 	PIM_DONT_DEBUG_PIM_PACKETDUMP_SEND;
 	PIM_DONT_DEBUG_PIM_PACKETDUMP_RECV;
 	PIM_DONT_DEBUG_BSM;
+	PIM_DONT_DEBUG_VXLAN;
 
 	return CMD_SUCCESS;
 }
@@ -8781,6 +5657,31 @@ DEFUN (no_debug_pim_nht,
        "Nexthop Tracking\n")
 {
 	PIM_DONT_DEBUG_PIM_NHT;
+	return CMD_SUCCESS;
+}
+
+DEFUN (debug_pim_nht_det,
+       debug_pim_nht_det_cmd,
+       "debug pim nht detail",
+       DEBUG_STR
+       DEBUG_PIM_STR
+       "Nexthop Tracking\n"
+       "Detailed Information\n")
+{
+	PIM_DO_DEBUG_PIM_NHT_DETAIL;
+	return CMD_SUCCESS;
+}
+
+DEFUN (no_debug_pim_nht_det,
+       no_debug_pim_nht_det_cmd,
+       "no debug pim nht detail",
+       NO_STR
+       DEBUG_STR
+       DEBUG_PIM_STR
+       "Nexthop Tracking\n"
+       "Detailed Information\n")
+{
+	PIM_DONT_DEBUG_PIM_NHT_DETAIL;
 	return CMD_SUCCESS;
 }
 
@@ -9205,7 +6106,7 @@ DEFUN (interface_pim_use_source,
 	nb_cli_enqueue_change(vty, "./use-source", NB_OP_MODIFY, argv[3]->arg);
 
 	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']",
+				    FRR_PIM_INTERFACE_XPATH,
 				    "frr-routing:ipv4");
 }
 
@@ -9221,7 +6122,7 @@ DEFUN (interface_no_pim_use_source,
 	nb_cli_enqueue_change(vty, "./use-source", NB_OP_MODIFY, "0.0.0.0");
 
 	return nb_cli_apply_changes(vty,
-				    "./frr-pim:pim/address-family[address-family='%s']",
+				    FRR_PIM_INTERFACE_XPATH,
 				    "frr-routing:ipv4");
 }
 
@@ -9238,7 +6139,8 @@ DEFPY (ip_pim_bfd,
 
 	igmp_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-igmp:igmp/igmp-enable", VTY_CURR_XPATH);
+				FRR_GMP_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!igmp_enable_dnode)
 		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
 				      "true");
@@ -9252,7 +6154,9 @@ DEFPY (ip_pim_bfd,
 	if (prof)
 		nb_cli_enqueue_change(vty, "./bfd/profile", NB_OP_MODIFY, prof);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+				    FRR_PIM_INTERFACE_XPATH,
+				    "frr-routing:ipv4");
 }
 
 DEFPY(no_ip_pim_bfd_profile, no_ip_pim_bfd_profile_cmd,
@@ -9266,7 +6170,9 @@ DEFPY(no_ip_pim_bfd_profile, no_ip_pim_bfd_profile_cmd,
 {
 	nb_cli_enqueue_change(vty, "./bfd/profile", NB_OP_DESTROY, NULL);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH,
+			"frr-routing:ipv4");
 }
 
 DEFUN (no_ip_pim_bfd,
@@ -9279,7 +6185,9 @@ DEFUN (no_ip_pim_bfd,
 {
 	nb_cli_enqueue_change(vty, "./bfd", NB_OP_DESTROY, NULL);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH,
+			"frr-routing:ipv4");
 }
 
 DEFUN (ip_pim_bsm,
@@ -9293,7 +6201,8 @@ DEFUN (ip_pim_bsm,
 
 	igmp_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-igmp:igmp/igmp-enable", VTY_CURR_XPATH);
+				FRR_GMP_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!igmp_enable_dnode)
 		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
 				      "true");
@@ -9305,7 +6214,8 @@ DEFUN (ip_pim_bsm,
 
 	nb_cli_enqueue_change(vty, "./bsm", NB_OP_MODIFY, "true");
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
 }
 
 DEFUN (no_ip_pim_bsm,
@@ -9318,7 +6228,8 @@ DEFUN (no_ip_pim_bsm,
 {
 	nb_cli_enqueue_change(vty, "./bsm", NB_OP_MODIFY, "false");
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
 }
 
 DEFUN (ip_pim_ucast_bsm,
@@ -9332,7 +6243,8 @@ DEFUN (ip_pim_ucast_bsm,
 
 	igmp_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-igmp:igmp/igmp-enable", VTY_CURR_XPATH);
+				FRR_GMP_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!igmp_enable_dnode)
 		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
 				      "true");
@@ -9344,7 +6256,9 @@ DEFUN (ip_pim_ucast_bsm,
 
 	nb_cli_enqueue_change(vty, "./unicast-bsm", NB_OP_MODIFY, "true");
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
+
 }
 
 DEFUN (no_ip_pim_ucast_bsm,
@@ -9357,7 +6271,8 @@ DEFUN (no_ip_pim_ucast_bsm,
 {
 	nb_cli_enqueue_change(vty, "./unicast-bsm", NB_OP_MODIFY, "false");
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
 }
 
 #if HAVE_BFDD > 0
@@ -9391,7 +6306,8 @@ DEFUN_HIDDEN (
 
 	igmp_enable_dnode =
 		yang_dnode_getf(vty->candidate_config->dnode,
-				"%s/frr-igmp:igmp/igmp-enable", VTY_CURR_XPATH);
+				FRR_GMP_ENABLE_XPATH, VTY_CURR_XPATH,
+				"frr-routing:ipv4");
 	if (!igmp_enable_dnode)
 		nb_cli_enqueue_change(vty, "./pim-enable", NB_OP_MODIFY,
 				      "true");
@@ -9409,7 +6325,8 @@ DEFUN_HIDDEN (
 	nb_cli_enqueue_change(vty, "./bfd/detect_mult", NB_OP_MODIFY,
 			      argv[idx_number]->arg);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
 }
 
 #if HAVE_BFDD == 0
@@ -9442,7 +6359,7 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(msdp_peer_source_xpath, sizeof(msdp_peer_source_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
+		 FRR_PIM_VRF_XPATH, "frr-pim:pimd", "pim", vrfname,
 		 "frr-routing:ipv4");
 	snprintf(temp_xpath, sizeof(temp_xpath),
 		 "/msdp-peer[peer-ip='%s']/source-ip", peer_str);
@@ -9452,7 +6369,8 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 	nb_cli_enqueue_change(vty, msdp_peer_source_xpath, NB_OP_MODIFY,
 			      source_str);
 
-	return nb_cli_apply_changes(vty, NULL);
+	return nb_cli_apply_changes(vty,
+			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
 }
 
 DEFPY(ip_msdp_timers, ip_msdp_timers_cmd,
@@ -9534,7 +6452,7 @@ DEFUN (no_ip_msdp_peer,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(msdp_peer_xpath, sizeof(msdp_peer_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 	snprintf(temp_xpath, sizeof(temp_xpath),
 		 "/msdp-peer[peer-ip='%s']",
@@ -9566,7 +6484,7 @@ DEFPY(ip_msdp_mesh_group_member,
 
 	/* Create mesh group. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 	nb_cli_enqueue_change(vty, xpath_value, NB_OP_CREATE, NULL);
 
@@ -9600,7 +6518,7 @@ DEFPY(no_ip_msdp_mesh_group_member,
 
 	/* Get mesh group base XPath. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 
 	if (!yang_dnode_exists(vty->candidate_config->dnode, xpath_value)) {
@@ -9650,7 +6568,7 @@ DEFPY(ip_msdp_mesh_group_source,
 
 	/* Create mesh group. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 	nb_cli_enqueue_change(vty, xpath_value, NB_OP_CREATE, NULL);
 
@@ -9681,7 +6599,7 @@ DEFPY(no_ip_msdp_mesh_group_source,
 
 	/* Get mesh group base XPath. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 	nb_cli_enqueue_change(vty, xpath_value, NB_OP_CREATE, NULL);
 
@@ -9716,7 +6634,7 @@ DEFPY(no_ip_msdp_mesh_group,
 
 	/* Get mesh group base XPath. */
 	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_AF_XPATH "/msdp-mesh-groups[name='%s']",
+		 FRR_PIM_VRF_XPATH "/msdp-mesh-groups[name='%s']",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", gname);
 	if (!yang_dnode_exists(vty->candidate_config->dnode, xpath_value))
 		return CMD_SUCCESS;
@@ -9814,12 +6732,8 @@ DEFUN (show_ip_msdp_mesh_group,
 	SLIST_FOREACH (mg, &pim->msdp.mglist, mg_entry)
 		ip_msdp_show_mesh_group(vty, mg, json);
 
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 
 	return CMD_SUCCESS;
 }
@@ -9855,12 +6769,9 @@ DEFUN (show_ip_msdp_mesh_group_vrf_all,
 			ip_msdp_show_mesh_group(vty, mg, vrf_json);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
+
 
 	return CMD_SUCCESS;
 }
@@ -9912,11 +6823,8 @@ static void ip_msdp_show_peers(struct pim_instance *pim, struct vty *vty,
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
@@ -10020,11 +6928,8 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 DEFUN (show_ip_msdp_peer_detail,
@@ -10105,8 +7010,6 @@ static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 {
 	struct listnode *sanode;
 	struct pim_msdp_sa *sa;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	char rp_str[INET_ADDRSTRLEN];
 	char timebuf[PIM_MSDP_UPTIME_STRLEN];
 	char spt_str[8];
@@ -10126,8 +7029,6 @@ static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, sanode, sa)) {
 		now = pim_time_monotonic_sec();
 		pim_time_uptime(timebuf, sizeof(timebuf), now - sa->uptime);
-		pim_inet4_dump("<src?>", sa->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", sa->sg.grp, grp_str, sizeof(grp_str));
 		if (sa->flags & PIM_MSDP_SAF_PEER) {
 			pim_inet4_dump("<rp?>", sa->rp, rp_str, sizeof(rp_str));
 			if (sa->up) {
@@ -10145,6 +7046,14 @@ static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 			strlcpy(local_str, "no", sizeof(local_str));
 		}
 		if (uj) {
+			char src_str[PIM_ADDRSTRLEN];
+			char grp_str[PIM_ADDRSTRLEN];
+
+			snprintfrr(grp_str, sizeof(grp_str), "%pPAs",
+				   &sa->sg.grp);
+			snprintfrr(src_str, sizeof(src_str), "%pPAs",
+				   &sa->sg.src);
+
 			json_object_object_get_ex(json, grp_str, &json_group);
 
 			if (!json_group) {
@@ -10162,17 +7071,14 @@ static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 			json_object_string_add(json_row, "upTime", timebuf);
 			json_object_object_add(json_group, src_str, json_row);
 		} else {
-			vty_out(vty, "%-15s  %15s  %15s  %5c  %3c  %8s\n",
-				src_str, grp_str, rp_str, local_str[0],
+			vty_out(vty, "%-15pPAs  %15pPAs  %15s  %5c  %3c  %8s\n",
+				&sa->sg.src, &sa->sg.grp, rp_str, local_str[0],
 				spt_str[0], timebuf);
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void ip_msdp_show_sa_entry_detail(struct pim_msdp_sa *sa,
@@ -10246,8 +7152,6 @@ static void ip_msdp_show_sa_detail(struct pim_instance *pim, struct vty *vty,
 {
 	struct listnode *sanode;
 	struct pim_msdp_sa *sa;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	json_object *json = NULL;
 
 	if (uj) {
@@ -10255,17 +7159,18 @@ static void ip_msdp_show_sa_detail(struct pim_instance *pim, struct vty *vty,
 	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, sanode, sa)) {
-		pim_inet4_dump("<src?>", sa->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", sa->sg.grp, grp_str, sizeof(grp_str));
+		char src_str[PIM_ADDRSTRLEN];
+		char grp_str[PIM_ADDRSTRLEN];
+
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &sa->sg.grp);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &sa->sg.src);
+
 		ip_msdp_show_sa_entry_detail(sa, src_str, grp_str, vty, uj,
 					     json);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 DEFUN (show_ip_msdp_sa_detail,
@@ -10329,8 +7234,6 @@ static void ip_msdp_show_sa_addr(struct pim_instance *pim, struct vty *vty,
 {
 	struct listnode *sanode;
 	struct pim_msdp_sa *sa;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	json_object *json = NULL;
 
 	if (uj) {
@@ -10338,19 +7241,20 @@ static void ip_msdp_show_sa_addr(struct pim_instance *pim, struct vty *vty,
 	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, sanode, sa)) {
-		pim_inet4_dump("<src?>", sa->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", sa->sg.grp, grp_str, sizeof(grp_str));
+		char src_str[PIM_ADDRSTRLEN];
+		char grp_str[PIM_ADDRSTRLEN];
+
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &sa->sg.grp);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &sa->sg.src);
+
 		if (!strcmp(addr, src_str) || !strcmp(addr, grp_str)) {
 			ip_msdp_show_sa_entry_detail(sa, src_str, grp_str, vty,
 						     uj, json);
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void ip_msdp_show_sa_sg(struct pim_instance *pim, struct vty *vty,
@@ -10358,8 +7262,6 @@ static void ip_msdp_show_sa_sg(struct pim_instance *pim, struct vty *vty,
 {
 	struct listnode *sanode;
 	struct pim_msdp_sa *sa;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	json_object *json = NULL;
 
 	if (uj) {
@@ -10367,19 +7269,20 @@ static void ip_msdp_show_sa_sg(struct pim_instance *pim, struct vty *vty,
 	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, sanode, sa)) {
-		pim_inet4_dump("<src?>", sa->sg.src, src_str, sizeof(src_str));
-		pim_inet4_dump("<grp?>", sa->sg.grp, grp_str, sizeof(grp_str));
+		char src_str[PIM_ADDRSTRLEN];
+		char grp_str[PIM_ADDRSTRLEN];
+
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &sa->sg.grp);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &sa->sg.src);
+
 		if (!strcmp(src, src_str) && !strcmp(grp, grp_str)) {
 			ip_msdp_show_sa_entry_detail(sa, src_str, grp_str, vty,
 						     uj, json);
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 DEFUN (show_ip_msdp_sa_sg,
@@ -10479,8 +7382,6 @@ static void pim_show_vxlan_sg_entry(struct pim_vxlan_sg *vxlan_sg,
 {
 	struct vty *vty = cwd->vty;
 	json_object *json = cwd->json;
-	char src_str[INET_ADDRSTRLEN];
-	char grp_str[INET_ADDRSTRLEN];
 	json_object *json_row;
 	bool installed = (vxlan_sg->up) ? true : false;
 	const char *iif_name = vxlan_sg->iif?vxlan_sg->iif->name:"-";
@@ -10491,13 +7392,19 @@ static void pim_show_vxlan_sg_entry(struct pim_vxlan_sg *vxlan_sg,
 	else
 		oif_name = vxlan_sg->term_oif?vxlan_sg->term_oif->name:"";
 
-	if (cwd->addr_match && (vxlan_sg->sg.src.s_addr != cwd->addr.s_addr) &&
-	    (vxlan_sg->sg.grp.s_addr != cwd->addr.s_addr)) {
+	if (cwd->addr_match && pim_addr_cmp(vxlan_sg->sg.src, cwd->addr) &&
+	    pim_addr_cmp(vxlan_sg->sg.grp, cwd->addr)) {
 		return;
 	}
-	pim_inet4_dump("<src?>", vxlan_sg->sg.src, src_str, sizeof(src_str));
-	pim_inet4_dump("<grp?>", vxlan_sg->sg.grp, grp_str, sizeof(grp_str));
 	if (json) {
+		char src_str[PIM_ADDRSTRLEN];
+		char grp_str[PIM_ADDRSTRLEN];
+
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs",
+			   &vxlan_sg->sg.grp);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs",
+			   &vxlan_sg->sg.src);
+
 		json_object_object_get_ex(json, grp_str, &cwd->json_group);
 
 		if (!cwd->json_group) {
@@ -10517,9 +7424,9 @@ static void pim_show_vxlan_sg_entry(struct pim_vxlan_sg *vxlan_sg,
 			json_object_boolean_false_add(json_row, "installed");
 		json_object_object_add(cwd->json_group, src_str, json_row);
 	} else {
-		vty_out(vty, "%-15s %-15s %-15s %-15s %-5s\n",
-			src_str, grp_str, iif_name, oif_name,
-			installed?"I":"");
+		vty_out(vty, "%-15pPAs %-15pPAs %-15s %-15s %-5s\n",
+			&vxlan_sg->sg.src, &vxlan_sg->sg.grp, iif_name,
+			oif_name, installed ? "I" : "");
 	}
 }
 
@@ -10548,11 +7455,8 @@ static void pim_show_vxlan_sg(struct pim_instance *pim,
 	cwd.json = json;
 	hash_iterate(pim->vxlan.sg_hash, pim_show_vxlan_sg_hash_entry, &cwd);
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void pim_show_vxlan_sg_match_addr(struct pim_instance *pim,
@@ -10584,11 +7488,8 @@ static void pim_show_vxlan_sg_match_addr(struct pim_instance *pim,
 	cwd.addr_match = true;
 	hash_iterate(pim->vxlan.sg_hash, pim_show_vxlan_sg_hash_entry, &cwd);
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 static void pim_show_vxlan_sg_one(struct pim_instance *pim,
@@ -10596,7 +7497,7 @@ static void pim_show_vxlan_sg_one(struct pim_instance *pim,
 				  bool uj)
 {
 	json_object *json = NULL;
-	struct prefix_sg sg;
+	pim_sgaddr sg;
 	int result = 0;
 	struct pim_vxlan_sg *vxlan_sg;
 	const char *iif_name;
@@ -10616,8 +7517,6 @@ static void pim_show_vxlan_sg_one(struct pim_instance *pim,
 		return;
 	}
 
-	sg.family = AF_INET;
-	sg.prefixlen = IPV4_MAX_BITLEN;
 	if (uj)
 		json = json_object_new_object();
 
@@ -10652,11 +7551,8 @@ static void pim_show_vxlan_sg_one(struct pim_instance *pim,
 		}
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 DEFUN (show_ip_pim_vxlan_sg,
@@ -10717,11 +7613,8 @@ static void pim_show_vxlan_sg_work(struct pim_instance *pim,
 	for (ALL_LIST_ELEMENTS_RO(pim_vxlan_p->work_list, node, vxlan_sg))
 		pim_show_vxlan_sg_entry(vxlan_sg, &cwd);
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 DEFUN_HIDDEN (show_ip_pim_vxlan_sg_work,
@@ -10758,7 +7651,7 @@ DEFUN_HIDDEN (no_ip_pim_mlag,
 {
 	char mlag_xpath[XPATH_MAXLEN];
 
-	snprintf(mlag_xpath, sizeof(mlag_xpath), FRR_PIM_AF_XPATH,
+	snprintf(mlag_xpath, sizeof(mlag_xpath), FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", "default", "frr-routing:ipv4");
 	strlcat(mlag_xpath, "/mlag", sizeof(mlag_xpath));
 
@@ -10791,7 +7684,7 @@ DEFUN_HIDDEN (ip_pim_mlag,
 	char mlag_reg_address_xpath[XPATH_MAXLEN];
 
 	snprintf(mlag_peerlink_rif_xpath, sizeof(mlag_peerlink_rif_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", "default", "frr-routing:ipv4");
 	strlcat(mlag_peerlink_rif_xpath, "/mlag/peerlink-rif",
 		sizeof(mlag_peerlink_rif_xpath));
@@ -10801,7 +7694,7 @@ DEFUN_HIDDEN (ip_pim_mlag,
 			      argv[idx]->arg);
 
 	snprintf(mlag_my_role_xpath, sizeof(mlag_my_role_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", "default", "frr-routing:ipv4");
 	strlcat(mlag_my_role_xpath, "/mlag/my-role",
 		sizeof(mlag_my_role_xpath));
@@ -10821,7 +7714,7 @@ DEFUN_HIDDEN (ip_pim_mlag,
 	}
 
 	snprintf(mlag_peer_state_xpath, sizeof(mlag_peer_state_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", "default", "frr-routing:ipv4");
 	strlcat(mlag_peer_state_xpath, "/mlag/peer-state",
 		sizeof(mlag_peer_state_xpath));
@@ -10841,7 +7734,7 @@ DEFUN_HIDDEN (ip_pim_mlag,
 	}
 
 	snprintf(mlag_reg_address_xpath, sizeof(mlag_reg_address_xpath),
-		 FRR_PIM_AF_XPATH,
+		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", "default", "frr-routing:ipv4");
 	strlcat(mlag_reg_address_xpath, "/mlag/reg-address",
 		sizeof(mlag_reg_address_xpath));
@@ -10922,10 +7815,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &no_ip_pim_ecmp_rebalance_cmd);
 	install_element(CONFIG_NODE, &ip_pim_mlag_cmd);
 	install_element(CONFIG_NODE, &no_ip_pim_mlag_cmd);
-	install_element(CONFIG_NODE, &igmp_group_watermark_cmd);
-	install_element(VRF_NODE, &igmp_group_watermark_cmd);
-	install_element(CONFIG_NODE, &no_igmp_group_watermark_cmd);
-	install_element(VRF_NODE, &no_igmp_group_watermark_cmd);
+	install_element(CONFIG_NODE, &ip_igmp_group_watermark_cmd);
+	install_element(VRF_NODE, &ip_igmp_group_watermark_cmd);
+	install_element(CONFIG_NODE, &no_ip_igmp_group_watermark_cmd);
+	install_element(VRF_NODE, &no_ip_igmp_group_watermark_cmd);
 
 	install_element(INTERFACE_NODE, &interface_ip_igmp_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_igmp_cmd);
@@ -11048,6 +7941,8 @@ void pim_cmd_init(void)
 	install_element(ENABLE_NODE, &no_debug_igmp_packets_cmd);
 	install_element(ENABLE_NODE, &debug_igmp_trace_cmd);
 	install_element(ENABLE_NODE, &no_debug_igmp_trace_cmd);
+	install_element(ENABLE_NODE, &debug_igmp_trace_detail_cmd);
+	install_element(ENABLE_NODE, &no_debug_igmp_trace_detail_cmd);
 	install_element(ENABLE_NODE, &debug_mroute_cmd);
 	install_element(ENABLE_NODE, &debug_mroute_detail_cmd);
 	install_element(ENABLE_NODE, &no_debug_mroute_cmd);
@@ -11058,6 +7953,8 @@ void pim_cmd_init(void)
 	install_element(ENABLE_NODE, &no_debug_pim_cmd);
 	install_element(ENABLE_NODE, &debug_pim_nht_cmd);
 	install_element(ENABLE_NODE, &no_debug_pim_nht_cmd);
+	install_element(ENABLE_NODE, &debug_pim_nht_det_cmd);
+	install_element(ENABLE_NODE, &no_debug_pim_nht_det_cmd);
 	install_element(ENABLE_NODE, &debug_pim_nht_rp_cmd);
 	install_element(ENABLE_NODE, &no_debug_pim_nht_rp_cmd);
 	install_element(ENABLE_NODE, &debug_pim_events_cmd);
@@ -11099,6 +7996,8 @@ void pim_cmd_init(void)
 	install_element(CONFIG_NODE, &no_debug_igmp_packets_cmd);
 	install_element(CONFIG_NODE, &debug_igmp_trace_cmd);
 	install_element(CONFIG_NODE, &no_debug_igmp_trace_cmd);
+	install_element(CONFIG_NODE, &debug_igmp_trace_detail_cmd);
+	install_element(CONFIG_NODE, &no_debug_igmp_trace_detail_cmd);
 	install_element(CONFIG_NODE, &debug_mroute_cmd);
 	install_element(CONFIG_NODE, &debug_mroute_detail_cmd);
 	install_element(CONFIG_NODE, &no_debug_mroute_cmd);
@@ -11109,12 +8008,18 @@ void pim_cmd_init(void)
 	install_element(CONFIG_NODE, &no_debug_pim_cmd);
 	install_element(CONFIG_NODE, &debug_pim_nht_cmd);
 	install_element(CONFIG_NODE, &no_debug_pim_nht_cmd);
+	install_element(CONFIG_NODE, &debug_pim_nht_det_cmd);
+	install_element(CONFIG_NODE, &no_debug_pim_nht_det_cmd);
 	install_element(CONFIG_NODE, &debug_pim_nht_rp_cmd);
 	install_element(CONFIG_NODE, &no_debug_pim_nht_rp_cmd);
 	install_element(CONFIG_NODE, &debug_pim_events_cmd);
 	install_element(CONFIG_NODE, &no_debug_pim_events_cmd);
 	install_element(CONFIG_NODE, &debug_pim_packets_cmd);
 	install_element(CONFIG_NODE, &no_debug_pim_packets_cmd);
+	install_element(CONFIG_NODE, &debug_pim_packetdump_send_cmd);
+	install_element(CONFIG_NODE, &no_debug_pim_packetdump_send_cmd);
+	install_element(CONFIG_NODE, &debug_pim_packetdump_recv_cmd);
+	install_element(CONFIG_NODE, &no_debug_pim_packetdump_recv_cmd);
 	install_element(CONFIG_NODE, &debug_pim_trace_cmd);
 	install_element(CONFIG_NODE, &no_debug_pim_trace_cmd);
 	install_element(CONFIG_NODE, &debug_pim_trace_detail_cmd);

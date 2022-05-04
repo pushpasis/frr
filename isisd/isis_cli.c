@@ -418,23 +418,6 @@ void cli_show_isis_overload(struct vty *vty, const struct lyd_node *dnode,
 	vty_out(vty, " set-overload-bit\n");
 }
 
-#if CONFDATE > 20220119
-CPP_NOTICE(
-	"Use of `set-attached-bit` is deprecated please use attached-bit [send | receive]")
-#endif
-/*
- * XPath: /frr-isisd:isis/instance/attached
- */
-DEFPY_YANG(set_attached_bit, set_attached_bit_cmd, "[no] set-attached-bit",
-      "Reset attached bit\n"
-      "Set attached bit to identify as L1/L2 router for inter-area traffic\n")
-{
-	vty_out(vty,
-		"set-attached-bit deprecated please use attached-bit [send | receive]\n");
-
-	return CMD_SUCCESS;
-}
-
 /*
  * XPath: /frr-isisd:isis/instance/attach-send
  */
@@ -1140,6 +1123,43 @@ void cli_show_isis_mpls_te_router_addr(struct vty *vty,
 		yang_dnode_get_string(dnode, NULL));
 }
 
+/*
+ * XPath: /frr-isisd:isis/instance/mpls-te/router-address-v6
+ */
+DEFPY_YANG(isis_mpls_te_router_addr_v6, isis_mpls_te_router_addr_v6_cmd,
+      "mpls-te router-address ipv6 X:X::X:X",
+      MPLS_TE_STR
+      "Stable IP address of the advertising router\n"
+      "IPv6 address\n"
+      "MPLS-TE router address in IPv6 address format\n")
+{
+	nb_cli_enqueue_change(vty, "./mpls-te/router-address-v6", NB_OP_MODIFY,
+			      ipv6_str);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(no_isis_mpls_te_router_addr_v6, no_isis_mpls_te_router_addr_v6_cmd,
+      "no mpls-te router-address ipv6 [X:X::X:X]",
+      NO_STR MPLS_TE_STR
+      "Delete IP address of the advertising router\n"
+      "IPv6 address\n"
+      "MPLS-TE router address in IPv6 address format\n")
+{
+	nb_cli_enqueue_change(vty, "./mpls-te/router-address-v6", NB_OP_DESTROY,
+			      NULL);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+void cli_show_isis_mpls_te_router_addr_ipv6(struct vty *vty,
+					    const struct lyd_node *dnode,
+					    bool show_defaults)
+{
+	vty_out(vty, " mpls-te router-address ipv6 %s\n",
+		yang_dnode_get_string(dnode, NULL));
+}
+
 DEFPY_YANG(isis_mpls_te_inter_as, isis_mpls_te_inter_as_cmd,
       "[no] mpls-te inter-as [level-1|level-1-2|level-2-only]",
       NO_STR MPLS_TE_STR
@@ -1150,6 +1170,36 @@ DEFPY_YANG(isis_mpls_te_inter_as, isis_mpls_te_inter_as_cmd,
 {
 	vty_out(vty, "MPLS-TE Inter-AS is not yet supported\n");
 	return CMD_SUCCESS;
+}
+
+/*
+ * XPath: /frr-isisd:isis/instance/mpls-te/export
+ */
+DEFPY_YANG(isis_mpls_te_export, isis_mpls_te_export_cmd, "mpls-te export",
+      MPLS_TE_STR "Enable export of MPLS-TE Link State information\n")
+{
+	nb_cli_enqueue_change(vty, "./mpls-te/export", NB_OP_MODIFY, "true");
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(no_isis_mpls_te_export, no_isis_mpls_te_export_cmd,
+      "no mpls-te export",
+      NO_STR MPLS_TE_STR
+      "Disable export of MPLS-TE  Link State information\n")
+{
+	nb_cli_enqueue_change(vty, "./mpls-te/export", NB_OP_MODIFY, "false");
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+void cli_show_isis_mpls_te_export(struct vty *vty, const struct lyd_node *dnode,
+				  bool show_defaults)
+{
+	if (!yang_dnode_get_bool(dnode, NULL))
+		vty_out(vty, " no");
+
+	vty_out(vty, " mpls-te export\n");
 }
 
 /*
@@ -1510,48 +1560,6 @@ void cli_show_isis_label_blocks(struct vty *vty, const struct lyd_node *dnode,
 }
 
 /*
- * XPath: /frr-isisd:isis/instance/segment-routing/srlb
- */
-DEFPY_HIDDEN(
-	isis_sr_local_block_label_range, isis_sr_local_block_label_range_cmd,
-	"segment-routing local-block (16-1048575)$lower_bound (16-1048575)$upper_bound",
-	SR_STR
-	"Segment Routing Local Block label range\n"
-	"The lower bound of the block\n"
-	"The upper bound of the block (block size may not exceed 65535)\n")
-{
-#if CONFDATE > 20220217
-CPP_NOTICE("Use of the local-block command is deprecated")
-#endif
-	nb_cli_enqueue_change(vty,
-			      "./segment-routing/label-blocks/srlb/lower-bound",
-			      NB_OP_MODIFY, lower_bound_str);
-	nb_cli_enqueue_change(vty,
-			      "./segment-routing/label-blocks/srlb/upper-bound",
-			      NB_OP_MODIFY, upper_bound_str);
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-DEFPY_HIDDEN(no_isis_sr_local_block_label_range,
-	     no_isis_sr_local_block_label_range_cmd,
-	     "no segment-routing local-block [(16-1048575) (16-1048575)]",
-	     NO_STR SR_STR
-	     "Segment Routing Local Block label range\n"
-	     "The lower bound of the block\n"
-	     "The upper bound of the block (block size may not exceed 65535)\n")
-{
-	nb_cli_enqueue_change(vty,
-			      "./segment-routing/label-blocks/srlb/lower-bound",
-			      NB_OP_MODIFY, NULL);
-	nb_cli_enqueue_change(vty,
-			      "./segment-routing/label-blocks/srlb/upper-bound",
-			      NB_OP_MODIFY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-/*
  * XPath: /frr-isisd:isis/instance/segment-routing/msd/node-msd
  */
 DEFPY_YANG (isis_sr_node_msd,
@@ -1853,7 +1861,7 @@ void cli_show_isis_frr_lfa_load_sharing(struct vty *vty,
 					const struct lyd_node *dnode,
 					bool show_defaults)
 {
-	if (!yang_dnode_get_bool(dnode, NULL))
+	if (yang_dnode_get_bool(dnode, NULL))
 		vty_out(vty, " no");
 
 	vty_out(vty, " fast-reroute load-sharing disable %s\n",
@@ -3090,7 +3098,6 @@ void isis_cli_init(void)
 	install_element(ISIS_NODE, &dynamic_hostname_cmd);
 
 	install_element(ISIS_NODE, &set_overload_bit_cmd);
-	install_element(ISIS_NODE, &set_attached_bit_cmd);
 	install_element(ISIS_NODE, &attached_bit_send_cmd);
 	install_element(ISIS_NODE, &attached_bit_receive_ignore_cmd);
 
@@ -3125,7 +3132,11 @@ void isis_cli_init(void)
 	install_element(ISIS_NODE, &no_isis_mpls_te_on_cmd);
 	install_element(ISIS_NODE, &isis_mpls_te_router_addr_cmd);
 	install_element(ISIS_NODE, &no_isis_mpls_te_router_addr_cmd);
+	install_element(ISIS_NODE, &isis_mpls_te_router_addr_v6_cmd);
+	install_element(ISIS_NODE, &no_isis_mpls_te_router_addr_v6_cmd);
 	install_element(ISIS_NODE, &isis_mpls_te_inter_as_cmd);
+	install_element(ISIS_NODE, &isis_mpls_te_export_cmd);
+	install_element(ISIS_NODE, &no_isis_mpls_te_export_cmd);
 
 	install_element(ISIS_NODE, &isis_default_originate_cmd);
 	install_element(ISIS_NODE, &isis_redistribute_cmd);
@@ -3136,8 +3147,6 @@ void isis_cli_init(void)
 	install_element(ISIS_NODE, &no_isis_sr_enable_cmd);
 	install_element(ISIS_NODE, &isis_sr_global_block_label_range_cmd);
 	install_element(ISIS_NODE, &no_isis_sr_global_block_label_range_cmd);
-	install_element(ISIS_NODE, &isis_sr_local_block_label_range_cmd);
-	install_element(ISIS_NODE, &no_isis_sr_local_block_label_range_cmd);
 	install_element(ISIS_NODE, &isis_sr_node_msd_cmd);
 	install_element(ISIS_NODE, &no_isis_sr_node_msd_cmd);
 	install_element(ISIS_NODE, &isis_sr_prefix_sid_cmd);

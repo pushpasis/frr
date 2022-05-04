@@ -144,13 +144,29 @@ Route Map Match Command
 
    Matches the specified `prefix-len`. This is a Zebra specific command.
 
+.. clicmd:: match ip next-hop ACCESS_LIST
+
+   Match the next-hop according to the given access-list.
+
 .. clicmd:: match ip next-hop address IPV4_ADDR
 
    This is a BGP specific match command. Matches the specified `ipv4_addr`.
 
+.. clicmd:: match ip next-hop prefix-list PREFIX_LIST
+
+   Match the next-hop according to the given prefix-list.
+
+.. clicmd:: match ipv6 next-hop ACCESS_LIST
+
+   Match the next-hop according to the given access-list.
+
 .. clicmd:: match ipv6 next-hop address IPV6_ADDR
 
    This is a BGP specific match command. Matches the specified `ipv6_addr`.
+
+.. clicmd:: match ipv6 next-hop prefix-list PREFIX_LIST
+
+   Match the next-hop according to the given prefix-list.
 
 .. clicmd:: match as-path AS_PATH
 
@@ -198,6 +214,18 @@ Route Map Match Command
 
   This is a ZEBRA specific match command.  The number is a range from (0-255).
   Matches the originating protocols instance specified.
+
+.. clicmd:: match evpn route-type ROUTE_TYPE_NAME
+
+  This is a BGP EVPN specific match command. It matches to EVPN route-type
+  from type-1 (EAD route-type) to type-5 (Prefix route-type).
+  User can provide in an integral form (1-5) or string form of route-type
+  (i.e ead, macip, multicast, es, prefix).
+
+.. clicmd:: match evpn vni NUMBER
+
+  This is a BGP EVPN specific match command which matches to EVPN VNI id.
+  The number is a range from (1-6777215).
 
 .. _route-map-set-command:
 

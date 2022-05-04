@@ -177,7 +177,6 @@ static int zebra_vrf_disable(struct vrf *vrf)
 	struct interface *ifp;
 	afi_t afi;
 	safi_t safi;
-	unsigned i;
 
 	assert(zvrf);
 	if (IS_ZEBRA_DEBUG_EVENT)
@@ -222,21 +221,7 @@ static int zebra_vrf_disable(struct vrf *vrf)
 		if_nbr_ipv6ll_to_ipv4ll_neigh_del_all(ifp);
 
 	/* clean-up work queues */
-	for (i = 0; i < MQ_SIZE; i++) {
-		struct listnode *lnode, *nnode;
-		struct route_node *rnode;
-		rib_dest_t *dest;
-
-		for (ALL_LIST_ELEMENTS(zrouter.mq->subq[i], lnode, nnode,
-				       rnode)) {
-			dest = rib_dest_from_rnode(rnode);
-			if (dest && rib_dest_vrf(dest) == zvrf) {
-				route_unlock_node(rnode);
-				list_delete_node(zrouter.mq->subq[i], lnode);
-				zrouter.mq->size--;
-			}
-		}
-	}
+	rib_meta_queue_free_vrf(zrouter.mq, zvrf);
 
 	/* Cleanup (free) routing tables and NHT tables. */
 	for (afi = AFI_IP; afi <= AFI_IP6; afi++) {
@@ -262,10 +247,6 @@ static int zebra_vrf_delete(struct vrf *vrf)
 {
 	struct zebra_vrf *zvrf = vrf->info;
 	struct other_route_table *otable;
-	struct route_table *table;
-	afi_t afi;
-	safi_t safi;
-	unsigned i;
 
 	assert(zvrf);
 	if (IS_ZEBRA_DEBUG_EVENT)
@@ -275,42 +256,11 @@ static int zebra_vrf_delete(struct vrf *vrf)
 	table_manager_disable(zvrf);
 
 	/* clean-up work queues */
-	for (i = 0; i < MQ_SIZE; i++) {
-		struct listnode *lnode, *nnode;
-		struct route_node *rnode;
-		rib_dest_t *dest;
-
-		for (ALL_LIST_ELEMENTS(zrouter.mq->subq[i], lnode, nnode,
-				       rnode)) {
-			dest = rib_dest_from_rnode(rnode);
-			if (dest && rib_dest_vrf(dest) == zvrf) {
-				route_unlock_node(rnode);
-				list_delete_node(zrouter.mq->subq[i], lnode);
-				zrouter.mq->size--;
-			}
-		}
-	}
+	rib_meta_queue_free_vrf(zrouter.mq, zvrf);
 
 	/* Free Vxlan and MPLS. */
 	zebra_vxlan_close_tables(zvrf);
 	zebra_mpls_close_tables(zvrf);
-
-	/* release allocated memory */
-	for (afi = AFI_IP; afi <= AFI_IP6; afi++) {
-		for (safi = SAFI_UNICAST; safi <= SAFI_MULTICAST; safi++) {
-			table = zvrf->table[afi][safi];
-			if (table) {
-				zebra_router_release_table(zvrf, zvrf->table_id,
-							   afi, safi);
-				zvrf->table[afi][safi] = NULL;
-			}
-		}
-
-		if (zvrf->rnh_table[afi])
-			route_table_finish(zvrf->rnh_table[afi]);
-		if (zvrf->rnh_table_multicast[afi])
-			route_table_finish(zvrf->rnh_table[afi]);
-	}
 
 	otable = otable_pop(&zvrf->other_tables);
 	while (otable) {
@@ -334,18 +284,6 @@ static int zebra_vrf_delete(struct vrf *vrf)
 	XFREE(MTYPE_ZEBRA_VRF, zvrf);
 	vrf->info = NULL;
 
-	return 0;
-}
-
-static int zebra_vrf_update(struct vrf *vrf)
-{
-	struct zebra_vrf *zvrf = vrf->info;
-
-	assert(zvrf);
-	if (IS_ZEBRA_DEBUG_EVENT)
-		zlog_debug("VRF %s id %u, name updated", vrf->name,
-			   zvrf_id(zvrf));
-	zebra_vrf_add_update(zvrf);
 	return 0;
 }
 
@@ -703,7 +641,7 @@ int zebra_vrf_netns_handler_create(struct vty *vty, struct vrf *vrf,
 void zebra_vrf_init(void)
 {
 	vrf_init(zebra_vrf_new, zebra_vrf_enable, zebra_vrf_disable,
-		 zebra_vrf_delete, zebra_vrf_update);
+		 zebra_vrf_delete);
 
 	hook_register(zserv_client_close, release_daemon_table_chunks);
 

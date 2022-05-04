@@ -1472,7 +1472,11 @@ show_l2vpn_pw_msg_json(struct imsg *imsg, struct show_params *params,
 		json_pw = json_object_new_object();
 		json_object_string_addf(json_pw, "peerId", "%pI4", &pw->lsr_id);
 		json_object_int_add(json_pw, "vcId", pw->pwid);
+#if CONFDATE > 20230131
+CPP_NOTICE("Remove JSON object commands with keys starting with capital")
+#endif
 		json_object_string_add(json_pw, "VpnName", pw->l2vpn_name);
+		json_object_string_add(json_pw, "vpnName", pw->l2vpn_name);
 		if (pw->status == PW_FORWARDING)
 			json_object_string_add(json_pw, "status", "up");
 		else
@@ -1844,9 +1848,7 @@ ldp_vty_dispatch(struct vty *vty, struct imsgbuf *ibuf, enum show_command cmd,
  done:
 	close(ibuf->fd);
 	if (json) {
-		vty_out (vty, "%s\n",
-			  json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	}
 
 	return (ret);
@@ -2006,9 +2008,7 @@ ldp_vty_show_capabilities(struct vty *vty, const char *json)
 		    "0x0603");
 		json_object_array_add(json_array, json_cap);
 
-		vty_out (vty, "%s\n",
-			  json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 		return (0);
 	}
 

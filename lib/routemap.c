@@ -100,6 +100,7 @@ static void route_map_del_plist_entries(afi_t afi,
 					struct prefix_list_entry *entry);
 
 static struct hash *route_map_get_dep_hash(route_map_event_t event);
+static void route_map_free_map(struct route_map *map);
 
 struct route_map_match_set_hooks rmap_match_set_hook;
 
@@ -173,6 +174,22 @@ void route_map_no_match_ip_next_hop_hook(int (*func)(
 	char *errmsg, size_t errmsg_len))
 {
 	rmap_match_set_hook.no_match_ip_next_hop = func;
+}
+
+/* match ipv6 next-hop */
+void route_map_match_ipv6_next_hop_hook(int (*func)(
+	struct route_map_index *index, const char *command, const char *arg,
+	route_map_event_t type, char *errmsg, size_t errmsg_len))
+{
+	rmap_match_set_hook.match_ipv6_next_hop = func;
+}
+
+/* no match ipv6 next-hop */
+void route_map_no_match_ipv6_next_hop_hook(int (*func)(
+	struct route_map_index *index, const char *command, const char *arg,
+	route_map_event_t type, char *errmsg, size_t errmsg_len))
+{
+	rmap_match_set_hook.no_match_ipv6_next_hop = func;
 }
 
 /* match ip next hop prefix list */
@@ -264,6 +281,22 @@ void route_map_no_match_ipv6_next_hop_type_hook(int (*func)(
 	char *errmsg, size_t errmsg_len))
 {
 	rmap_match_set_hook.no_match_ipv6_next_hop_type = func;
+}
+
+/* match ipv6 next-hop prefix-list */
+void route_map_match_ipv6_next_hop_prefix_list_hook(int (*func)(
+	struct route_map_index *index, const char *command, const char *arg,
+	route_map_event_t type, char *errmsg, size_t errmsg_len))
+{
+	rmap_match_set_hook.match_ipv6_next_hop_prefix_list = func;
+}
+
+/* no match ipv6 next-hop prefix-list */
+void route_map_no_match_ipv6_next_hop_prefix_list_hook(int (*func)(
+	struct route_map_index *index, const char *command, const char *arg,
+	route_map_event_t type, char *errmsg, size_t errmsg_len))
+{
+	rmap_match_set_hook.no_match_ipv6_next_hop_prefix_list = func;
 }
 
 /* match metric */
@@ -534,15 +567,8 @@ static bool route_map_hash_cmp(const void *p1, const void *p2)
 	const struct route_map *map1 = p1;
 	const struct route_map *map2 = p2;
 
-	if (map1->deleted == map2->deleted) {
-		if (map1->name && map2->name) {
-			if (!strcmp(map1->name, map2->name)) {
-				return true;
-			}
-		} else if (!map1->name && !map2->name) {
-			return true;
-		}
-	}
+	if (!strcmp(map1->name, map2->name))
+		return true;
 
 	return false;
 }
@@ -604,13 +630,25 @@ static struct route_map *route_map_new(const char *name)
 /* Add new name to route_map. */
 static struct route_map *route_map_add(const char *name)
 {
-	struct route_map *map;
+	struct route_map *map, *exist;
 	struct route_map_list *list;
 
 	map = route_map_new(name);
 	list = &route_map_master;
 
-	/* Add map to the hash */
+	/*
+	 * Add map to the hash
+	 *
+	 * If the map already exists in the hash, then we know that
+	 * FRR is now in a sequence of delete/create.
+	 * All FRR needs to do here is set the to_be_processed
+	 * bit (to inherit from the old one
+	 */
+	exist = hash_release(route_map_master_hash, map);
+	if (exist) {
+		map->to_be_processed = exist->to_be_processed;
+		route_map_free_map(exist);
+	}
 	hash_get(route_map_master_hash, map, hash_alloc_intern);
 
 	/* Add new entry to the head of the list to match how it is added in the
@@ -720,11 +758,15 @@ struct route_map *route_map_lookup_by_name(const char *name)
 	if (!name)
 		return NULL;
 
-	// map.deleted is 0 via memset
+	// map.deleted is false via memset
 	memset(&tmp_map, 0, sizeof(struct route_map));
 	tmp_map.name = XSTRDUP(MTYPE_ROUTE_MAP_NAME, name);
 	map = hash_lookup(route_map_master_hash, &tmp_map);
 	XFREE(MTYPE_ROUTE_MAP_NAME, tmp_map.name);
+
+	if (map && map->deleted)
+		return NULL;
+
 	return map;
 }
 
@@ -1767,12 +1809,11 @@ static struct list *route_map_get_index_list(struct route_node **rn,
 /*
  * This function returns the route-map index that best matches the prefix.
  */
-static struct route_map_index *route_map_get_index(struct route_map *map,
-						   const struct prefix *prefix,
-						   void *object,
-						   uint8_t *match_ret)
+static struct route_map_index *
+route_map_get_index(struct route_map *map, const struct prefix *prefix,
+		    void *object, enum route_map_cmd_result_t *match_ret)
 {
-	int ret = 0;
+	enum route_map_cmd_result_t ret = RMAP_NOMATCH;
 	struct list *candidate_rmap_list = NULL;
 	struct route_node *rn = NULL;
 	struct listnode *ln = NULL, *nn = NULL;
@@ -2527,7 +2568,7 @@ route_map_result_t route_map_apply_ext(struct route_map *map,
 	if ((!map->optimization_disabled)
 	    && (map->ipv4_prefix_table || map->ipv6_prefix_table)) {
 		index = route_map_get_index(map, prefix, match_object,
-					    (uint8_t *)&match_ret);
+					    &match_ret);
 		if (index) {
 			index->applied++;
 			if (rmap_debug)

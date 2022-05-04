@@ -136,11 +136,11 @@ static int if_ioctl_ipv6(unsigned long request, caddr_t buffer)
 void if_get_metric(struct interface *ifp)
 {
 #ifdef SIOCGIFMETRIC
-	struct ifreq ifreq;
+	struct ifreq ifreq = {};
 
 	ifreq_set_name(&ifreq, ifp);
 
-	if (vrf_if_ioctl(SIOCGIFMETRIC, (caddr_t)&ifreq, ifp->vrf_id) < 0)
+	if (vrf_if_ioctl(SIOCGIFMETRIC, (caddr_t)&ifreq, ifp->vrf->vrf_id) < 0)
 		return;
 	ifp->metric = ifreq.ifr_metric;
 	if (ifp->metric == 0)
@@ -153,12 +153,12 @@ void if_get_metric(struct interface *ifp)
 /* get interface MTU */
 void if_get_mtu(struct interface *ifp)
 {
-	struct ifreq ifreq;
+	struct ifreq ifreq = {};
 
 	ifreq_set_name(&ifreq, ifp);
 
 #if defined(SIOCGIFMTU)
-	if (vrf_if_ioctl(SIOCGIFMTU, (caddr_t)&ifreq, ifp->vrf_id) < 0) {
+	if (vrf_if_ioctl(SIOCGIFMTU, (caddr_t)&ifreq, ifp->vrf->vrf_id) < 0) {
 		zlog_info("Can't lookup mtu by ioctl(SIOCGIFMTU)");
 		ifp->mtu6 = ifp->mtu = -1;
 		return;
@@ -410,11 +410,14 @@ int if_unset_prefix_ctx(const struct zebra_dplane_ctx *ctx)
 void if_get_flags(struct interface *ifp)
 {
 	int ret;
-	struct ifreq ifreq;
+	struct ifreq ifreqflags = {};
+	struct ifreq ifreqdata = {};
 
-	ifreq_set_name(&ifreq, ifp);
+	ifreq_set_name(&ifreqflags, ifp);
+	ifreq_set_name(&ifreqdata, ifp);
 
-	ret = vrf_if_ioctl(SIOCGIFFLAGS, (caddr_t)&ifreq, ifp->vrf_id);
+	ret = vrf_if_ioctl(SIOCGIFFLAGS, (caddr_t)&ifreqflags,
+			   ifp->vrf->vrf_id);
 	if (ret < 0) {
 		flog_err_sys(EC_LIB_SYSTEM_CALL,
 			     "vrf_if_ioctl(SIOCGIFFLAGS %s) failed: %s",
@@ -443,13 +446,13 @@ void if_get_flags(struct interface *ifp)
 	struct if_data *ifdata = &ifdr.ifdr_data;
 
 	strlcpy(ifdr.ifdr_name, ifp->name, sizeof(ifdr.ifdr_name));
-	ret = vrf_if_ioctl(SIOCGIFDATA, (caddr_t)&ifdr, ifp->vrf_id);
+	ret = vrf_if_ioctl(SIOCGIFDATA, (caddr_t)&ifdr, ifp->vrf->vrf_id);
 #else
 	struct if_data ifd = {.ifi_link_state = 0};
 	struct if_data *ifdata = &ifd;
 
-	ifreq.ifr_data = (caddr_t)ifdata;
-	ret = vrf_if_ioctl(SIOCGIFDATA, (caddr_t)&ifreq, ifp->vrf_id);
+	ifreqdata.ifr_data = (caddr_t)ifdata;
+	ret = vrf_if_ioctl(SIOCGIFDATA, (caddr_t)&ifreqdata, ifp->vrf->vrf_id);
 #endif
 
 	if (ret == -1)
@@ -459,12 +462,12 @@ void if_get_flags(struct interface *ifp)
 			     safe_strerror(errno));
 	else {
 		if (ifdata->ifi_link_state >= LINK_STATE_UP)
-			SET_FLAG(ifreq.ifr_flags, IFF_RUNNING);
+			SET_FLAG(ifreqflags.ifr_flags, IFF_RUNNING);
 		else if (ifdata->ifi_link_state == LINK_STATE_UNKNOWN)
 			/* BSD traditionally treats UNKNOWN as UP */
-			SET_FLAG(ifreq.ifr_flags, IFF_RUNNING);
+			SET_FLAG(ifreqflags.ifr_flags, IFF_RUNNING);
 		else
-			UNSET_FLAG(ifreq.ifr_flags, IFF_RUNNING);
+			UNSET_FLAG(ifreqflags.ifr_flags, IFF_RUNNING);
 	}
 
 #elif defined(HAVE_BSD_LINK_DETECT)
@@ -489,14 +492,14 @@ void if_get_flags(struct interface *ifp)
 				     ifp->name, safe_strerror(errno));
 	} else if (ifmr.ifm_status & IFM_AVALID) { /* media state is valid */
 		if (ifmr.ifm_status & IFM_ACTIVE)  /* media is active */
-			SET_FLAG(ifreq.ifr_flags, IFF_RUNNING);
+			SET_FLAG(ifreqflags.ifr_flags, IFF_RUNNING);
 		else
-			UNSET_FLAG(ifreq.ifr_flags, IFF_RUNNING);
+			UNSET_FLAG(ifreqflags.ifr_flags, IFF_RUNNING);
 	}
 #endif /* HAVE_BSD_LINK_DETECT */
 
 out:
-	if_flags_update(ifp, (ifreq.ifr_flags & 0x0000ffff));
+	if_flags_update(ifp, (ifreqflags.ifr_flags & 0x0000ffff));
 }
 
 /* Set interface flags */
@@ -511,7 +514,7 @@ int if_set_flags(struct interface *ifp, uint64_t flags)
 	ifreq.ifr_flags = ifp->flags;
 	ifreq.ifr_flags |= flags;
 
-	ret = vrf_if_ioctl(SIOCSIFFLAGS, (caddr_t)&ifreq, ifp->vrf_id);
+	ret = vrf_if_ioctl(SIOCSIFFLAGS, (caddr_t)&ifreq, ifp->vrf->vrf_id);
 
 	if (ret < 0) {
 		zlog_info("can't set interface flags");
@@ -532,7 +535,7 @@ int if_unset_flags(struct interface *ifp, uint64_t flags)
 	ifreq.ifr_flags = ifp->flags;
 	ifreq.ifr_flags &= ~flags;
 
-	ret = vrf_if_ioctl(SIOCSIFFLAGS, (caddr_t)&ifreq, ifp->vrf_id);
+	ret = vrf_if_ioctl(SIOCSIFFLAGS, (caddr_t)&ifreq, ifp->vrf->vrf_id);
 
 	if (ret < 0) {
 		zlog_info("can't unset interface flags");

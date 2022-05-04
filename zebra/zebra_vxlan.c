@@ -62,6 +62,7 @@ DEFINE_MTYPE_STATIC(ZEBRA, ZL3VNI, "L3 VNI hash");
 DEFINE_MTYPE_STATIC(ZEBRA, L3VNI_MAC, "EVPN L3VNI MAC");
 DEFINE_MTYPE_STATIC(ZEBRA, L3NEIGH, "EVPN Neighbor");
 DEFINE_MTYPE_STATIC(ZEBRA, ZVXLAN_SG, "zebra VxLAN multicast group");
+DEFINE_MTYPE_STATIC(ZEBRA, EVPN_VTEP, "zebra VxLAN VTEP IP");
 
 DEFINE_HOOK(zebra_rmac_update,
 	    (struct zebra_mac * rmac, struct zebra_l3vni *zl3vni, bool delete,
@@ -196,6 +197,37 @@ static uint32_t rb_host_count(struct host_rb_tree_entry *hrbe)
 		count++;
 
 	return count;
+}
+
+static int l3vni_rmac_nh_list_cmp(void *p1, void *p2)
+{
+	const struct ipaddr *vtep_ip1 = p1;
+	const struct ipaddr *vtep_ip2 = p2;
+
+	return !ipaddr_cmp(vtep_ip1, vtep_ip2);
+}
+
+static void l3vni_rmac_nh_free(struct ipaddr *vtep_ip)
+{
+	XFREE(MTYPE_EVPN_VTEP, vtep_ip);
+}
+
+static void l3vni_rmac_nh_list_nh_delete(struct zebra_l3vni *zl3vni,
+					 struct zebra_mac *zrmac,
+					 struct ipaddr *vtep_ip)
+{
+	struct listnode *node = NULL, *nnode = NULL;
+	struct ipaddr *vtep = NULL;
+
+	for (ALL_LIST_ELEMENTS(zrmac->nh_list, node, nnode, vtep)) {
+		if (ipaddr_cmp(vtep, vtep_ip) == 0)
+			break;
+	}
+
+	if (node) {
+		l3vni_rmac_nh_free(vtep);
+		list_delete_node(zrmac->nh_list, node);
+	}
 }
 
 /*
@@ -366,35 +398,25 @@ static void zl3vni_print_nh(struct zebra_neigh *n, struct vty *vty,
 static void zl3vni_print_rmac(struct zebra_mac *zrmac, struct vty *vty,
 			      json_object *json)
 {
-	char buf1[ETHER_ADDR_STRLEN];
-	char buf2[PREFIX_STRLEN];
-	json_object *json_hosts = NULL;
-	struct host_rb_entry *hle;
+	struct listnode *node = NULL;
+	struct ipaddr *vtep = NULL;
+	json_object *json_nhs = NULL;
 
 	if (!json) {
-		vty_out(vty, "MAC: %s\n",
-			prefix_mac2str(&zrmac->macaddr, buf1, sizeof(buf1)));
+		vty_out(vty, "MAC: %pEA\n", &zrmac->macaddr);
 		vty_out(vty, " Remote VTEP: %pI4\n",
 			&zrmac->fwd_info.r_vtep_ip);
-		vty_out(vty, " Refcount: %d\n", rb_host_count(&zrmac->host_rb));
-		vty_out(vty, "  Prefixes:\n");
-		RB_FOREACH (hle, host_rb_tree_entry, &zrmac->host_rb)
-			vty_out(vty, "    %pFX\n", &hle->p);
 	} else {
-		json_hosts = json_object_new_array();
-		json_object_string_add(
-			json, "routerMac",
-			prefix_mac2str(&zrmac->macaddr, buf1, sizeof(buf1)));
+		json_nhs = json_object_new_array();
+		json_object_string_addf(json, "routerMac", "%pEA",
+					&zrmac->macaddr);
 		json_object_string_addf(json, "vtepIp", "%pI4",
 					&zrmac->fwd_info.r_vtep_ip);
-		json_object_int_add(json, "refCount",
-				    rb_host_count(&zrmac->host_rb));
-		RB_FOREACH (hle, host_rb_tree_entry, &zrmac->host_rb)
-			json_object_array_add(
-				json_hosts,
-				json_object_new_string(prefix2str(
-					&hle->p, buf2, sizeof(buf2))));
-		json_object_object_add(json, "prefixList", json_hosts);
+		for (ALL_LIST_ELEMENTS_RO(zrmac->nh_list, node, vtep)) {
+			json_object_array_add(json_nhs, json_object_new_stringf(
+								"%pIA", vtep));
+		}
+		json_object_object_add(json, "nexthops", json_nhs);
 	}
 }
 
@@ -826,8 +848,7 @@ static int zvni_map_to_svi_ns(struct ns *ns,
 	struct interface **p_ifp = (struct interface **)_p_ifp;
 	struct zebra_if *zif;
 
-	if (!in_param)
-		return NS_WALK_STOP;
+	assert(in_param && p_ifp);
 
 	/* TODO: Optimize with a hash. */
 	for (rn = route_top(zns->if_table); rn; rn = route_next(rn)) {
@@ -842,8 +863,7 @@ static int zvni_map_to_svi_ns(struct ns *ns,
 		vl = (struct zebra_l2info_vlan *)&zif->l2info.vl;
 
 		if (vl->vid == in_param->vid) {
-			if (p_ifp)
-				*p_ifp = tmp_if;
+			*p_ifp = tmp_if;
 			return NS_WALK_STOP;
 		}
 	}
@@ -1030,9 +1050,9 @@ static int zevpn_build_hash_table_zns(struct ns *ns,
 					zif->brslave_info.br_if);
 				if (vlan_if) {
 					zevpn->svi_if = vlan_if;
-					zevpn->vrf_id = vlan_if->vrf_id;
+					zevpn->vrf_id = vlan_if->vrf->vrf_id;
 					zl3vni = zl3vni_from_vrf(
-							vlan_if->vrf_id);
+						vlan_if->vrf->vrf_id);
 					if (zl3vni)
 						listnode_add_sort(
 							zl3vni->l2vnis, zevpn);
@@ -1070,13 +1090,11 @@ static void zebra_evpn_vxlan_cleanup_all(struct hash_bucket *bucket, void *arg)
 {
 	struct zebra_evpn *zevpn = NULL;
 	struct zebra_l3vni *zl3vni = NULL;
-	struct zebra_vrf *zvrf = (struct zebra_vrf *)arg;
 
 	zevpn = (struct zebra_evpn *)bucket->data;
 
-	/* remove from l3-vni list */
-	if (zvrf->l3vni)
-		zl3vni = zl3vni_lookup(zvrf->l3vni);
+	/* remove l2vni from l2vni's tenant-vrf l3-vni list */
+	zl3vni = zl3vni_from_vrf(zevpn->vrf_id);
 	if (zl3vni)
 		listnode_delete(zl3vni->l2vnis, zevpn);
 
@@ -1173,7 +1191,9 @@ static struct zebra_mac *zl3vni_rmac_add(struct zebra_l3vni *zl3vni,
 	zrmac = hash_get(zl3vni->rmac_table, &tmp_rmac, zl3vni_rmac_alloc);
 	assert(zrmac);
 
-	RB_INIT(host_rb_tree_entry, &zrmac->host_rb);
+	zrmac->nh_list = list_new();
+	zrmac->nh_list->cmp = (int (*)(void *, void *))l3vni_rmac_nh_list_cmp;
+	zrmac->nh_list->del = (void (*)(void *))l3vni_rmac_nh_free;
 
 	SET_FLAG(zrmac->flags, ZEBRA_MAC_REMOTE);
 	SET_FLAG(zrmac->flags, ZEBRA_MAC_REMOTE_RMAC);
@@ -1187,14 +1207,9 @@ static struct zebra_mac *zl3vni_rmac_add(struct zebra_l3vni *zl3vni,
 static int zl3vni_rmac_del(struct zebra_l3vni *zl3vni, struct zebra_mac *zrmac)
 {
 	struct zebra_mac *tmp_rmac;
-	struct host_rb_entry *hle;
 
-	while (!RB_EMPTY(host_rb_tree_entry, &zrmac->host_rb)) {
-		hle = RB_ROOT(host_rb_tree_entry, &zrmac->host_rb);
-
-		RB_REMOVE(host_rb_tree_entry, &zrmac->host_rb, hle);
-		XFREE(MTYPE_HOST_PREFIX, hle);
-	}
+	/* free the list of nh list*/
+	list_delete(&zrmac->nh_list);
 
 	tmp_rmac = hash_release(zl3vni->rmac_table, zrmac);
 	XFREE(MTYPE_L3VNI_MAC, tmp_rmac);
@@ -1295,10 +1310,10 @@ static int zl3vni_rmac_uninstall(struct zebra_l3vni *zl3vni,
 /* handle rmac add */
 static int zl3vni_remote_rmac_add(struct zebra_l3vni *zl3vni,
 				  const struct ethaddr *rmac,
-				  const struct ipaddr *vtep_ip,
-				  const struct prefix *host_prefix)
+				  const struct ipaddr *vtep_ip)
 {
 	struct zebra_mac *zrmac = NULL;
+	struct ipaddr *vtep = NULL;
 
 	zrmac = zl3vni_rmac_lookup(zl3vni, rmac);
 	if (!zrmac) {
@@ -1307,12 +1322,17 @@ static int zl3vni_remote_rmac_add(struct zebra_l3vni *zl3vni,
 		zrmac = zl3vni_rmac_add(zl3vni, rmac);
 		if (!zrmac) {
 			zlog_debug(
-				"Failed to add RMAC %pEA L3VNI %u Remote VTEP %pIA, prefix %pFX",
-				rmac, zl3vni->vni, vtep_ip, host_prefix);
+				"Failed to add RMAC %pEA L3VNI %u Remote VTEP %pIA",
+				rmac, zl3vni->vni, vtep_ip);
 			return -1;
 		}
 		memset(&zrmac->fwd_info, 0, sizeof(zrmac->fwd_info));
 		zrmac->fwd_info.r_vtep_ip = vtep_ip->ipaddr_v4;
+
+		vtep = XCALLOC(MTYPE_EVPN_VTEP, sizeof(struct ipaddr));
+		memcpy(vtep, vtep_ip, sizeof(struct ipaddr));
+		if (!listnode_add_sort_nodup(zrmac->nh_list, (void *)vtep))
+			XFREE(MTYPE_EVPN_VTEP, vtep);
 
 		/* Send RMAC for FPM processing */
 		hook_call(zebra_rmac_update, zrmac, zl3vni, false,
@@ -1324,17 +1344,20 @@ static int zl3vni_remote_rmac_add(struct zebra_l3vni *zl3vni,
 				   &vtep_ip->ipaddr_v4)) {
 		if (IS_ZEBRA_DEBUG_VXLAN)
 			zlog_debug(
-				"L3VNI %u Remote VTEP change(%pI4 -> %pIA) for RMAC %pEA, prefix %pFX",
+				"L3VNI %u Remote VTEP change(%pI4 -> %pIA) for RMAC %pEA",
 				zl3vni->vni, &zrmac->fwd_info.r_vtep_ip,
-				vtep_ip, rmac, host_prefix);
+				vtep_ip, rmac);
 
 		zrmac->fwd_info.r_vtep_ip = vtep_ip->ipaddr_v4;
+
+		vtep = XCALLOC(MTYPE_EVPN_VTEP, sizeof(struct ipaddr));
+		memcpy(vtep, vtep_ip, sizeof(struct ipaddr));
+		if (!listnode_add_sort_nodup(zrmac->nh_list, (void *)vtep))
+			XFREE(MTYPE_EVPN_VTEP, vtep);
 
 		/* install rmac in kernel */
 		zl3vni_rmac_install(zl3vni, zrmac);
 	}
-
-	rb_find_or_add_host(&zrmac->host_rb, host_prefix);
 
 	return 0;
 }
@@ -1343,20 +1366,59 @@ static int zl3vni_remote_rmac_add(struct zebra_l3vni *zl3vni,
 /* handle rmac delete */
 static void zl3vni_remote_rmac_del(struct zebra_l3vni *zl3vni,
 				   struct zebra_mac *zrmac,
-				   struct prefix *host_prefix)
+				   struct ipaddr *vtep_ip)
 {
-	rb_delete_host(&zrmac->host_rb, host_prefix);
+	struct ipaddr ipv4_vtep;
 
-	if (RB_EMPTY(host_rb_tree_entry, &zrmac->host_rb)) {
-		/* uninstall from kernel */
-		zl3vni_rmac_uninstall(zl3vni, zrmac);
+	if (!zl3vni_nh_lookup(zl3vni, vtep_ip)) {
+		memset(&ipv4_vtep, 0, sizeof(struct ipaddr));
+		ipv4_vtep.ipa_type = IPADDR_V4;
+		if (vtep_ip->ipa_type == IPADDR_V6)
+			ipv4_mapped_ipv6_to_ipv4(&vtep_ip->ipaddr_v6,
+						 &ipv4_vtep.ipaddr_v4);
+		else
+			memcpy(&(ipv4_vtep.ipaddr_v4), &vtep_ip->ipaddr_v4,
+			       sizeof(struct in_addr));
 
-		/* Send RMAC for FPM processing */
-		hook_call(zebra_rmac_update, zrmac, zl3vni, true,
-			  "RMAC deleted");
+		/* remove nh from rmac's list */
+		l3vni_rmac_nh_list_nh_delete(zl3vni, zrmac, &ipv4_vtep);
+		/* delete nh is same as current selected, fall back to
+		 * one present in the list
+		 */
+		if (IPV4_ADDR_SAME(&zrmac->fwd_info.r_vtep_ip,
+				   &ipv4_vtep.ipaddr_v4) &&
+		    listcount(zrmac->nh_list)) {
+			struct ipaddr *vtep;
 
-		/* del the rmac entry */
-		zl3vni_rmac_del(zl3vni, zrmac);
+			vtep = listgetdata(listhead(zrmac->nh_list));
+			zrmac->fwd_info.r_vtep_ip = vtep->ipaddr_v4;
+			if (IS_ZEBRA_DEBUG_VXLAN)
+				zlog_debug(
+					"L3VNI %u Remote VTEP nh change(%pIA -> %pI4) for RMAC %pEA",
+					zl3vni->vni, &ipv4_vtep,
+					&zrmac->fwd_info.r_vtep_ip,
+					&zrmac->macaddr);
+
+			/* install rmac in kernel */
+			zl3vni_rmac_install(zl3vni, zrmac);
+		}
+
+		if (!listcount(zrmac->nh_list)) {
+			/* uninstall from kernel */
+			zl3vni_rmac_uninstall(zl3vni, zrmac);
+
+			/* Send RMAC for FPM processing */
+			hook_call(zebra_rmac_update, zrmac, zl3vni, true,
+				  "RMAC deleted");
+
+			if (IS_ZEBRA_DEBUG_VXLAN)
+				zlog_debug(
+					"L3VNI %u RMAC %pEA vtep_ip %pIA delete",
+					zl3vni->vni, &zrmac->macaddr, vtep_ip);
+
+			/* del the rmac entry */
+			zl3vni_rmac_del(zl3vni, zrmac);
+		}
 	}
 }
 
@@ -1692,6 +1754,8 @@ static int zl3vni_map_to_vxlan_if_ns(struct ns *ns,
 	if (!zvrf)
 		return NS_WALK_STOP;
 
+	assert(_pifp);
+
 	/* loop through all vxlan-interface */
 	for (rn = route_top(zns->if_table); rn; rn = route_next(rn)) {
 
@@ -1722,8 +1786,7 @@ static int zl3vni_map_to_vxlan_if_ns(struct ns *ns,
 
 
 		zl3vni->local_vtep_ip = vxl->vtep_ip;
-		if (_pifp)
-			*_pifp = (void *)ifp;
+		*_pifp = (void *)ifp;
 		return NS_WALK_STOP;
 	}
 
@@ -1794,7 +1857,6 @@ struct zebra_l3vni *zl3vni_from_vrf(vrf_id_t vrf_id)
 
 static int zl3vni_from_svi_ns(struct ns *ns, void *_in_param, void **_p_zl3vni)
 {
-	int found = 0;
 	struct zebra_ns *zns = ns->info;
 	struct zebra_l3vni **p_zl3vni = (struct zebra_l3vni **)_p_zl3vni;
 	struct zebra_from_svi_param *in_param =
@@ -1804,8 +1866,7 @@ static int zl3vni_from_svi_ns(struct ns *ns, void *_in_param, void **_p_zl3vni)
 	struct zebra_if *zif = NULL;
 	struct zebra_l2info_vxlan *vxl = NULL;
 
-	if (!in_param)
-		return NS_WALK_STOP;
+	assert(in_param && p_zl3vni);
 
 	/* loop through all vxlan-interface */
 	for (rn = route_top(zns->if_table); rn; rn = route_next(rn)) {
@@ -1824,17 +1885,12 @@ static int zl3vni_from_svi_ns(struct ns *ns, void *_in_param, void **_p_zl3vni)
 
 		if (!in_param->bridge_vlan_aware
 		    || vxl->access_vlan == in_param->vid) {
-			found = 1;
-			break;
+			*p_zl3vni = zl3vni_lookup(vxl->vni);
+			return NS_WALK_STOP;
 		}
 	}
 
-	if (!found)
-		return NS_WALK_CONTINUE;
-
-	if (p_zl3vni)
-		*p_zl3vni = zl3vni_lookup(vxl->vni);
-	return NS_WALK_STOP;
+	return NS_WALK_CONTINUE;
 }
 
 /*
@@ -2124,19 +2180,12 @@ static int zebra_vxlan_handle_vni_transition(struct zebra_vrf *zvrf, vni_t vni,
 			return 0;
 
 		zevpn = zebra_evpn_add(vni);
-		if (!zevpn) {
-			flog_err(EC_ZEBRA_VNI_ADD_FAILED,
-				 "Adding L2-VNI - Failed to add VNI hash, VNI %u",
-				 vni);
-
-			return -1;
-		}
 
 		/* Find bridge interface for the VNI */
 		vlan_if = zvni_map_to_svi(vxl->access_vlan,
 					  zif->brslave_info.br_if);
 		if (vlan_if)
-			zevpn->vrf_id = vlan_if->vrf_id;
+			zevpn->vrf_id = vlan_if->vrf->vrf_id;
 
 		zevpn->vxlan_if = ifp;
 		zevpn->local_vtep_ip = vxl->vtep_ip;
@@ -2246,7 +2295,7 @@ void zebra_vxlan_evpn_vrf_route_add(vrf_id_t vrf_id, const struct ethaddr *rmac,
 	 * add the rmac - remote rmac to be installed is against the ipv4
 	 * nexthop address
 	 */
-	zl3vni_remote_rmac_add(zl3vni, rmac, &ipv4_vtep, host_prefix);
+	zl3vni_remote_rmac_add(zl3vni, rmac, &ipv4_vtep);
 }
 
 /* handle evpn vrf route delete */
@@ -2273,8 +2322,7 @@ void zebra_vxlan_evpn_vrf_route_del(vrf_id_t vrf_id,
 
 	/* delete the rmac entry */
 	if (zrmac)
-		zl3vni_remote_rmac_del(zl3vni, zrmac, host_prefix);
-
+		zl3vni_remote_rmac_del(zl3vni, zrmac, vtep_ip);
 }
 
 void zebra_vxlan_print_specific_rmac_l3vni(struct vty *vty, vni_t l3vni,
@@ -2308,18 +2356,15 @@ void zebra_vxlan_print_specific_rmac_l3vni(struct vty *vty, vni_t l3vni,
 			vty_out(vty, "{}\n");
 		else
 			vty_out(vty,
-				"%% Requested RMAC doesn't exist in L3-VNI %u",
+				"%% Requested RMAC doesn't exist in L3-VNI %u\n",
 				l3vni);
 		return;
 	}
 
 	zl3vni_print_rmac(zrmac, vty, json);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_rmacs_l3vni(struct vty *vty, vni_t l3vni, bool use_json)
@@ -2359,11 +2404,8 @@ void zebra_vxlan_print_rmacs_l3vni(struct vty *vty, vni_t l3vni, bool use_json)
 
 	hash_iterate(zl3vni->rmac_table, zl3vni_print_rmac_hash, &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_rmacs_all_l3vni(struct vty *vty, bool use_json)
@@ -2387,11 +2429,8 @@ void zebra_vxlan_print_rmacs_all_l3vni(struct vty *vty, bool use_json)
 			       void *))zl3vni_print_rmac_hash_all_vni,
 		     args);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_specific_nh_l3vni(struct vty *vty, vni_t l3vni,
@@ -2432,11 +2471,8 @@ void zebra_vxlan_print_specific_nh_l3vni(struct vty *vty, vni_t l3vni,
 
 	zl3vni_print_nh(n, vty, json);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_nh_l3vni(struct vty *vty, vni_t l3vni, bool use_json)
@@ -2476,11 +2512,8 @@ void zebra_vxlan_print_nh_l3vni(struct vty *vty, vni_t l3vni, bool use_json)
 
 	hash_iterate(zl3vni->nh_table, zl3vni_print_nh_hash, &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_nh_all_l3vni(struct vty *vty, bool use_json)
@@ -2504,11 +2537,8 @@ void zebra_vxlan_print_nh_all_l3vni(struct vty *vty, bool use_json)
 			       void *))zl3vni_print_nh_hash_all_vni,
 		     args);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2542,11 +2572,8 @@ void zebra_vxlan_print_l3vni(struct vty *vty, vni_t vni, bool use_json)
 	args[1] = json;
 	zl3vni_print(zl3vni, (void *)args);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_print_vrf_vni(struct vty *vty, struct zebra_vrf *zvrf,
@@ -2633,11 +2660,8 @@ void zebra_vxlan_print_neigh_vni(struct vty *vty, struct zebra_vrf *zvrf,
 		json_object_int_add(json, "numArpNd", num_neigh);
 
 	hash_iterate(zevpn->neigh_table, zebra_evpn_print_neigh_hash, &wctx);
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2663,11 +2687,8 @@ void zebra_vxlan_print_neigh_all_vni(struct vty *vty, struct zebra_vrf *zvrf,
 		     (void (*)(struct hash_bucket *,
 			       void *))zevpn_print_neigh_hash_all_evpn,
 		     args);
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2694,11 +2715,8 @@ void zebra_vxlan_print_neigh_all_vni_detail(struct vty *vty,
 		     (void (*)(struct hash_bucket *,
 			       void *))zevpn_print_neigh_hash_all_evpn_detail,
 		     args);
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2735,11 +2753,8 @@ void zebra_vxlan_print_specific_neigh_vni(struct vty *vty,
 
 	zebra_evpn_print_neigh(n, vty, json);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2783,11 +2798,8 @@ void zebra_vxlan_print_neigh_vni_vtep(struct vty *vty, struct zebra_vrf *zvrf,
 		     &wctx);
 	hash_iterate(zevpn->neigh_table, zebra_evpn_print_neigh_hash, &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2849,11 +2861,8 @@ void zebra_vxlan_print_neigh_vni_dad(struct vty *vty,
 	hash_iterate(zevpn->neigh_table, zebra_evpn_print_dad_neigh_hash,
 		     &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2907,9 +2916,7 @@ void zebra_vxlan_print_macs_vni(struct vty *vty, struct zebra_vrf *zvrf,
 
 	if (use_json) {
 		json_object_object_add(json, "macs", json_mac);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	}
 }
 
@@ -2936,11 +2943,8 @@ void zebra_vxlan_print_macs_all_vni(struct vty *vty, struct zebra_vrf *zvrf,
 	wctx.print_dup = print_dup;
 	hash_iterate(zvrf->evpn_table, zevpn_print_mac_hash_all_evpn, &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2968,11 +2972,8 @@ void zebra_vxlan_print_macs_all_vni_detail(struct vty *vty,
 	hash_iterate(zvrf->evpn_table, zevpn_print_mac_hash_all_evpn_detail,
 		     &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -2998,11 +2999,8 @@ void zebra_vxlan_print_macs_all_vni_vtep(struct vty *vty,
 	wctx.json = json;
 	hash_iterate(zvrf->evpn_table, zevpn_print_mac_hash_all_evpn, &wctx);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /*
@@ -3042,11 +3040,8 @@ void zebra_vxlan_print_specific_mac_vni(struct vty *vty, struct zebra_vrf *zvrf,
 		json = json_object_new_object();
 
 	zebra_evpn_print_mac(mac, vty, json);
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 /* Print Duplicate MACs per VNI */
@@ -3100,9 +3095,7 @@ void zebra_vxlan_print_macs_vni_dad(struct vty *vty,
 
 	if (use_json) {
 		json_object_object_add(json, "macs", json_mac);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	}
 
 }
@@ -3442,9 +3435,7 @@ void zebra_vxlan_print_macs_vni_vtep(struct vty *vty, struct zebra_vrf *zvrf,
 		json_object_int_add(json, "numMacs", wctx.count);
 		if (wctx.count)
 			json_object_object_add(json, "macs", json_mac);
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+		vty_json(vty, json);
 	}
 }
 
@@ -3493,11 +3484,8 @@ void zebra_vxlan_print_vni(struct vty *vty, struct zebra_vrf *zvrf, vni_t vni,
 		 */
 		if (json_array)
 			json_object_array_add(json_array, json);
-		else {
-			vty_out(vty, "%s\n", json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-			json_object_free(json);
-		}
+		else
+			vty_json(vty, json);
 	}
 }
 
@@ -3564,11 +3552,8 @@ void zebra_vxlan_print_evpn(struct vty *vty, bool uj)
 		zebra_evpn_mh_print(vty);
 	}
 
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (uj)
+		vty_json(vty, json);
 }
 
 /*
@@ -3604,11 +3589,8 @@ void zebra_vxlan_print_vnis(struct vty *vty, struct zebra_vrf *zvrf,
 		     (void (*)(struct hash_bucket *, void *))zl3vni_print_hash,
 		     args);
 
-	if (use_json) {
-		vty_out(vty, "%s\n", json_object_to_json_string_ext(
-					     json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
+	if (use_json)
+		vty_json(vty, json);
 }
 
 void zebra_vxlan_dup_addr_detection(ZAPI_HANDLER_ARGS)
@@ -3693,12 +3675,8 @@ void zebra_vxlan_print_vnis_detail(struct vty *vty, struct zebra_vrf *zvrf,
 			       void *))zl3vni_print_hash_detail,
 		     &zes);
 
-	if (use_json) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json_array, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json_array);
-	}
+	if (use_json)
+		vty_json(vty, json_array);
 }
 
 /*
@@ -3975,7 +3953,7 @@ int zebra_vxlan_check_readd_vtep(struct interface *ifp,
 		return 0;
 
 	/* Locate VRF corresponding to interface. */
-	zvrf = vrf_info_lookup(ifp->vrf_id);
+	zvrf = ifp->vrf->info;
 	if (!zvrf)
 		return -1;
 
@@ -4660,7 +4638,7 @@ int zebra_vxlan_svi_down(struct interface *ifp, struct interface *link_if)
  * SVI can be associated to L3-VNI (l3vni vxlan interface) or L2-VNI (l2-vni
  * vxlan intf).
  * For L2-VNI: we need to install any remote neighbors entried (used for
- * apr-suppression)
+ * arp-suppression)
  * For L3-VNI: SVI will be used to get the rmac to be used with L3-VNI
  */
 int zebra_vxlan_svi_up(struct interface *ifp, struct interface *link_if)
@@ -4697,11 +4675,11 @@ int zebra_vxlan_svi_up(struct interface *ifp, struct interface *link_if)
 			zlog_debug(
 				"SVI %s(%u) VNI %u VRF %s is UP, installing neighbors",
 				ifp->name, ifp->ifindex, zevpn->vni,
-				vrf_id_to_name(ifp->vrf_id));
+				ifp->vrf->name);
 
 		/* update the vrf information for l2-vni and inform bgp */
 		zevpn->svi_if = ifp;
-		zevpn->vrf_id = ifp->vrf_id;
+		zevpn->vrf_id = ifp->vrf->vrf_id;
 
 		zl3vni = zl3vni_from_vrf(zevpn->vrf_id);
 		if (zl3vni)
@@ -4743,7 +4721,8 @@ void zebra_vxlan_macvlan_down(struct interface *ifp)
 			zlog_debug(
 				"macvlan parent link is not found. Parent index %d ifp %s",
 				zif->link_ifindex,
-				ifindex2ifname(zif->link_ifindex, ifp->vrf_id));
+				ifindex2ifname(zif->link_ifindex,
+					       ifp->vrf->vrf_id));
 		return;
 	}
 	link_zif = link_ifp->info;
@@ -4914,8 +4893,8 @@ int zebra_vxlan_if_up(struct interface *ifp)
 					  zif->brslave_info.br_if);
 		if (vlan_if) {
 			zevpn->svi_if = vlan_if;
-			zevpn->vrf_id = vlan_if->vrf_id;
-			zl3vni = zl3vni_from_vrf(vlan_if->vrf_id);
+			zevpn->vrf_id = vlan_if->vrf->vrf_id;
+			zl3vni = zl3vni_from_vrf(vlan_if->vrf->vrf_id);
 			if (zl3vni)
 				listnode_add_sort_nodup(zl3vni->l2vnis, zevpn);
 		}
@@ -5145,8 +5124,13 @@ int zebra_vxlan_if_update(struct interface *ifp, uint16_t chgflags)
 		zevpn_vxlan_if_set(zevpn, ifp, true /* set */);
 		vlan_if = zvni_map_to_svi(vxl->access_vlan,
 					  zif->brslave_info.br_if);
-		if (vlan_if)
+		if (vlan_if) {
 			zevpn->svi_if = vlan_if;
+			zevpn->vrf_id = vlan_if->vrf->vrf_id;
+			zl3vni = zl3vni_from_vrf(vlan_if->vrf->vrf_id);
+			if (zl3vni)
+				listnode_add_sort_nodup(zl3vni->l2vnis, zevpn);
+		}
 
 		/* Take further actions needed.
 		 * Note that if we are here, there is a change of interest.
@@ -5240,16 +5224,8 @@ int zebra_vxlan_if_add(struct interface *ifp)
 
 		/* Create or update EVPN hash. */
 		zevpn = zebra_evpn_lookup(vni);
-		if (!zevpn) {
+		if (!zevpn)
 			zevpn = zebra_evpn_add(vni);
-			if (!zevpn) {
-				flog_err(
-					EC_ZEBRA_VNI_ADD_FAILED,
-					"Failed to add EVPN hash, IF %s(%u) VNI %u",
-					ifp->name, ifp->ifindex, vni);
-				return -1;
-			}
-		}
 
 		if (zevpn->local_vtep_ip.s_addr != vxl->vtep_ip.s_addr ||
 			zevpn->mcast_grp.s_addr != vxl->mcast_grp.s_addr) {
@@ -5268,8 +5244,8 @@ int zebra_vxlan_if_add(struct interface *ifp)
 					  zif->brslave_info.br_if);
 		if (vlan_if) {
 			zevpn->svi_if = vlan_if;
-			zevpn->vrf_id = vlan_if->vrf_id;
-			zl3vni = zl3vni_from_vrf(vlan_if->vrf_id);
+			zevpn->vrf_id = vlan_if->vrf->vrf_id;
+			zl3vni = zl3vni_from_vrf(vlan_if->vrf->vrf_id);
 			if (zl3vni)
 				listnode_add_sort_nodup(zl3vni->l2vnis, zevpn);
 		}
@@ -5278,8 +5254,7 @@ int zebra_vxlan_if_add(struct interface *ifp)
 			zlog_debug(
 				"Add L2-VNI %u VRF %s intf %s(%u) VLAN %u local IP %pI4 mcast_grp %pI4 master %u",
 				vni,
-				vlan_if ? vrf_id_to_name(vlan_if->vrf_id)
-					: VRF_DEFAULT_NAME,
+				vlan_if ? vlan_if->vrf->name : VRF_DEFAULT_NAME,
 				ifp->name, ifp->ifindex, vxl->access_vlan,
 				&vxl->vtep_ip, &vxl->mcast_grp,
 				zif->brslave_info.bridge_ifindex);

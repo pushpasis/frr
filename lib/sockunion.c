@@ -351,21 +351,6 @@ int sockopt_ttl(int family, int sock, int ttl)
 	return 0;
 }
 
-/*
- * This function called setsockopt(.., TCP_CORK,...)
- * Which on linux is a no-op since it is enabled by
- * default and on BSD it uses TCP_NOPUSH to do
- * the same thing( which it was not configured to
- * use).  This cleanup of the api occurred on 8/1/17
- * I imagine if after more than 1 year of no-one
- * complaining, and a major upgrade release we
- * can deprecate and remove this function call
- */
-int sockopt_cork(int sock, int onoff)
-{
-	return 0;
-}
-
 int sockopt_minttl(int family, int sock, int minttl)
 {
 #ifdef IP_MINTTL
@@ -662,7 +647,7 @@ void sockunion_init(union sockunion *su)
 	memset(su, 0, sizeof(union sockunion));
 }
 
-printfrr_ext_autoreg_p("SU", printfrr_psu)
+printfrr_ext_autoreg_p("SU", printfrr_psu);
 static ssize_t printfrr_psu(struct fbuf *buf, struct printfrr_eargs *ea,
 			    const void *ptr)
 {
@@ -752,7 +737,7 @@ int sockunion_is_null(const union sockunion *su)
 	}
 }
 
-printfrr_ext_autoreg_i("PF", printfrr_pf)
+printfrr_ext_autoreg_i("PF", printfrr_pf);
 static ssize_t printfrr_pf(struct fbuf *buf, struct printfrr_eargs *ea,
 			   uintmax_t val)
 {
@@ -775,7 +760,7 @@ static ssize_t printfrr_pf(struct fbuf *buf, struct printfrr_eargs *ea,
 	return bprintfrr(buf, "AF_(%ju)", val);
 }
 
-printfrr_ext_autoreg_i("SO", printfrr_so)
+printfrr_ext_autoreg_i("SO", printfrr_so);
 static ssize_t printfrr_so(struct fbuf *buf, struct printfrr_eargs *ea,
 			   uintmax_t val)
 {

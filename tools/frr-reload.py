@@ -198,6 +198,9 @@ class Context(object):
         for ligne in lines:
             self.dlines[ligne] = True
 
+    def __str__(self):
+        return str(self.keys) + " : " + str(self.lines)
+
     def add_lines(self, lines):
         """
         Add lines to specified context
@@ -329,7 +332,7 @@ class Config(object):
         Return the parsed context as strings for display, log etc.
         """
         for (_, ctx) in sorted(iteritems(self.contexts)):
-            print(str(ctx) + "\n")
+            print(str(ctx))
 
     def save_contexts(self, key, lines):
         """
@@ -430,16 +433,12 @@ class Config(object):
         ):
             key[0] = re.sub(r"\s+null0(\s*$)", " Null0", key[0])
 
-        # Similar to above, but when the static is in a vrf, it turns into a
-        # blackhole nexthop for both null0 and Null0.  Fix it accordingly
         if lines and key[0].startswith("vrf "):
             newlines = []
             for line in lines:
                 if line.startswith("ip route ") or line.startswith("ipv6 route "):
                     if "null0" in line:
-                        line = re.sub(r"\s+null0(\s*$)", " blackhole", line)
-                    elif "Null0" in line:
-                        line = re.sub(r"\s+Null0(\s*$)", " blackhole", line)
+                        line = re.sub(r"\s+null0(\s*$)", " Null0", line)
                     newlines.append(line)
                 else:
                     newlines.append(line)
@@ -518,9 +517,11 @@ class Config(object):
                 "address-family ": {
                     "vni ": {},
                 },
-                "vnc ": {},
+                "vnc defaults": {},
+                "vnc nve-group ": {},
+                "vnc l2-group ": {},
                 "vrf-policy ": {},
-                "bmp ": {},
+                "bmp targets ": {},
                 "segment-routing srv6": {},
             },
             "router rip": {},
@@ -762,13 +763,154 @@ def check_for_exit_vrf(lines_to_add, lines_to_del):
     return (lines_to_add, lines_to_del)
 
 
+def bgp_delete_inst_move_line(lines_to_del):
+    # Deletion of bgp default inst followed by
+    # bgp vrf inst leads to issue of default
+    # instance can not be removed.
+    # Move the bgp default instance line to end.
+    bgp_defult_inst = False
+    bgp_vrf_inst = False
+
+    for (ctx_keys, line) in lines_to_del:
+        # Find bgp default inst
+        if (
+            ctx_keys[0].startswith("router bgp")
+            and not line
+            and "vrf" not in ctx_keys[0]
+        ):
+            bgp_defult_inst = True
+        # Find bgp vrf inst
+        if ctx_keys[0].startswith("router bgp") and not line and "vrf" in ctx_keys[0]:
+            bgp_vrf_inst = True
+
+    if bgp_defult_inst and bgp_vrf_inst:
+        for (ctx_keys, line) in lines_to_del:
+            # move bgp default inst to end
+            if (
+                ctx_keys[0].startswith("router bgp")
+                and not line
+                and "vrf" not in ctx_keys[0]
+            ):
+                lines_to_del.remove((ctx_keys, line))
+                lines_to_del.append((ctx_keys, line))
+
+
+def bgp_delete_nbr_remote_as_line(lines_to_add):
+    # Handle deletion of neighbor <nbr> remote-as line from
+    # lines_to_add if the nbr is configured with peer-group and
+    # peer-group has remote-as config present.
+    # 'neighbor <nbr> remote-as change on peer is not allowed
+    # if the peer is part of peer-group and peer-group has
+    # remote-as config.
+
+    pg_dict = dict()
+    # Find all peer-group commands; create dict of each peer-group
+    # to store assoicated neighbor as value
+    for ctx_keys, line in lines_to_add:
+        if (
+            ctx_keys[0].startswith("router bgp")
+            and line
+            and line.startswith("neighbor ")
+        ):
+            # {'router bgp 65001': {'PG': [], 'PG1': []},
+            # 'router bgp 65001 vrf vrf1': {'PG': [], 'PG1': []}}
+            if ctx_keys[0] not in pg_dict:
+                pg_dict[ctx_keys[0]] = dict()
+            # find 'neighbor <pg_name> peer-group'
+            re_pg = re.match("neighbor (\S+) peer-group$", line)
+            if re_pg and re_pg.group(1) not in pg_dict[ctx_keys[0]]:
+                pg_dict[ctx_keys[0]][re_pg.group(1)] = {
+                    "nbr": list(),
+                    "remoteas": False,
+                }
+                found_pg_cmd = True
+
+    # Find peer-group with remote-as command, also search neighbor
+    # associated to peer-group and store into peer-group dict
+    for ctx_keys, line in lines_to_add:
+        if (
+            ctx_keys[0].startswith("router bgp")
+            and line
+            and line.startswith("neighbor ")
+        ):
+            if ctx_keys[0] in pg_dict:
+                for pg_key in pg_dict[ctx_keys[0]]:
+                    # Find 'neighbor <pg_name> remote-as'
+                    pg_rmtas = "neighbor %s remote-as (\S+)" % pg_key
+                    re_pg_rmtas = re.search(pg_rmtas, line)
+                    if re_pg_rmtas:
+                        pg_dict[ctx_keys[0]][pg_key]["remoteas"] = True
+
+                    # Find 'neighbor <peer> [interface] peer-group <pg_name>'
+                    nb_pg = "neighbor (\S+) peer-group %s$" % pg_key
+                    re_nbr_pg = re.search(nb_pg, line)
+                    if (
+                        re_nbr_pg
+                        and re_nbr_pg.group(1) not in pg_dict[ctx_keys[0]][pg_key]
+                    ):
+                        pg_dict[ctx_keys[0]][pg_key]["nbr"].append(re_nbr_pg.group(1))
+
+    # Find any neighbor <nbr> remote-as config line check if the nbr
+    # is in the peer group's list of nbrs. Remove 'neighbor <nbr> remote-as <>'
+    # from lines_to_add.
+    lines_to_del_from_add = []
+    for ctx_keys, line in lines_to_add:
+        if (
+            ctx_keys[0].startswith("router bgp")
+            and line
+            and line.startswith("neighbor ")
+        ):
+            nbr_rmtas = "neighbor (\S+) remote-as.*"
+            re_nbr_rmtas = re.search(nbr_rmtas, line)
+            if re_nbr_rmtas and ctx_keys[0] in pg_dict:
+                for pg in pg_dict[ctx_keys[0]]:
+                    if pg_dict[ctx_keys[0]][pg]["remoteas"] == True:
+                        for nbr in pg_dict[ctx_keys[0]][pg]["nbr"]:
+                            if re_nbr_rmtas.group(1) in nbr:
+                                lines_to_del_from_add.append((ctx_keys, line))
+
+    for ctx_keys, line in lines_to_del_from_add:
+        lines_to_add.remove((ctx_keys, line))
+
+
+def bgp_remove_neighbor_cfg(lines_to_del, del_nbr_dict):
+
+    # This method handles deletion of bgp neighbor configs,
+    # if there is neighbor to peer-group cmd is in delete list.
+    # As 'no neighbor .* peer-group' deletes the neighbor,
+    # subsequent neighbor speciic config line deletion results
+    # in error.
+    lines_to_del_to_del = []
+
+    for (ctx_keys, line) in lines_to_del:
+        if (
+            ctx_keys[0].startswith("router bgp")
+            and line
+            and line.startswith("neighbor ")
+        ):
+            if ctx_keys[0] in del_nbr_dict:
+                for nbr in del_nbr_dict[ctx_keys[0]]:
+                    re_nbr_pg = re.search('neighbor (\S+) .*peer-group (\S+)', line)
+                    nb_exp = "neighbor %s .*" % nbr
+                    if not re_nbr_pg:
+                        re_nb = re.search(nb_exp, line)
+                        if re_nb:
+                            lines_to_del_to_del.append((ctx_keys, line))
+
+    for (ctx_keys, line) in lines_to_del_to_del:
+        lines_to_del.remove((ctx_keys, line))
+
+
 def delete_move_lines(lines_to_add, lines_to_del):
-    """
-    This function handles deletion of bgp peer group config.  The objective is
-    to delete config lines related to peers associated with the peer-group and
-    move the peer-group config line to the end of the lines_to_del list.
-    """
+    # This method handles deletion of bgp peer group config.
+    # The objective is to delete config lines related to peers
+    # associated with the peer-group and move the peer-group
+    # config line to the end of the lines_to_del list.
+
+    bgp_delete_nbr_remote_as_line(lines_to_add)
+
     del_dict = dict()
+    del_nbr_dict = dict()
     # Stores the lines to move to the end of the pending list.
     lines_to_del_to_del = []
     # Stores the lines to move to end of the pending list.
@@ -852,6 +994,16 @@ def delete_move_lines(lines_to_add, lines_to_del):
             if re_nb_remoteas:
                 lines_to_del_to_app.append((ctx_keys, line))
 
+            # 'no neighbor peer [interface] peer-group <>' is in lines_to_del
+            # copy the neighbor and look for all config removal lines associated
+            # to neighbor and delete them from the lines_to_del
+            re_nbr_pg = re.search('neighbor (\S+) .*peer-group (\S+)', line)
+            if re_nbr_pg:
+                if ctx_keys[0] not in del_nbr_dict:
+                    del_nbr_dict[ctx_keys[0]] = list()
+                if re_nbr_pg.group(1) not in del_nbr_dict[ctx_keys[0]]:
+                    del_nbr_dict[ctx_keys[0]].append(re_nbr_pg.group(1))
+
             # {'router bgp 65001': {'PG': [], 'PG1': []},
             # 'router bgp 65001 vrf vrf1': {'PG': [], 'PG1': []}}
             if ctx_keys[0] not in del_dict:
@@ -860,13 +1012,17 @@ def delete_move_lines(lines_to_add, lines_to_del):
             re_pg = re.match("neighbor (\S+) peer-group$", line)
             if re_pg and re_pg.group(1) not in del_dict[ctx_keys[0]]:
                 del_dict[ctx_keys[0]][re_pg.group(1)] = list()
+                found_pg_del_cmd = True
+
+    if found_pg_del_cmd == False:
+        bgp_delete_inst_move_line(lines_to_del)
+        if del_nbr_dict:
+            bgp_remove_neighbor_cfg(lines_to_del, del_nbr_dict)
+        return (lines_to_add, lines_to_del)
 
     for (ctx_keys, line) in lines_to_del_to_app:
         lines_to_del.remove((ctx_keys, line))
         lines_to_del.append((ctx_keys, line))
-
-    if found_pg_del_cmd == False:
-        return (lines_to_add, lines_to_del)
 
     # {'router bgp 65001': {'PG': ['10.1.1.2'], 'PG1': ['10.1.1.21']},
     #  'router bgp 65001 vrf vrf1': {'PG': ['10.1.1.2'], 'PG1': ['10.1.1.21']}}
@@ -914,6 +1070,8 @@ def delete_move_lines(lines_to_add, lines_to_del):
     for (ctx_keys, line) in lines_to_del_to_app:
         lines_to_del.remove((ctx_keys, line))
         lines_to_del.append((ctx_keys, line))
+
+    bgp_delete_inst_move_line(lines_to_del)
 
     return (lines_to_add, lines_to_del)
 
@@ -1666,7 +1824,7 @@ if __name__ == "__main__":
 
     elif args.reload:
         if not os.path.isdir("/var/log/frr/"):
-            os.makedirs("/var/log/frr/")
+            os.makedirs("/var/log/frr/", mode=0o0755)
 
         logging.basicConfig(
             filename="/var/log/frr/frr-reload.log",
@@ -1842,7 +2000,7 @@ if __name__ == "__main__":
         lines_to_configure = []
 
         # We will not be able to do anything, go ahead and exit(1)
-        if not vtysh.is_config_available():
+        if not vtysh.is_config_available() or not reload_ok:
             sys.exit(1)
 
         log.debug("New Frr Config\n%s", newconf.get_lines())
