@@ -171,6 +171,10 @@ struct bgp_master {
 #define BM_FLAG_SEND_EXTRA_DATA_TO_ZEBRA (1 << 1)
 
 	bool terminating;	/* global flag that sigint terminate seen */
+
+	/* DSCP value for TCP sessions */
+	uint8_t tcp_dscp;
+
 	QOBJ_FIELDS;
 };
 DECLARE_QOBJ_TYPE(bgp_master);
@@ -453,7 +457,7 @@ struct bgp {
 #define BGP_LINK_BW_REF_BW                1
 
 	/* BGP flags. */
-	uint32_t flags;
+	uint64_t flags;
 #define BGP_FLAG_ALWAYS_COMPARE_MED       (1 << 0)
 #define BGP_FLAG_DETERMINISTIC_MED        (1 << 1)
 #define BGP_FLAG_MED_MISSING_AS_WORST     (1 << 2)
@@ -488,6 +492,10 @@ struct bgp {
 #define BGP_FLAG_SUPPRESS_FIB_PENDING (1 << 26)
 #define BGP_FLAG_SUPPRESS_DUPLICATES (1 << 27)
 #define BGP_FLAG_PEERTYPE_MULTIPATH_RELAX (1 << 29)
+/* Indicate Graceful Restart support for BGP NOTIFICATION messages */
+#define BGP_FLAG_GRACEFUL_NOTIFICATION (1 << 30)
+/* Send Hard Reset CEASE Notification for 'Administrative Reset' */
+#define BGP_FLAG_HARD_ADMIN_RESET (1 << 31)
 
 	/* BGP default address-families.
 	 * New peers inherit enabled afi/safis from bgp instance.
@@ -616,8 +624,7 @@ struct bgp {
 	struct bgp_maxpaths_cfg {
 		uint16_t maxpaths_ebgp;
 		uint16_t maxpaths_ibgp;
-		uint16_t ibgp_flags;
-#define BGP_FLAG_IBGP_MULTIPATH_SAME_CLUSTERLEN (1 << 0)
+		bool same_clusterlen;
 	} maxpaths[AFI_MAX][SAFI_MAX];
 
 	_Atomic uint32_t wpkt_quanta; // max # packets to write per i/o cycle
@@ -1525,6 +1532,11 @@ struct peer {
 	_Atomic time_t last_write;
 	/* timestamp when the last msg was written */
 	_Atomic time_t last_update;
+
+	/* only updated under io_mtx.
+	 * last_sendq_warn is only for ratelimiting log warning messages.
+	 */
+	time_t last_sendq_ok, last_sendq_warn;
 
 	/* Notify data. */
 	struct bgp_notify notify;
@@ -2448,7 +2460,7 @@ static inline uint32_t bgp_vrf_interfaces(struct bgp *bgp, bool active)
 	if (vrf == NULL)
 		return 0;
 	RB_FOREACH (ifp, if_name_head, &vrf->ifaces_by_name) {
-		if (strncmp(ifp->name, bgp->name, VRF_NAMSIZ) == 0)
+		if (strcmp(ifp->name, bgp->name) == 0)
 			continue;
 		if (!active || if_is_up(ifp))
 			count++;
