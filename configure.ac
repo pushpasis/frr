@@ -7,7 +7,7 @@
 ##
 AC_PREREQ([2.69])
 
-AC_INIT([frr], [8.3-dev], [https://github.com/frrouting/frr/issues])
+AC_INIT([frr], [8.4-dev], [https://github.com/frrouting/frr/issues])
 PACKAGE_URL="https://frrouting.org/"
 AC_SUBST([PACKAGE_URL])
 PACKAGE_FULLNAME="FRRouting"
@@ -1317,6 +1317,7 @@ AC_CHECK_FUNCS([ \
 	unlinkat \
 	posix_fallocate \
 	sendmmsg \
+	explicit_bzero \
 	])
 
 AC_CHECK_MEMBERS([struct mmsghdr.msg_hdr], [], [], FRR_INCLUDES)
