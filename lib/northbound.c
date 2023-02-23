@@ -773,7 +773,14 @@ static void nb_update_candidate_changes(struct nb_config *candidate,
 		root = yang_dnode_get(running_config->dnode, xpath);
 		/* code */
 		break;
-	default:
+	case NB_OP_MOVE:
+	case NB_OP_PRE_VALIDATE:
+	case NB_OP_APPLY_FINISH:
+	case NB_OP_GET_ELEM:
+	case NB_OP_GET_NEXT:
+	case NB_OP_GET_KEYS:
+	case NB_OP_LOOKUP_ENTRY:
+	case NB_OP_RPC:
 		break;
 	}
 
@@ -2620,6 +2627,10 @@ const char *nb_client_name(enum nb_client client)
 		return "gRPC";
 	case NB_CLIENT_PCEP:
 		return "Pcep";
+	case NB_CLIENT_MGMTD_SERVER:
+		return "MGMTD Server";
+	case NB_CLIENT_MGMTD_BE:
+		return "MGMT Backend";
 	case NB_CLIENT_NONE:
 		return "None";
 	}

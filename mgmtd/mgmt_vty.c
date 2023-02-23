@@ -387,7 +387,7 @@ DEFPY(show_mgmt_dump_data,
       "Dump the contents to a file\n"
       "Full path of the file\n"
       "Format of the output\n"
-      "json|xml")
+      "json|xml\n")
 {
 	Mgmtd__DatabaseId database = MGMTD_DB_CANDIDATE;
 	struct mgmt_db_ctx *db_ctx;
@@ -454,7 +454,7 @@ DEFPY(mgmt_load_config,
       "Read the configuration from a file\n"
       "Full path of the file\n"
       "Merge configuration with contents of Candidate Database\n"
-      "Replace the existing contents of Candidate database")
+      "Replace the existing contents of Candidate database\n")
 {
 	bool merge = false;
 	int idx_merge = 4;
@@ -499,7 +499,7 @@ DEFPY(mgmt_save_config,
       "Name of the database\n"
       "<candidate|running>"
       "Write the configuration to a file\n"
-      "Full path of the file")
+      "Full path of the file\n")
 {
 	struct mgmt_db_ctx *db_ctx;
 	Mgmtd__DatabaseId database;
@@ -608,7 +608,7 @@ DEFPY(debug_mgmt_be,
       NO_STR
       DEBUG_STR
       MGMTD_STR
-      "Debug Backend Functionality")
+      "Debug Backend Functionality\n")
 {
 	if (no)
 		mgmt_debug_be = false;
@@ -624,7 +624,7 @@ DEFPY(debug_mgmt_fe,
       NO_STR
       DEBUG_STR
       MGMTD_STR
-      "Debug Frontend Functionality")
+      "Debug Frontend Functionality\n")
 {
 	if (no)
 		mgmt_debug_fe = false;
@@ -640,7 +640,7 @@ DEFPY(debug_mgmt_db,
       NO_STR
       DEBUG_STR
       MGMTD_STR
-      "Debug Database Functionality")
+      "Debug Database Functionality\n")
 {
 	if (no)
 		mgmt_debug_db = false;
@@ -656,7 +656,7 @@ DEFPY(debug_mgmt_txn,
       NO_STR
       DEBUG_STR
       MGMTD_STR
-      "Debug Transaction Functionality")
+      "Debug Transaction Functionality\n")
 {
 	if (no)
 		mgmt_debug_txn = false;
@@ -671,7 +671,7 @@ DEFPY(debug_mgmt_all,
       NO_STR
       DEBUG_STR
       MGMTD_STR
-      "Debug All Functionality")
+      "Debug All Functionality\n")
 {
 	if (no) {
 		mgmt_debug_be = false;

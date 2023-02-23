@@ -3513,9 +3513,20 @@ int vty_mgmt_send_config_data(struct vty *vty)
 				cfg_req[cnt].req_type =
 					MGMTD__CFG_DATA_REQ_TYPE__DELETE_DATA;
 				break;
-			default:
+			case NB_OP_CREATE:
+			case NB_OP_MODIFY:
+			case NB_OP_MOVE:
+			case NB_OP_PRE_VALIDATE:
+			case NB_OP_APPLY_FINISH:
 				cfg_req[cnt].req_type =
 					MGMTD__CFG_DATA_REQ_TYPE__SET_DATA;
+				break;
+			case NB_OP_GET_ELEM:
+			case NB_OP_GET_NEXT:
+			case NB_OP_GET_KEYS:
+			case NB_OP_LOOKUP_ENTRY:
+			case NB_OP_RPC:
+				assert(!"Invalid type of operation");
 				break;
 			}
 
