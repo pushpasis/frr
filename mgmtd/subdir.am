@@ -4,9 +4,6 @@
 
 # dist_examples_DATA += \
 	# end
-vtysh_scan += \
-	mgmtd/mgmt_vty.c \
-	# endif
 
 vtysh_daemons += mgmtd
 
@@ -16,6 +13,13 @@ vtysh_daemons += mgmtd
 clippy_scan += \
 	mgmtd/mgmt_vty.c \
 	# end
+
+lib_LTLIBRARIES += mgmtd/libmgmt_be_nb.la
+nodist_mgmtd_libmgmt_be_nb_la_SOURCES = \
+	# end
+mgmtd_libmgmt_be_nb_la_CFLAGS = $(AM_CFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY
+mgmtd_libmgmt_be_nb_la_CPPFLAGS = $(AM_CPPFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY
+mgmtd_libmgmt_be_nb_la_LDFLAGS = -version-info 0:0:0
 
 noinst_LIBRARIES += mgmtd/libmgmtd.a
 mgmtd_libmgmtd_a_SOURCES = \
@@ -54,3 +58,4 @@ mgmtd_mgmtd_SOURCES = \
 	# end
 mgmtd_mgmtd_CFLAGS = $(AM_CFLAGS) -I ./
 mgmtd_mgmtd_LDADD = mgmtd/libmgmtd.a lib/libfrr.la $(LIBCAP) $(LIBM) $(LIBYANG_LIBS) $(UST_LIBS)
+mgmtd_mgmtd_LDADD += mgmtd/libmgmt_be_nb.la
