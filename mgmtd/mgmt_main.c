@@ -215,6 +215,9 @@ static void mgmt_vrf_terminate(void)
 static const struct frr_yang_module_info *const mgmt_yang_modules[] = {
 	&frr_filter_info,  &frr_interface_info, &frr_route_map_info,
 	&frr_routing_info, &frr_vrf_info,
+#ifdef HAVE_STATICD
+	&frr_mgmt_staticd_info,
+#endif
 };
 
 FRR_DAEMON_INFO(mgmtd, MGMTD, .vty_port = MGMTD_VTY_PORT,

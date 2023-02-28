@@ -10,12 +10,16 @@ vtysh_daemons += mgmtd
 # man8 += $(MANBUILD)/frr-mgmtd.8
 # endif
 
+$(mgmtd_mgmtd_OBJECTS): yang/frr-staticd.yang.c
+CLEANFILES += yang/frr-staticd.yang.c
+
 clippy_scan += \
 	mgmtd/mgmt_vty.c \
 	# end
 
 lib_LTLIBRARIES += mgmtd/libmgmt_be_nb.la
 nodist_mgmtd_libmgmt_be_nb_la_SOURCES = \
+	staticd/static_vty.c \
 	# end
 mgmtd_libmgmt_be_nb_la_CFLAGS = $(AM_CFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY
 mgmtd_libmgmt_be_nb_la_CPPFLAGS = $(AM_CPPFLAGS) -DINCLUDE_MGMTD_CMDDEFS_ONLY
