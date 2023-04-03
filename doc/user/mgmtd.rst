@@ -316,6 +316,23 @@ MGMT Configuration commands
     Running DB. It also dumps a copy of the tree in JSON format into
     frr_startup.json.
 
+    The config tree is written to the frr_startup.json file only when commits are
+    merged succesfully in other words when mgmt commit-apply returns success or
+    in case of commands with implicit commits when they return success with out
+    any errors.
+
+    The frr_startup.json is read everytime when MGMTd comes up during the intialization
+    stage. In case if the file is not present a new running configs is created with
+    empty configurations.
+
+    The frr_startup.json is config read file for MGMTd, so even if the frr.conf or
+    daemon related confs are deleted MGMT will still have frr_startup.json which
+    can reload these configuration.
+
+    As of now there are no changes in frr configuration versioning and profiling.
+    MGMTd commit does not make any changes for these, the config show commands like
+    show running-configs still work in traditional ways.
+
 .. clicmd:: mgmt commit check
 
     This command validates the configuration but does not apply them to the
